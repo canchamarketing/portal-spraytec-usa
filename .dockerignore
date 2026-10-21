@@ -1,0 +1,10 @@
+node_modules
+.env
+.env.*
+.dados-dev
+.claude
+.git
+testes
+prototipo-spraytec.html
+ACESSO-DEMO.txt
+*.log

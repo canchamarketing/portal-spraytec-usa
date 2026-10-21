@@ -1,0 +1,56 @@
+# Portal Spraytec no servidor da Hostinger (/opt/spraytec). Segredos ficam em .env (permissão 600, fora do git).
+services:
+  app:
+    build: .
+    image: portal-spraytec:latest
+    restart: unless-stopped
+    mem_limit: 512m
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://spraytec:${POSTGRES_PASSWORD}@db:5432/spraytec
+      BASE_URL: https://${SITE_HOST}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [traefik_proxy, interna]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik_proxy
+      - traefik.http.routers.spraytec.rule=Host(`${SITE_HOST}`)
+      - traefik.http.routers.spraytec.entrypoints=websecure
+      - traefik.http.routers.spraytec.tls=true
+      - traefik.http.routers.spraytec.tls.certresolver=letsencrypt
+      - traefik.http.routers.spraytec.service=spraytec
+      - traefik.http.services.spraytec.loadbalancer.server.port=3000
+      - traefik.http.routers.spraytec-http.rule=Host(`${SITE_HOST}`)
+      - traefik.http.routers.spraytec-http.entrypoints=web
+      - traefik.http.routers.spraytec-http.middlewares=spraytec-https
+      - traefik.http.middlewares.spraytec-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.spraytec-https.redirectscheme.permanent=true
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    mem_limit: 512m
+    environment:
+      POSTGRES_DB: spraytec
+      POSTGRES_USER: spraytec
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - dados:/var/lib/postgresql/data
+    networks: [interna]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spraytec -d spraytec"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dados:
+
+networks:
+  traefik_proxy:
+    external: true
+  interna:

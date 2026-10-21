@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "portal-local", "runtimeExecutable": "node", "runtimeArgs": ["--env-file=.env.dev", "server/main.ts"], "port": 3000 }
+  ]
+}
