@@ -56,7 +56,9 @@ function emFila<T>(fn: () => Promise<T>): Promise<T> {
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL || 'info' }, disableRequestLogging: true, trustProxy: true, bodyLimit: 1_000_000 });
 await app.register(cookie, { secret: process.env.COOKIE_SEGREDO || randomBytes(32).toString('hex') });
 
-app.addHook('onSend', async (_req, rep, payload) => {
+app.addHook('onSend', async (req, rep, payload) => {
+  // O navegador sempre confere se há versão nova da tela (e nunca guarda respostas da API).
+  rep.header('Cache-Control', req.url.startsWith('/api/') ? 'no-store' : 'no-cache');
   rep.header('X-Content-Type-Options', 'nosniff');
   rep.header('X-Frame-Options', 'DENY');
   rep.header('Referrer-Policy', 'same-origin');
