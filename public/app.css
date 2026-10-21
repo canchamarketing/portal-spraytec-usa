@@ -897,3 +897,11 @@ body.salvando,body.salvando *{cursor:progress!important}
 
 .wm img{height:26px;width:auto;display:block}
 @media (max-width:600px){.demo span{display:none}.brand .byc{display:none}}
+
+/* Assinatura discreta da Cancha (cabeçalho e tela de entrada) */
+.byc{display:inline-flex;align-items:center;gap:6px}
+.byc img{height:18px;width:auto;display:block;filter:grayscale(1) brightness(.55);opacity:.75;transition:filter .2s,opacity .2s}
+.byc:hover img{filter:none;opacity:1}
+.porcancha{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--muted);letter-spacing:.04em}
+.porcancha img{height:44px;width:auto;filter:grayscale(1) brightness(.55);opacity:.7}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .byc img,:root:not([data-theme="light"]) .porcancha img{background:#fff;border-radius:4px;padding:2px 4px}}
