@@ -1,3 +1,8 @@
+/* Base (vinha da primeira linha do protótipo): sem margem padrão do navegador */
+html,body{margin:0;padding:0}
+img{max-width:100%}
+[hidden]:not([hidden=until-found i]){display:none!important}
+
 /* Layout: barra superior com troca de papel, navegação lateral (vira abas no celular), área de trabalho e gaveta de detalhe à direita. Identidade Spraytec (spraytec.com): verde-folha #8BC540, verde-escuro #235F3F, branco e cinzas; Poppins. */
 :root{
   --bg:#F5F7F2; --surface:#FFFFFF; --surface-2:#EEF2E8; --ink:#1E2B22; --muted:#666666; --line:#E2E8DC;
