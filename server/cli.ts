@@ -14,7 +14,7 @@ if (cmd === 'restaurar-demo') {
   const ancora = arg || hojeBR();
   await b.tx(async (q) => {
     await gravarTudo(q, dadosDemo(ancora), 'sistema');
-    await q.query(`insert into auditoria (usuario_nome, acao, resumo) values ('sistema', 'demo-restaurar', $1)`, [`Dados fictícios recarregados (referência: ${ancora})`]);
+    await q.query(`insert into auditoria (usuario_nome, acao, resumo) values ('sistema', 'demo-restaurar', $1)`, [`Dados iniciais carregados (referência: ${ancora})`]);
   });
   console.log('Dados de demonstração recarregados com referência em', ancora);
 } else if (cmd === 'limpar-tudo') {
@@ -27,7 +27,7 @@ if (cmd === 'restaurar-demo') {
     alter table auditoria enable trigger auditoria_sem_alteracao;
     alter table auditoria enable trigger auditoria_sem_truncate;
     commit;`);
-  await b.query(`insert into auditoria (usuario_nome, acao, resumo) values ('sistema', 'limpar-tudo', 'Conteúdo de demonstração apagado')`);
+  await b.query(`insert into auditoria (usuario_nome, acao, resumo) values ('sistema', 'limpar-tudo', 'Base reiniciada')`);
   console.log('Tudo apagado. Desligue o modo demonstração (DEMO_CODIGO) antes de reiniciar.');
 } else {
   console.log('Comandos: restaurar-demo [AAAA-MM-DD] | limpar-tudo --confirmo');

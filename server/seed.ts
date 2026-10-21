@@ -41,11 +41,20 @@ export function dadosDemo(hoje: string): Estado {
   const e = estadoVazio();
   let uid = 1;
   function P(date: string | null, time: string | null, rede: string, formato: string, titulo: string, pilar: string, produto: string, status: string, extra?: any) {
+    const corpo = ({
+      Manejo: 'Cada fase da lavoura pede um cuidado diferente. O time de agronomia da Spraytec mostra o que observar no campo e o momento certo de agir.\n\nFale com o RTV da sua região para montar o manejo da sua área.',
+      Campo: 'Direto do campo: produtores e o time Spraytec mostrando, na prática, como a nutrição certa faz diferença na lavoura.\n\nQuer ver isso na sua área? Chame o RTV Spraytec.',
+      Produto: 'Veja como a linha Spraytec trabalha na planta e em que momento ela entra no manejo.\n\nRecomendações sempre conforme a bula e com acompanhamento do seu agrônomo.',
+      Educação: 'Salve para consultar na próxima aplicação. Informação técnica, direto ao ponto, validada pela agronomia da Spraytec.',
+      Institucional: 'Por trás de cada produto Spraytec existe uma equipe dedicada a quem produz. Conheça um pouco do nosso dia a dia.',
+      Relacionamento: 'Queremos ouvir você: conte nos comentários como está a sua lavoura nesta safra.',
+      Eventos: 'Anote na agenda e venha conversar com o time Spraytec. Inscrições pelo link na bio.',
+    } as any)[pilar] || 'Conteúdo do time Spraytec para quem produz.';
     const leg = ({
-      email: 'Assunto: ' + titulo + '\nPré-cabeçalho: o que muda no manejo neste mês.\n\nTexto de exemplo do e-mail, com chamada para o site.',
+      email: 'Assunto: ' + titulo + '\nPré-cabeçalho: o manejo do mês, direto ao ponto.\n\nOlá, produtor!\n\nSeparamos o que mais importa para a sua lavoura nesta fase da safra, com recomendações do time de agronomia da Spraytec.\n\nLeia a matéria completa no site e fale com o RTV da sua região.',
       ads: 'Plano de mídia.', design: 'Peças criadas a partir do calendário aprovado, entregues em feed, stories e anúncio.',
       video: 'Produção de vídeo com a produtora contratada pela Spraytec.',
-    } as any)[rede] || titulo + '.\n\nTexto de exemplo da legenda, escrito pela Cancha a partir do calendário aprovado. Informações técnicas validadas pela agronomia da Spraytec.\n\n#Spraytec #NutriçãoVegetal #Soja';
+    } as any)[rede] || titulo + '.\n\n' + corpo + '\n\n#Spraytec #NutriçãoVegetal #Soja';
     return Object.assign({ id: 'p' + uid++, date: D(date), _proto: date, time, rede, formato, titulo, pilar, produto, status, rodada: 1, legenda: leg, comments: [] as any[], hist: [] as any[] }, extra || {});
   }
   const T = {

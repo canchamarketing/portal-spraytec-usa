@@ -36,7 +36,7 @@ async function auditar(q: { query: typeof b.query }, u: Partial<Usuario> | null,
 async function restaurarDemo(u: Partial<Usuario> | null, ancora = process.env.DEMO_HOJE || hojeBR()) {
   await b.tx(async (q) => {
     await gravarTudo(q, dadosDemo(ancora), 'sistema');
-    await auditar(q, u, 'demo-restaurar', `Dados fictícios de demonstração recarregados (referência: ${ancora})`, null, null);
+    await auditar(q, u, 'demo-restaurar', `Dados iniciais carregados (referência: ${ancora})`, null, null);
   });
 }
 if (modoDemo()) {

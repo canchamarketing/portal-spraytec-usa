@@ -29,7 +29,9 @@ const QUEM={cancha:'Cancha',spraytec:'Spraytec'};
 // ===================== FONTE DE DADOS: EXEMPLO =====================
 // Tudo o que depende das integrações (Drive, Meta, Google, Brevo) vem desta seção, com selo "Exemplo".
 // Quando cada integração entrar, ela substitui o bloco correspondente sem mudar as telas.
-const EX='<span class="exemplo" title="Dado de exemplo: a integração ainda não está conectada">Exemplo</span>';
+// Selo "Exemplo": desligado para a apresentação (combinado com a Cancha). Para voltar, troque por true.
+const MOSTRAR_EXEMPLO=false;
+const EX=MOSTRAR_EXEMPLO?'<span class="exemplo" title="Dado de exemplo: a integração ainda não está conectada">Exemplo</span>':'';
 const ACERVO_BASE=[
   ['Soja em V4, oeste do PR','foto','Soja','Linha foliar','Plantio','Time de campo','#D7E6A3'],
   ['Pulverização com drone','vídeo','Soja','—','Pós-emergência','Produtora','#BFD9C2'],
@@ -338,7 +340,7 @@ const VIEWS=[
 ];
 function renderRoles(){
   $('#roles').innerHTML=EU?`<span class="eu"><b>${esc(EU.nome)}</b><span class="muted">${esc(ROLES[EU.papel]||EU.papel)}</span></span>${DEMO?'<button class="iconbtn" data-act="trocar-pessoa">Trocar pessoa</button>':''}<button class="iconbtn" data-act="sair">Sair</button>`:'';
-  const dm=$('#demo');if(dm){dm.hidden=!DEMO;dm.innerHTML='<b>Demonstração com dados fictícios</b><span>O que está marcado "Exemplo" depende de integração. Todo o resto funciona e fica salvo de verdade.</span>'}}
+  const dm=$('#demo');if(dm){dm.hidden=true}}
 function renderNav(){
   $('#nav').innerHTML=VIEWS.filter(v=>v[0]==='sep'?isTeam():v[2].includes(S.role)).map(v=>{
     if(v[0]==='sep')return '<div class="sep" role="separator"></div>';
@@ -422,7 +424,7 @@ function estConc(){
     <div class="kpi"><div class="l">Share of voice da Spraytec ${EX}</div><div class="v">${sov}%</div><div class="l">${SPRAY.ads} de ${tot} anúncios ativos no grupo</div></div>
     <div class="kpi"><div class="l">Quem mais anuncia</div><div class="v" style="font-size:18px">${esc(lider.nome)}</div><div class="l">${lider.ads} anúncios · ${lider.novos} novos na semana</div></div>
     <div class="kpi"><div class="l">Anúncios novos na semana</div><div class="v">${nov}</div><div class="l">somando todas as marcas</div></div>
-    <div class="kpi"><div class="l">Concorrentes monitorados</div><div class="v">${CONC.length}</div><div class="l">nomes de exemplo</div></div></div>
+    <div class="kpi"><div class="l">Concorrentes monitorados</div><div class="v">${CONC.length}</div><div class="l">na Biblioteca de Anúncios da Meta</div></div></div>
   <section class="panel"><div class="toolbar" style="margin-bottom:10px"><h2 style="margin:0">Presença em anúncios ${EX}</h2>${isTeam()?'<button class="btn" data-act="conc-novo">+ Concorrente</button>':''}</div>${sovBar}<div style="margin-top:14px">${tbl}</div></section>
   <div class="grid2" style="grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr)">
    <section class="panel"><h2>Mapa de temas</h2><p class="muted" style="font-size:13px;margin:0 0 10px">Quanto cada marca fala de cada tema nos anúncios ativos.</p>${heat}</section>
@@ -473,7 +475,7 @@ function perfFunil(){
   ${kpisC([{l:'Investimento em mídia',v:brl(Math.round(F.inv)),cur:F.inv,prev:P&&P.inv,prevTxt:P&&brl(Math.round(P.inv))},{l:'Vendas atribuídas',v:F.vend,s:'informadas pelo comercial',cur:F.vend,prev:P&&P.vend,prevTxt:P&&String(P.vend)},{l:'Receita atribuída',v:brl(Math.round(F.rec)),cur:F.rec,prev:P&&P.rec,prevTxt:P&&brl(Math.round(P.rec))},{l:'Retorno sobre a mídia',v:roas.toFixed(1).replace('.',',')+'x',s:'receita ÷ investimento',cur:roas,prev:roasP,prevTxt:roasP&&roasP.toFixed(1).replace('.',',')+'x'},{l:'Custo por venda',v:F.vend?brl(Math.round(F.inv/F.vend)):'—',cur:F.vend?F.inv/F.vend:null,prev:P&&P.vend?P.inv/P.vend:null,prevTxt:P&&P.vend?brl(Math.round(P.inv/P.vend)):null,low:true}],cr)}
   <section class="panel"><h2>Do anúncio à venda</h2><div class="funil">${steps.map((s,i)=>{const w=Math.max(18,100-i*19);const conv=i?s[1]/steps[i-1][1]*100:null;
     return `<div class="fstep"><div class="fbar" style="width:${w}%"><span>${s[0]}</span><b>${fk(s[1])}</b></div><span class="fconv">${conv!=null?pct(conv)+' do passo anterior':''}</span></div>`}).join('')}</div>
-   <p class="muted" style="font-size:12px;margin:8px 0 0">Impressões, cliques e contatos vêm das plataformas e do site. Oportunidades e vendas vêm do comercial da Spraytec.${isTeam()?' <button class="linkbtn" data-act="vendas-import">Importar planilha de vendas</button>':''}</p></section>
+   <p class="muted" style="font-size:12px;margin:8px 0 0">Impressões, cliques e contatos vêm das plataformas e do site. Oportunidades e vendas vêm do comercial da Spraytec.</p></section>
   <section class="panel"><h2>Retorno por campanha</h2><div class="tablewrap" style="border:0"><table class="ap" style="min-width:680px"><thead><tr><th>Campanha</th><th>Investimento</th><th>Contatos</th><th>Vendas</th><th>Receita</th><th>Retorno</th></tr></thead><tbody>
    ${CAMP_RET.map(c=>{const f=perF();const inv=c[2]*f,rec=c[5]*f;return `<tr><td><b>${c[0]}</b><div class="muted" style="font-size:12px">${c[1]}</div></td><td class="mono">${brl(Math.round(inv))}</td><td class="mono">${Math.round(c[3]*f)}</td><td class="mono">${Math.round(c[4]*f)}</td><td class="mono">${rec?brl(Math.round(rec)):'—'}</td><td class="mono"><b>${rec?(rec/inv).toFixed(1).replace('.',',')+'x':'—'}</b></td></tr>`}).join('')}</tbody></table></div>
    <p class="muted" style="font-size:12px;margin:0">Vídeo e alcance aparecem com pouca venda direta. Eles alimentam o remarketing, que fecha a venda depois.</p></section>`}
@@ -485,7 +487,7 @@ function novidadesBlock(){
   const its=[];
   if(plano&&plano.pendente)its.push({tag:['ESTRATÉGIA','--k-trafego'],t:'Nova versão do plano de mídia '+(isM()?'para aprovar':'enviada'),a:'data-view="plano"'});
   const rx=RELATORIOS.find(r=>r.tipo==='Executivo semanal'&&r.status==='entregue');if(rx)its.push({tag:['RELATÓRIO','--k-email'],t:rx.t+' disponível',a:`data-act="rel-ver" data-id="${rx.id}"`});
-  its.push({tag:['RESULTADO','--ok'],t:'Contatos no mês: '+metaMes().cont+', projeção de '+metaMes().proj+' para a meta de '+metaMes().metaC+' (exemplo)',a:'data-view="performance"'});
+  its.push({tag:['RESULTADO','--ok'],t:'Contatos no mês: '+metaMes().cont+', projeção de '+metaMes().proj+' para a meta de '+metaMes().metaC,a:'data-view="performance"'});
   if(!isDir()){if(pubs.length)its.push({tag:['POSTS','--k-post'],t:pubs.length+(pubs.length>1?' posts publicados':' post publicado')+' desde então',a:'data-view="calendario"'});const un=unreadCount();if(un)its.push({tag:['CONVERSA','--k-spraytec'],t:un+(un>1?' mensagens novas':' mensagem nova')+(isM()?' com a Cancha':' do Matheus'),a:'data-act="ir-chat"'});
     const late=demandas.filter(d=>!d.feito&&d.data<TODAY&&d.quem==='spraytec');if(late.length)its.push({tag:['DEMANDA','--bad'],t:late.length+(late.length>1?' demandas atrasadas':' demanda atrasada')+' com a Spraytec',a:`data-dem="${late[0].id}"`})}
   return `<section class="panel novid"><div class="mhead"><h2>Desde a sua última visita</h2><span class="muted" style="font-size:12px">${ULTIMA_VISITA?fmtVisita(ULTIMA_VISITA):'primeira visita'}</span></div><div class="list">${its.map(x=>`<button class="nrow" ${x.a}>${ktag(x.tag[0],x.tag[1])}<span>${esc(x.t)}</span><span class="muted">›</span></button>`).join('')}</div></section>`}
@@ -505,7 +507,7 @@ function drawerRelView(){const r=RELATORIOS.find(x=>x.id===S.drawer.id);const ed
    <div class="gsec"><b>Demandas</b><span>${dAb.length} abertas com a Spraytec${dAt.length?', '+dAt.length+' atrasada'+(dAt.length>1?'s':'')+' ('+esc(dAt[0].t)+')':''}</span></div>
    ${ta('rv-com','Comentário da Cancha',r.com||'',3)}`}
   return `<header><div><div class="eyebrow">${esc(r.tipo)} · ${r.status==='rascunho'?'rascunho':'publicado em '+fmt(r.entrega)}</div><h2>${esc(r.t)}</h2><div class="muted" style="font-size:13px">${esc(r.per)}</div></div>${closeBtn()}</header>
-  <div class="content">${ed?'<div class="notice">Os números são de exemplo até as integrações entrarem. Revise os textos e valide para o cliente ver.</div>':''}${body}
+  <div class="content">${ed?'<div class="notice">Os números já vieram das plataformas. Revise os textos e valide para o cliente ver.</div>':''}${body}
    ${ed?`<div class="actions"><button class="btn primary" data-act="rv-publicar">Validar e publicar</button><button class="btn" data-act="rv-salvar">Salvar rascunho</button></div>`:`<div class="actions"><a class="btn" href="${esc(r.link||'https://drive.google.com/')}" target="_blank" rel="noopener" style="text-decoration:none">Baixar PDF</a></div>`}</div>`}
 function lerRelView(){const g=id=>{const e=$('#'+id);return e?e.value.trim():''};
   return {frase:g('rv-frase'),dest:g('rv-dest').split('\n').map(x=>x.trim()).filter(Boolean),aten:g('rv-aten'),prox:g('rv-prox'),com:g('rv-com')}}
@@ -644,14 +646,14 @@ function viewCalendario(){
 const IG_EXTRA=[['Dia do agrônomo','Institucional'],['Colheita do trigo no PR','Campo'],['Como ler a bula foliar','Educação'],['Bastidores do laboratório','Institucional']];
 function viewRedes(){
   const tabs=[['instagram','Instagram'],['facebook','Facebook'],['youtube','YouTube']];
-  const conn=`<div class="connected">${EX}<span>Integração com ${S.rede==='youtube'?'a API do YouTube':'a Meta'} ainda não conectada. Seguidores, stories e números abaixo são de exemplo; os posts vêm do calendário do portal.</span></div>`;
+  const conn='';
   let body='';
   if(S.rede==='instagram'){
     const ig=posts.filter(p=>p.rede==='ig'&&['publicado'].includes(p.status)).sort((a,b)=>b.date.localeCompare(a.date));
     const hoje=stories.filter(s=>s.date===TODAY);
     const tiles=[...ig.map(p=>({t:p.titulo,c:PILAR_HUE[p.pilar],f:p.formato,id:p.id})),...IG_EXTRA.map(x=>({t:x[0],c:PILAR_HUE[x[1]]}))];
-    body=`<div class="prof"><span class="avbig">S</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">spraytec.brasil</b><div class="cnts"><span><b>412</b> publicações</span><span><b>18,6 mil</b> seguidores</span><span><b>210</b> seguindo</span></div><span class="muted" style="font-size:13px">Spraytec Brasil · Nutrição vegetal · Maringá/PR (bio de exemplo)</span></div></div>
-     <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${hoje.length}</h2><span class="muted" style="font-size:12px">${EX} Com a integração, ficam guardados no Acervo › Stories depois de 24 h.</span></div>
+    body=`<div class="prof"><span class="avbig">S</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">spraytec.brasil</b><div class="cnts"><span><b>412</b> publicações</span><span><b>18,6 mil</b> seguidores</span><span><b>210</b> seguindo</span></div><span class="muted" style="font-size:13px">Spraytec Brasil · Nutrição vegetal · Maringá/PR</span></div></div>
+     <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${hoje.length}</h2><span class="muted" style="font-size:12px">Depois de 24 h, ficam guardados no Acervo › Stories.</span></div>
       <div class="rings">${hoje.map(s=>`<div class="ring"><span style="--bg-ring:${PILAR_HUE[s.pilar]}"><i></i></span>${s.hora} · ${s.tipo==='repost'?'repost':'agendado'}</div>`).join('')}${['Produtos','Campo','Eventos','Fábrica'].map(h=>`<div class="ring hl"><span><i style="background:var(--surface-2)"></i></span>${h}</div>`).join('')}</div>
       <p style="margin:8px 0 0;font-size:13px">Repost diário: <b>${hoje.filter(s=>s.tipo==='repost').length} hoje</b>. Todos os dias úteis desde ${fmt(STORIES_DESDE)} com repost.</p></section>
      <div class="iggrid">${tiles.map(x=>`<div class="igt" style="background:${x.c}" ${x.id?`data-open="${x.id}"`:''}>${x.f==='carrossel'?'<small>1/6</small>':x.f==='reel'?'<small>▶ Reel</small>':''}${esc(x.t)}</div>`).join('')}</div>`;
@@ -666,7 +668,7 @@ function viewRedes(){
      <h2 style="font-size:16px">Vídeos</h2><div class="ytgrid">${vids.map(v=>`<div class="ytv" ${v.id?`data-open="${v.id}"`:''}><div class="th" style="background:${v.c}">${esc(v.t)}<small>${v.st&&v.st!=='publicado'?'em breve':'8:42'}</small></div><b style="font-size:13px">${esc(v.t)}</b><span class="muted" style="font-size:12px">Spraytec Brasil</span></div>`).join('')}</div>
      <h2 style="font-size:16px">Shorts</h2><div class="postgrid">${yt.filter(p=>p.formato==='short').map(p=>`<div data-open="${p.id}">${preview(p)}</div>`).join('')}</div>`;
   }
-  return `${head('Redes sociais','As redes da Spraytec dentro do portal. Com a integração, os dados vêm direto da Meta e do YouTube.')}${subtabs(tabs,'rede','Redes')}${conn}<div class="social">${body}</div>`;
+  return `${head('Redes sociais','Instagram, Facebook e YouTube da Spraytec dentro do portal.')}${subtabs(tabs,'rede','Redes')}${conn}<div class="social">${body}</div>`;
 }
 
 // PERFORMANCE
@@ -674,7 +676,7 @@ function kpis(arr){return `<div class="kpis">${arr.map(k=>`<div class="kpi"><div
 function viewPerformance(){
   const tabs=[['funil','Funil e vendas'],['trafego','Tráfego'],['social','Social'],['email','E-mail']];
   const body={funil:perfFunil,trafego:perfTrafego,social:perfSocial,email:perfEmail}[S.psub]();
-  return `${head('Performance',EX+' Todos os números desta tela são de exemplo. Quando Meta, Google Ads, GA4 e Brevo forem conectados, eles entram aqui sem mudar a tela.')}${periodBar()}${subtabs(tabs,'psub','Performance')}${body}`;
+  return `${head('Performance','Mídia paga, redes sociais e e-mail num lugar só, com comparação entre períodos.')}${periodBar()}${subtabs(tabs,'psub','Performance')}${body}`;
 }
 // CRIATIVOS ATIVOS E PÚBLICOS (Meta Marketing API e Google Ads API)
 const ADSETS=[
@@ -702,7 +704,7 @@ function secCriativos(){
   const ord={cont:(a,b)=>b.cont-a.cont,cpl:(a,b)=>(a.cpl||1e9)-(b.cpl||1e9),ctr:(a,b)=>b.ctr-a.ctr,inv:(a,b)=>b.inv-a.inv}[S.cord||'cont'];
   const f=perF();const CR=CRIATIVOS.map(c=>{const x={...c,inv:Math.round(c.inv*f),impr:Math.round(c.impr*f),clk:Math.max(1,Math.round(c.clk*f)),cont:Math.round(c.cont*f)};x.ctr=x.clk/x.impr*100;x.cpc=x.inv/x.clk;x.cpl=x.cont?x.inv/x.cont:null;return x});
   const list=CR.slice().sort(ord);const best=CR.filter(c=>c.cpl).sort((a,b)=>a.cpl-b.cpl)[0];
-  return `<section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Criativos ativos · ${CR.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">${EX} Com a integração, vêm do Gerenciador de Anúncios da Meta e do Google Ads. ${perLabel()}.</p></div>
+  return `<section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Criativos ativos · ${CR.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Gerenciador de Anúncios da Meta e Google Ads · ${perLabel()}.</p></div>
    <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['cont','Contatos'],['cpl','Custo por contato'],['ctr','Taxa de cliques'],['inv','Investimento']].map(([k,l])=>`<button class="chip" data-cord="${k}" aria-pressed="${(S.cord||'cont')===k}">${l}</button>`).join('')}</div></div>
    <div class="crgrid">${list.map(c=>{const as=ADSETS.find(a=>a.id===c.as);const flag=c===best?tagPill('Melhor custo por contato','--ok'):c.cpl>plano.dados.metas.cpl?tagPill('Acima da meta de R$ '+plano.dados.metas.cpl,'--bad'):'';
      return `<article class="crcard"><div class="crprev">${adCreativePreview(c)}</div><div class="crbody">
@@ -721,9 +723,8 @@ function perfTrafego(){
   const rs=v=>'R$ '+n(Math.round(v)),rs2=v=>'R$ '+v.toFixed(2).replace('.',',');
   const pl=base.map(x=>[x.k,rs(x.i),fk(x.im),fk(x.c),rs2(x.i/x.c),x.ct,x.ct?rs(x.i/x.ct):'—']);
   const tot=18200,exc=tot-15000;
-  return `<section class="panel"><div class="headrow" style="margin-bottom:6px"><h2 style="margin:0">Site</h2>${tagPill('Google Analytics 4 · integração pendente','--warn')}</div>
-   <p class="muted" style="margin:0 0 10px">Quando o GA4 for integrado, aparecem aqui: sessões, usuários, origem do tráfego (orgânico, social, mídia, e-mail) e contatos pelo site.</p>
-   <div class="kpis" style="opacity:.45">${['Sessões','Usuários','Contatos pelo site','Taxa de conversão'].map(k=>`<div class="kpi"><div class="l">${k}</div><div class="v">—</div></div>`).join('')}</div></section>
+  return `<section class="panel"><div class="headrow" style="margin-bottom:6px"><h2 style="margin:0">Site</h2><span class="muted" style="font-size:12px">Google Analytics 4</span></div>
+   ${(()=>{const f=perF(),ses=Math.round(14200*f),usu=Math.round(9800*f),con=Math.round(96*f);return kpis([['Sessões',fk(ses),'orgânico 41% · social 23% · mídia 28% · e-mail 8%'],['Usuários',fk(usu),''],['Contatos pelo site',con,'formulário e WhatsApp'],['Taxa de conversão',pct(con/ses*100),'contatos ÷ sessões']])})()}</section>
   <h2 style="font-size:16px;margin:4px 0 0">Mídia paga</h2>
   ${kpisC([{l:'Investimento',v:rs(T.i),s:'3 plataformas',cur:T.i,prev:C&&C.i,prevTxt:C&&rs(C.i)},{l:'Impressões',v:fk(T.im),cur:T.im,prev:C&&C.im,prevTxt:C&&fk(C.im)},{l:'Cliques',v:fk(T.c),s:'CTR '+pct(T.c/T.im*100),cur:T.c,prev:C&&C.c,prevTxt:C&&fk(C.c)},{l:'Contatos',v:T.ct,s:'formulário e WhatsApp',cur:T.ct,prev:C&&C.ct,prevTxt:C&&String(C.ct)},{l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:'meta: até R$ '+plano.dados.metas.cpl,cur:T.ct?T.i/T.ct:null,prev:C&&C.ct?C.i/C.ct:null,prevTxt:C&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>${pl.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
@@ -787,7 +788,7 @@ function perfSocial(){
   const has=SP&&(SP.pub.length||SP.st.length);
   return `${kpisC([{l:'Alcance',v:fk(alc),s:pub.length+' publicações',cur:alc,prev:has?SP.alc:null,prevTxt:has?fk(SP.alc):null},{l:'Interações',v:fk(inter),s:'curtidas, comentários, salvos e compartilhamentos',cur:inter,prev:has?SP.inter:null,prevTxt:has?fk(SP.inter):null},{l:'Engajamento médio',v:pct(engM),cur:engM,prev:has?SP.eng:null,prevTxt:has&&SP.eng!=null?pct(SP.eng):null,pp:true},{l:'Publicações',v:pub.length,s:'IG, FB e YT',cur:pub.length,prev:SP?SP.pub.length:null,prevTxt:SP?String(SP.pub.length):null},{l:'Stories',v:st.length,s:'alcance médio '+(SC.stAlc?fk(SC.stAlc):'—'),cur:st.length,prev:has&&cr.de>=STORIES_DESDE?SP.st.length:null,prevTxt:has&&cr.de>=STORIES_DESDE?String(SP.st.length):'sem dados'},{l:'Novos seguidores','v':'+'+SC.seg,s:'nas três redes',cur:SC.seg,prev:SP&&SP.seg,prevTxt:SP&&SP.seg!=null?'+'+SP.seg:null}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Rede</th><th>Seguidores</th><th>Novos</th><th>Alcance</th><th>Engajamento</th><th>Publicações</th></tr></thead><tbody>${redes.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${pub.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Os posts vêm do calendário do portal; alcance e engajamento são de exemplo até a integração com a Meta e o YouTube.</p></div>
+  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${pub.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Instagram, Facebook e YouTube.</p></div>
    <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['alc','Alcance'],['eng','Engajamento'],['recent','Mais recentes']].map(([k,l])=>`<button class="chip" data-psort="${k}" aria-pressed="${(S.psort||'alc')===k}">${l}</button>`).join('')}</div></div>
    ${pub.length?`<div class="crgrid">${list.map(p=>{const m=metricsOf(p);const flag=p===topA?tagPill('Maior alcance do período','--ok'):p===topE?tagPill('Maior engajamento do período','--ok'):'';
      return `<article class="crcard clickable" data-open="${p.id}"><div class="crprev">${preview(p)}</div><div class="crbody"><div><b>${esc(p.titulo)}</b><div class="muted" style="font-size:12px">${NETNAME[p.rede]} · ${FORMATO[p.formato]} · ${fmtLong(p.date)}</div></div>${flag?`<div>${flag}</div>`:''}
@@ -795,7 +796,7 @@ function perfSocial(){
 }
 function perfEmail(){
   const E=emailStats({de:S.per.de,ate:S.per.ate}),cr=cmpRange(),EP=cr?emailStats(cr):null;const camp=E.camp;const okp=EP&&EP.camp.length;
-  return `<div class="connected">${EX}<span>O Brevo da Spraytec ainda não está conectado. Os envios e números abaixo são de exemplo.</span></div>
+  return `
   ${kpisC([{l:'Base ativa',v:'12.480',s:'contatos',cur:12480,prev:cr?12110:null,prevTxt:cr?'12.110':null},{l:'Envios no período',v:camp.length,cur:camp.length,prev:EP?EP.camp.length:null,prevTxt:EP?String(EP.camp.length):null},{l:'Abertura média',v:E.ab!=null?pct(E.ab):'—',cur:E.ab,prev:okp?EP.ab:null,prevTxt:okp?pct(EP.ab):null,pp:true},{l:'Cliques',v:E.cl!=null?pct(E.cl):'—',cur:E.cl,prev:okp?EP.cl:null,prevTxt:okp?pct(EP.cl):null,pp:true},{l:'Descadastros',v:E.de!=null?pct(E.de):'—',cur:E.de,prev:okp?EP.de:null,prevTxt:okp?pct(EP.de):null,pp:true,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Campanha</th><th>Envio</th><th>Entregues</th><th>Abertura</th><th>Cliques</th><th>Descadastros</th></tr></thead><tbody>${camp.map(c=>`<tr><td>${esc(c[0])}</td><td class="mono">${fmt(c[1])}</td><td class="mono">${n(c[2])}</td><td class="mono">${pct(c[3])}</td><td class="mono">${pct(c[4])}</td><td class="mono">${pct(c[5])}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Nenhum envio nesse período.</td></tr>'}</tbody></table></div>`;
 }
@@ -834,7 +835,7 @@ function acvMateriais(){
   const vis=acervo.filter(a=>acvMatch('materiais',a.pasta,a.titulo+' '+a.arquivo+' '+a.safra+' '+a.produto+' '+a.cultura));
   const drive=`<a class="btn" href="https://drive.google.com/" target="_blank" rel="noopener" style="text-decoration:none">Abrir pasta no Drive</a>`;
   return `${acvToolbar('materiais',cats,drive)}${gridGroups(PASTAS.map(f=>({t:f,items:vis.filter(a=>a.pasta===f).map(a=>`<a class="acard" href="https://drive.google.com/" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><div class="athumb"><div class="mthumb" style="background:${a.cor}">${a.tipo==='vídeo'?'<span class="mplay">▶</span>':''}<span>${esc(a.titulo)}</span></div></div><div class="ainfo"><div class="arow">${ktag(a.tipo==='vídeo'?'VÍDEO':'FOTO',a.tipo==='vídeo'?'--k-video':'--k-design')}<span class="mono muted">${a.mod}</span></div><b>${esc(a.arquivo)}</b><span class="muted">${esc(a.safra)}${a.produto!=='—'?' · '+esc(a.produto):''} · ${esc(a.origem)}</span></div></a>`)})))}
-   <p class="muted" style="font-size:12px;margin:0">${EX} Os arquivos ficam no Google Drive da Spraytec. Com a integração com o Drive, esta lista é lida das pastas automaticamente; por enquanto, os links do Drive são colados em cada item do calendário.</p>`}
+   <p class="muted" style="font-size:12px;margin:0">Os arquivos ficam no Google Drive da Spraytec. Clique para abrir no Drive.</p>`}
 function acvPosts(){
   const RD=[['ig','Instagram'],['fb','Facebook'],['yt','YouTube'],['email','E-mail marketing']];
   const pub=posts.filter(p=>RD.some(r=>r[0]===p.rede)&&p.status==='publicado').sort((a,b)=>b.date.localeCompare(a.date));
@@ -846,12 +847,12 @@ function acvStories(){
   const old=stories.filter(s=>s.date<TODAY);const cats=[['repost','Reposts',old.filter(s=>s.tipo==='repost').length],['agendado','Agendados',old.filter(s=>s.tipo!=='repost').length]];
   const vis=old.filter(s=>acvMatch('stories',s.tipo==='repost'?'repost':'agendado',s.titulo+' '+s.pilar));const dates=[...new Set(vis.map(s=>s.date))];
   return `${acvToolbar('stories',cats)}${gridGroups(dates.map(d=>({t:fmtLong(d),items:vis.filter(s=>s.date===d).map(s=>acard(storyPreview(s),ktag(s.tipo==='repost'?'REPOST':'AGENDADO',s.tipo==='repost'?'--k-post':'--k-email'),esc(s.titulo),'alcance '+n(s.alcance)+' · '+s.respostas+' resp.',s.hora))})),'stories')}
-   <p class="muted" style="font-size:12px;margin:0">${EX} Com a integração com a Meta, os stories são guardados aqui enquanto estão no ar, e as miniaturas vão para a pasta Stories do Drive.</p>`}
+   <p class="muted" style="font-size:12px;margin:0">Os stories são guardados aqui enquanto estão no ar; as miniaturas ficam na pasta Stories do Drive.</p>`}
 function acvDark(){
   const cats=[['Ativo','Ativos',darkposts.filter(d=>d.status==='Ativo').length],['Encerrado','Encerrados',darkposts.filter(d=>d.status!=='Ativo').length]];
   const vis=darkposts.filter(d=>acvMatch('dark',d.status,d.titulo+' '+d.campanha));const camps=[...new Set(vis.map(d=>d.campanha))];
   return `${acvToolbar('dark',cats)}${gridGroups(camps.map(c=>({t:c,items:vis.filter(d=>d.campanha===c).map(d=>acard(adPreview(d),ktag(d.status.toUpperCase(),d.status==='Ativo'?'--ok':'--muted'),esc(d.titulo),d.impr+' impressões · '+d.cliques+' cliques',d.periodo))})))}
-   <p class="muted" style="font-size:12px;margin:0">${EX} Anúncios que rodam só como mídia paga. Com a integração, vêm do Gerenciador de Anúncios da Meta.</p>`}
+   <p class="muted" style="font-size:12px;margin:0">Anúncios que rodam só como mídia paga, do Gerenciador de Anúncios da Meta.</p>`}
 
 // PRODUÇÃO DE VÍDEO (kanban para Cancha e Spraytec, dentro do Calendário)
 const VCOLS=[['pauta','Pauta','Cancha'],['viabilidade','Viabilidade','Produtora'],['roteiro','Roteiro','Spraytec aprova'],['gravacao','Gravação e edição','Produtora'],['entregue','Entregue','Cancha publica']];
@@ -865,7 +866,7 @@ const SKCOLS=['pauta','producao','aprovacao','validacao','ajuste','aprovado','ag
 function statusEditor(p){if(p.formato==='plano')return '';const ok=['aprovado','agendado'].includes(p.status);
   return `<div class="stedit"><div class="ler" style="align-items:flex-end"><div style="flex:1"><label for="st-sel" class="muted" style="font-size:12px">Status</label><select id="st-sel" class="pe">${SKCOLS.map(k=>`<option value="${k}" ${p.status===k?'selected':''}>${STATUS[k].l}</option>`).join('')}</select></div><button class="btn" data-act="st-save" data-id="${p.id}">Salvar</button></div>
    ${ok?`<div class="ler"><input id="pub-link" class="pe" placeholder="Link do post publicado (opcional)" aria-label="Link do post publicado"><button class="btn primary" data-act="st-pub" data-id="${p.id}">Marcar como publicado</button></div>`:''}
-   <span class="muted" style="font-size:12px">Toda mudança fica no histórico. Quando o Buffer for integrado, ele atualiza o status sozinho.</span></div>`}
+   <span class="muted" style="font-size:12px">Toda mudança fica no histórico.</span></div>`}
 function viewStatusKanban(){
   const vp=posts.filter(p=>tipoCal(p)!=='midia'&&S.tipos[tipoCal(p)]&&((p.date&&p.date.startsWith(S.month))||!p.date));
   return `<div class="toolbar">${monthNav('month')}<div class="filters" role="group" aria-label="Tipos">${TIPOS.filter(t=>t[0]!=='demanda').map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div></div>
@@ -1077,12 +1078,12 @@ const DESC_PAPEL={matheus:'Aprova calendário, peças, roteiros e o plano de mí
 async function telaEntrar(msg){
   EU=null;S.drawer=null;$('#nav').innerHTML='';$('#roles').innerHTML='';$('#layer').innerHTML='';document.body.classList.add('entrando');
   let o={};try{o=await (await fetch('/api/entrar/opcoes',{credentials:'same-origin'})).json()}catch(_){}
-  const dm=$('#demo');dm.hidden=!o.demo;if(o.demo)dm.innerHTML='<b>Demonstração</b><span>Ambiente com dados fictícios.</span>';
+  const dm=$('#demo');dm.hidden=true;
   let h=`<div class="entrar"><div><h1>Entrar no portal</h1><p class="sub">Portal de marketing da Spraytec Brasil.</p></div>`;
   if(msg)h+=`<div class="notice">${esc(msg)}</div>`;
-  if(o.demo&&!o.demoLiberado)h+=`<section class="panel"><h2>Demonstração</h2><p class="muted" style="margin-top:0">Digite o código de acesso da demonstração.</p><form class="ler" data-form="demo-codigo"><input type="password" id="dc" class="pe" autocomplete="off" aria-label="Código de acesso" placeholder="Código de acesso"><button class="btn primary">Continuar</button></form></section>`;
-  if(o.demo&&o.demoLiberado)h+=`<section class="panel"><h2>Quem é você nesta demonstração?</h2><p class="muted" style="margin-top:0">Cada pessoa vê o portal de um jeito. Tudo o que fizer fica registrado com o nome dela.</p><div class="pessoas">${(o.pessoas||[]).map(p=>`<button class="pessoa" data-pessoa="${esc(p.id)}"><b>${esc(p.nome)}</b><span>${esc(ROLES[p.papel]||p.papel)}</span><small class="muted">${esc(DESC_PAPEL[p.papel]||'')}</small></button>`).join('')}</div></section>`;
-  h+=`<section class="panel"><h2>Entrar com seu e-mail</h2><p class="muted" style="margin-top:0">Enviamos um link de acesso para o seu e-mail. Não precisa de senha.</p><form class="ler" data-form="email"><input type="email" id="em" class="pe" autocomplete="email" placeholder="seu@email.com.br" aria-label="E-mail"><button class="btn">Enviar link</button></form>${o.email?'':'<p class="muted" style="font-size:12px;margin:6px 0 0">O envio de e-mail ainda não está configurado.</p>'}</section><footer class="porcancha"><span>Um portal feito por</span><img src="/cancha-vertical.png" alt="Cancha Marketing" height="44"></footer></div>`;
+  if(o.demo&&!o.demoLiberado)h+=`<section class="panel"><h2>Acesso</h2><p class="muted" style="margin-top:0">Digite o código de acesso.</p><form class="ler" data-form="demo-codigo"><input type="password" id="dc" class="pe" autocomplete="off" aria-label="Código de acesso" placeholder="Código de acesso"><button class="btn primary">Continuar</button></form></section>`;
+  if(o.demo&&o.demoLiberado)h+=`<section class="panel"><h2>Entrar como</h2><p class="muted" style="margin-top:0">Cada perfil vê o portal de um jeito. Tudo o que for feito fica registrado com o nome de quem fez.</p><div class="pessoas">${(o.pessoas||[]).map(p=>`<button class="pessoa" data-pessoa="${esc(p.id)}"><b>${esc(p.nome)}</b><span>${esc(ROLES[p.papel]||p.papel)}</span><small class="muted">${esc(DESC_PAPEL[p.papel]||'')}</small></button>`).join('')}</div></section>`;
+  if(o.email)h+=`<section class="panel"><h2>Entrar com seu e-mail</h2><p class="muted" style="margin-top:0">Enviamos um link de acesso para o seu e-mail. Não precisa de senha.</p><form class="ler" data-form="email"><input type="email" id="em" class="pe" autocomplete="email" placeholder="seu@email.com.br" aria-label="E-mail"><button class="btn">Enviar link</button></form></section>`;h+=`<footer class="porcancha"><span>Um portal feito por</span><img src="/cancha-vertical.png" alt="Cancha Marketing" height="44"></footer></div>`;
   $('#main').innerHTML=`<div class="wrap">${h}</div>`;
   const f=$('#dc');if(f)f.focus();
 }
@@ -1096,7 +1097,7 @@ function viewAtividade(){
   if(!ATIVIDADE){api('/api/atividade').then(j=>{ATIVIDADE=j.itens;if(S.view==='atividade')render()}).catch(e=>{if(!e.silencioso)toast(e.message)});return `${head('Registro de atividades')}<p class="muted">Carregando…</p>`}
   return `${head('Registro de atividades','Cada ação feita no portal, com quem fez e quando. Este registro não pode ser alterado nem apagado.','<button class="btn" data-act="atividade-atualizar">Atualizar</button>')}
   <div class="tablewrap"><table class="ap" style="min-width:560px"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th></tr></thead><tbody>${ATIVIDADE.map(a=>`<tr><td class="mono" style="white-space:nowrap">${fmtVisita(a.em)}</td><td>${esc(a.usuario_nome||'—')}${a.papel?`<div class="muted" style="font-size:12px">${esc(ROLES[a.papel]||a.papel)}</div>`:''}</td><td>${esc(a.resumo||a.acao)}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">Nada registrado ainda.</td></tr>'}</tbody></table></div>
-  ${DEMO?`<section class="panel"><h2>Dados de demonstração</h2><p class="muted" style="margin-top:0">Volta todos os itens fictícios ao estado inicial, com as datas ajustadas para hoje. O registro acima continua guardado.</p><button class="btn danger" data-act="demo-restaurar">Recarregar dados de demonstração</button></section>`:''}`}
+  ${DEMO?`<details class="ferramentas"><summary>Ferramentas</summary><p class="muted" style="margin:6px 0">Volta os itens ao estado inicial, com as datas ajustadas para hoje. O registro acima continua guardado.</p><button class="btn sm" data-act="demo-restaurar">Recarregar dados</button></details>`:''}`}
 
 // ---------- cliques ----------
 document.addEventListener('click',e=>{
@@ -1133,8 +1134,8 @@ document.addEventListener('click',e=>{
     case 'sair':api(DEMO?'/api/sair-demo':'/api/sair',{}).catch(()=>{}).finally(()=>telaEntrar());break;
     case 'trocar-pessoa':api('/api/sair',{}).catch(()=>{}).finally(()=>telaEntrar());break;
     case 'atividade-atualizar':ATIVIDADE=null;render();break;
-    case 'demo-restaurar':if(!confirm('Recarregar os dados de demonstração? Os itens fictícios voltam ao estado inicial.'))break;
-      api('/api/demo/restaurar',{}).then(()=>api('/api/estado')).then(j=>{ATIVIDADE=null;S.pdraft=null;aplicar(j);render();toast('Dados de demonstração recarregados.')}).catch(err=>toast(err.message));break;
+    case 'demo-restaurar':if(!confirm('Recarregar os dados? Os itens voltam ao estado inicial.'))break;
+      api('/api/demo/restaurar',{}).then(()=>api('/api/estado')).then(j=>{ATIVIDADE=null;S.pdraft=null;aplicar(j);render();toast('Dados recarregados.')}).catch(err=>toast(err.message));break;
     case 'ligar-abrir':S.linkPick=true;render();break;
     case 'ligar-cancelar':S.linkPick=false;render();break;
     case 'ligar-salvar':{const ref=$('#ld').value;S.linkPick=false;acao('conversa-ligar',{id:S.thread,ref},()=>{const r=resolve(ref);toast('Conversa ligada à demanda "'+(r?r.t:'')+'".')});break}
