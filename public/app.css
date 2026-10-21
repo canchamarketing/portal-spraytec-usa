@@ -891,3 +891,4 @@ body.salvando,body.salvando *{cursor:progress!important}
 .connected .exemplo{margin-right:6px}
 
 .wm img{height:26px;width:auto;display:block}
+@media (max-width:600px){.demo span{display:none}.brand .byc{display:none}}

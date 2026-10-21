@@ -338,7 +338,7 @@ const VIEWS=[
 ];
 function renderRoles(){
   $('#roles').innerHTML=EU?`<span class="eu"><b>${esc(EU.nome)}</b><span class="muted">${esc(ROLES[EU.papel]||EU.papel)}</span></span>${DEMO?'<button class="iconbtn" data-act="trocar-pessoa">Trocar pessoa</button>':''}<button class="iconbtn" data-act="sair">Sair</button>`:'';
-  const dm=$('#demo');if(dm){dm.hidden=!DEMO;dm.innerHTML='<b>Demonstração</b><span>Os dados são fictícios. Números de redes, mídia paga e e-mail aparecem como "Exemplo" até as integrações entrarem. Tudo o que você fizer aqui fica salvo de verdade.</span>'}}
+  const dm=$('#demo');if(dm){dm.hidden=!DEMO;dm.innerHTML='<b>Demonstração com dados fictícios</b><span>O que está marcado "Exemplo" depende de integração. Todo o resto funciona e fica salvo de verdade.</span>'}}
 function renderNav(){
   $('#nav').innerHTML=VIEWS.filter(v=>v[0]==='sep'?isTeam():v[2].includes(S.role)).map(v=>{
     if(v[0]==='sep')return '<div class="sep" role="separator"></div>';
