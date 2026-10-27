@@ -1000,28 +1000,44 @@ async function impLerArquivo(file){const buf=await file.arrayBuffer();let txt;tr
 function viewPessoas(){
   if(!PESSOAS){api('/api/pessoas').then(j=>{PESSOAS=j;if(S.view==='pessoas')render()}).catch(e=>{if(!e.silencioso)toast(e.message)});return `${head('Pessoas e acessos')}<p class="muted">Carregando…</p>`}
   const papeis=PESSOAS.papeis||ROLES,ativos=PESSOAS.pessoas.filter(p=>p.ativo),inativos=PESSOAS.pessoas.filter(p=>!p.ativo);
-  const linha=p=>`<tr><td><b>${esc(p.nome)}</b></td><td class="mono" style="font-size:12.5px">${esc(p.email||'—')}</td><td>${esc(papeis[p.papel]||p.papel)}</td><td class="muted" style="font-size:12.5px">${p.visto_em?fmtVisita(p.visto_em):'ainda não entrou'}</td><td><button class="btn sm" data-act="pessoa-edit" data-id="${esc(p.id)}">Editar</button></td></tr>`;
-  return `${head('Pessoas e acessos','Quem entra no portal e o que cada um pode fazer. Cada pessoa entra com o próprio e-mail: recebe um link de acesso, sem senha.','<button class="btn primary" data-act="pessoa-nova">+ Pessoa</button>')}
-  ${PESSOAS.email?'':'<div class="notice">O envio de e-mail ainda não está configurado no servidor. As pessoas cadastradas só conseguem entrar depois disso.</div>'}
-  <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Último acesso</th><th></th></tr></thead><tbody>${ativos.map(linha).join('')||'<tr><td colspan="5" class="muted">Ninguém cadastrado ainda.</td></tr>'}</tbody></table></div>
+  const acesso=p=>p.tem_senha?(p.visto_em?'<span class="muted">entrou '+fmtVisita(p.visto_em)+'</span>':tagPill('senha criada','--ok')):p.convite_enviado_em?tagPill('convite enviado','--warn'):tagPill('sem convite','--muted');
+  const linha=p=>`<tr><td><b>${esc(p.nome)}</b></td><td class="mono" style="font-size:12.5px">${esc(p.email||'—')}</td><td>${esc(papeis[p.papel]||p.papel)}</td><td style="font-size:12.5px">${p.ativo?acesso(p):'<span class="muted">desativado</span>'}</td><td><button class="btn sm" data-act="pessoa-edit" data-id="${esc(p.id)}">Abrir</button></td></tr>`;
+  return `${head('Pessoas e acessos','Quem entra no portal e o que cada um pode fazer. Cada pessoa recebe um convite, cria a própria senha e entra com e-mail e senha.','<button class="btn primary" data-act="pessoa-nova">+ Pessoa</button>')}
+  ${PESSOAS.email?'':'<div class="notice">O envio de e-mail ainda não está configurado. Para liberar o acesso agora, abra a pessoa, clique em "Copiar link de convite" e mande o link pelo WhatsApp.</div>'}
+  <div class="tablewrap"><table class="ap" style="min-width:680px"><thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Acesso</th><th></th></tr></thead><tbody>${ativos.map(linha).join('')||'<tr><td colspan="5" class="muted">Ninguém cadastrado ainda.</td></tr>'}</tbody></table></div>
   ${inativos.length?`<details class="ferramentas"><summary>Acessos desativados · ${inativos.length}</summary><div class="tablewrap" style="margin-top:8px"><table class="ap" style="min-width:640px"><tbody>${inativos.map(linha).join('')}</tbody></table></div></details>`:''}
   <section class="panel"><h2>O que cada papel faz</h2><dl class="kv"><dt>Operação Spraytec</dt><dd>Aprova pautas, peças, roteiros e o plano de mídia; pede ajustes; conversa com a Cancha.</dd><dt>Diretoria Spraytec</dt><dd>Acompanha estratégia, resultados e relatórios. Não aprova.</dd><dt>Cancha</dt><dd>Produz, envia para aprovação, publica e gerencia os acessos.</dd><dt>Produtora de vídeo</dt><dd>Vê só as pautas de vídeo: viabilidade, gravação e entrega.</dd></dl></section>`}
 function drawerPessoa(){const id=S.drawer.id;const p=id?PESSOAS.pessoas.find(x=>x.id===id):{nome:'',email:'',papel:'operacao',ativo:true};const papeis=PESSOAS.papeis||ROLES;
+  const conv=S.convite&&S.convite.id===id?S.convite:null;
+  const acesso=!id||!p.ativo?'':`<section class="extbox"><b>${p.tem_senha?'Nova senha':'Convite'}</b>
+    <span class="muted" style="font-size:13px">${p.tem_senha?'A pessoa já criou a senha. Se ela esqueceu, ela mesma pode usar "Esqueci minha senha" na tela de entrada, ou você manda um link para criar uma nova (vale 24 horas).':p.convite_enviado_em?'Convite já gerado. Mandar de novo invalida o link anterior. O link vale 7 dias.':'A pessoa recebe um link para criar a senha. O link vale 7 dias e funciona uma vez só.'}</span>
+    <div class="actions">${PESSOAS.email?`<button class="btn primary sm" data-act="pessoa-convite" data-enviar="1" data-id="${esc(id)}">${p.tem_senha?'Enviar link de nova senha':'Enviar convite por e-mail'}</button>`:''}<button class="btn sm" data-act="pessoa-convite" data-id="${esc(id)}">Copiar link${p.tem_senha?'':' de convite'}</button></div>
+    ${conv&&conv.link?`<label class="muted" for="ps-link" style="font-size:12px">Link gerado (mande só para ${esc(p.nome.split(' ')[0])}):</label><input id="ps-link" class="pe mono" readonly value="${esc(conv.link)}" style="font-size:12px">`:''}</section>`;
   return `<header><div><div class="eyebrow">Pessoas e acessos</div><h2>${id?esc(p.nome):'Nova pessoa'}</h2></div>${closeBtn()}</header>
   <div class="content"><label for="ps-nome">Nome</label><input id="ps-nome" class="pe" value="${esc(p.nome)}" placeholder="Nome e sobrenome">
    <label for="ps-email">E-mail</label><input id="ps-email" type="email" class="pe" value="${esc(p.email||'')}" placeholder="nome@empresa.com.br">
    <label for="ps-papel">Papel</label><select id="ps-papel" class="pe">${['operacao','diretoria','cancha','produtora'].map(k=>`<option value="${k}" ${p.papel===k?'selected':''}>${esc(papeis[k]||k)}</option>`).join('')}</select>
    <label class="check"><input type="checkbox" id="ps-ativo" ${p.ativo?'checked':''}> Acesso ativo</label>
    <p class="muted" style="font-size:12px;margin:0">Ao desativar ou trocar o papel, a pessoa sai do portal na hora. Tudo fica no Registro de atividades.</p>
-   <div class="actions"><button class="btn primary" data-act="pessoa-salvar">${id?'Salvar':'Cadastrar'}</button></div></div>`}
+   <div class="actions"><button class="btn ${id?'':'primary'}" data-act="pessoa-salvar">${id?'Salvar alterações':'Cadastrar'}</button></div>
+   ${acesso}</div>`}
 
-// ===================== CONFIRMAR O LINK DO E-MAIL =====================
-function telaConfirmar(t){
+// ===================== CRIAR SENHA (convite) E NOVA SENHA =====================
+async function telaSenha(t,caminho){
   EU=null;$('#nav').innerHTML='';$('#roles').innerHTML='';document.body.classList.add('entrando');
-  $('#main').innerHTML=`<div class="wrap"><div class="entrar"><div><h1>Entrar no portal</h1><p class="sub">Portal de marketing da Spraytec Brasil.</p></div>
-   <section class="panel"><p style="margin-top:0">Clique para confirmar sua entrada.</p><button class="btn primary big" id="confirmar-link">Entrar no portal</button></section>
+  const voltar='<p class="muted" style="font-size:13px;margin:0"><a href="/">Ir para a tela de entrada</a></p>';
+  let info;try{info=await api('/api/senha/link?t='+encodeURIComponent(t))}catch(e){
+    $('#main').innerHTML=`<div class="wrap"><div class="entrar"><div><h1>Link inválido</h1></div><div class="notice">${esc(e.message)}</div>${voltar}</div></div>`;return}
+  const novo=info.tipo==='convite';
+  $('#main').innerHTML=`<div class="wrap"><div class="entrar"><div><h1>${novo?'Crie sua senha':'Crie uma nova senha'}</h1><p class="sub">Olá, ${esc(info.nome.split(' ')[0])}. ${novo?'Este é o seu acesso ao Portal de marketing Spraytec.':''}</p></div>
+   <section class="panel"><form class="entrarform" data-form="definir" data-t="${esc(t)}">
+    <input type="email" autocomplete="username" value="${esc(info.email)}" readonly class="pe" aria-label="E-mail">
+    <label for="ns1">Senha</label><input type="password" id="ns1" class="pe" autocomplete="new-password" minlength="10" required>
+    <label for="ns2">Repita a senha</label><input type="password" id="ns2" class="pe" autocomplete="new-password" minlength="10" required>
+    <p class="muted" style="font-size:12.5px;margin:0">No mínimo 10 caracteres. Uma frase curta que só você saiba é uma boa senha.</p>
+    <button class="btn primary">${novo?'Criar senha e entrar':'Salvar nova senha e entrar'}</button></form></section>
    <footer class="porcancha"><span>Um portal feito por</span><img src="/cancha-vertical.png" alt="Cancha Marketing" height="44"></footer></div></div>`;
-  $('#confirmar-link').addEventListener('click',async()=>{try{await api('/api/entrar/link',{t});history.replaceState(null,'','/');iniciar()}catch(e){history.replaceState(null,'','/');telaEntrar(e.message)}});
+  $('#ns1').focus();
 }
 
 // GAVETAS
@@ -1119,7 +1135,7 @@ function renderDrawer(){
 function setTopH(){const t=document.querySelector('.top');if(t)document.documentElement.style.setProperty('--toph',t.offsetHeight+'px')}
 window.addEventListener('resize',setTopH);
 function render(){
-  if(!EU)return;
+  if(!EU){if(d.act==='esqueci')telaEntrar(null,'esqueci');else if(d.act==='voltar-entrar')telaEntrar();return}
   renderRoles();
   const allowed=VIEWS.find(v=>v[0]===S.view);if(!allowed||!allowed[2]||!allowed[2].includes(S.role))S.view=S.role==='produtora'?'videos':'hoje';
   renderNav();
@@ -1169,25 +1185,36 @@ setInterval(async()=>{
 
 // ---------- entrada ----------
 const DESC_PAPEL={operacao:'Aprova pautas, peças, roteiros e o plano de mídia.',diretoria:'Acompanha estratégia, resultados e relatórios.',cancha:'Produz, envia para aprovação e publica.',produtora:'Vê só as pautas de vídeo: viabilidade e entrega.'};
-async function telaEntrar(msg){
+async function telaEntrar(msg,modo){
   EU=null;S.drawer=null;$('#nav').innerHTML='';$('#roles').innerHTML='';$('#layer').innerHTML='';document.body.classList.add('entrando');
   let o={};try{o=await (await fetch('/api/entrar/opcoes',{credentials:'same-origin'})).json()}catch(_){}
   const dm=$('#demo');dm.hidden=true;
   let h=`<div class="entrar"><div><h1>Entrar no portal</h1><p class="sub">Portal de marketing da Spraytec Brasil.</p></div>`;
   if(msg)h+=`<div class="notice">${esc(msg)}</div>`;
-  if(o.email)h+=`<section class="panel"><h2>Entrar com seu e-mail</h2><p class="muted" style="margin-top:0">Enviamos um link de acesso para o seu e-mail. Não precisa de senha.</p><form class="ler" data-form="email"><input type="email" id="em" class="pe" autocomplete="email" placeholder="seu@email.com.br" aria-label="E-mail"><button class="btn">Enviar link</button></form></section>`;
+  if(modo==='esqueci')h+=`<section class="panel"><h2>Esqueci minha senha</h2><p class="muted" style="margin-top:0">${o.email?'Digite o seu e-mail. Mandamos um link para você criar uma nova senha.':'Peça à equipe da Cancha um link para criar uma nova senha.'}</p>
+    ${o.email?`<form class="entrarform" data-form="esqueci"><label for="eq">E-mail</label><input type="email" id="eq" class="pe" autocomplete="username" required><button class="btn primary">Enviar link</button></form>`:''}
+    <p style="margin:10px 0 0"><button class="linkbtn" data-act="voltar-entrar">Voltar para a entrada</button></p></section>`;
+  else h+=`<section class="panel"><form class="entrarform" data-form="senha"><label for="em">E-mail</label><input type="email" id="em" class="pe" autocomplete="username" required>
+    <label for="sn">Senha</label><input type="password" id="sn" class="pe" autocomplete="current-password" required>
+    <button class="btn primary">Entrar</button></form><p style="margin:10px 0 0"><button class="linkbtn" data-act="esqueci">Esqueci minha senha</button></p></section>`;
   let demo='';
-  if(o.demo&&!o.demoLiberado)demo+=`<section class="panel"><h2>Acesso</h2><p class="muted" style="margin-top:0">Digite o código de acesso.</p><form class="ler" data-form="demo-codigo"><input type="password" id="dc" class="pe" autocomplete="off" aria-label="Código de acesso" placeholder="Código de acesso"><button class="btn primary">Continuar</button></form></section>`;
+  if(o.demo&&!o.demoLiberado)demo+=`<section class="panel"><p class="muted" style="margin-top:0">Digite o código de acesso.</p><form class="ler" data-form="demo-codigo"><input type="password" id="dc" class="pe" autocomplete="off" aria-label="Código de acesso" placeholder="Código de acesso"><button class="btn">Continuar</button></form></section>`;
   if(o.demo&&o.demoLiberado)demo+=`<section class="panel"><h2>Entrar como</h2><p class="muted" style="margin-top:0">Cada perfil vê o portal de um jeito. Tudo o que for feito fica registrado com o nome de quem fez.</p><div class="pessoas">${(o.pessoas||[]).map(p=>`<button class="pessoa" data-pessoa="${esc(p.id)}"><b>${esc(p.nome)}</b><span>${esc(ROLES[p.papel]||p.papel)}</span><small class="muted">${esc(DESC_PAPEL[p.papel]||'')}</small></button>`).join('')}</div></section>`;
-  if(demo)h+=o.email?`<details class="padj" ${o.demoLiberado?'open':''}><summary class="linkbtn">Acesso de demonstração</summary><div style="display:flex;flex-direction:column;gap:12px;margin-top:10px">${demo}</div></details>`:demo;
+  if(demo&&modo!=='esqueci')h+=`<details class="padj" ${o.demoLiberado?'open':''}><summary class="linkbtn">Acesso de demonstração</summary><div style="display:flex;flex-direction:column;gap:12px;margin-top:10px">${demo}</div></details>`;
   h+=`<footer class="porcancha"><span>Um portal feito por</span><img src="/cancha-vertical.png" alt="Cancha Marketing" height="44"></footer></div>`;
   $('#main').innerHTML=`<div class="wrap">${h}</div>`;
-  const f=$('#dc');if(f)f.focus();
+  const f=$(modo==='esqueci'?'#eq':'#em');if(f)f.focus();
 }
 document.addEventListener('submit',async e=>{const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();
-  try{if(f.dataset.form==='demo-codigo'){await api('/api/entrar/demo-codigo',{codigo:$('#dc').value});telaEntrar()}
-    else if(f.dataset.form==='email'){const j=await api('/api/entrar/email',{email:$('#em').value});toast(j.msg||'Pedido enviado.')}}
-  catch(err){toast(err.message)}});
+  const botao=f.querySelector('button');if(botao)botao.disabled=true;
+  try{
+    if(f.dataset.form==='demo-codigo'){await api('/api/entrar/demo-codigo',{codigo:$('#dc').value});telaEntrar()}
+    else if(f.dataset.form==='senha'){await api('/api/entrar/senha',{email:$('#em').value,senha:$('#sn').value});iniciar()}
+    else if(f.dataset.form==='esqueci'){const j=await api('/api/senha/esqueci',{email:$('#eq').value});telaEntrar(j.msg)}
+    else if(f.dataset.form==='definir'){const s1=$('#ns1').value,s2=$('#ns2').value;if(s1!==s2){toast('As duas senhas não são iguais.');return}
+      await api('/api/senha/definir',{t:f.dataset.t,senha:s1});history.replaceState(null,'','/');iniciar()}
+  }catch(err){toast(err.message);if(f.dataset.form==='senha'){const x=$('#sn');if(x){x.value='';x.focus()}}}
+  finally{if(botao)botao.disabled=false}});
 
 // ---------- registro de atividades (equipe da Cancha) ----------
 function viewAtividade(){
@@ -1202,7 +1229,7 @@ document.addEventListener('click',e=>{
   if(!t)return;
   const d=t.dataset;
   if(d.pessoa){api('/api/entrar/demo',{usuarioId:d.pessoa}).then(iniciar).catch(err=>toast(err.message));return}
-  if(!EU)return;
+  if(!EU){if(d.act==='esqueci')telaEntrar(null,'esqueci');else if(d.act==='voltar-entrar')telaEntrar();return}
   if(d.calv){S.calv=d.calv;render();return}
   if(d.acat){const [sb,k]=d.acat.split('|');S.acat[sb]=k;render();return}
   if(d.relcat){S.relCat=d.relcat;render();return}
@@ -1227,15 +1254,17 @@ document.addEventListener('click',e=>{
   const a=d.act,id=d.id,p=id?posts.find(x=>x.id===id):null,dm=id?demandas.find(x=>x.id===id):null;
   const val=sel=>{const x=$(sel);return x?(x.value||'').trim():''};
   switch(a){
-    case 'close':{const wasV=S.drawer&&S.drawer.kind==='video';S.needExt=null;S.marcosEd=null;closeDrawer();if(wasV)render();break}
+    case 'close':{const wasV=S.drawer&&S.drawer.kind==='video';S.needExt=null;S.marcosEd=null;S.convite=null;closeDrawer();if(wasV)render();break}
     case 'importar':S.imp=null;openDrawer('importar');break;
     case 'imp-modelo':baixarArquivo('modelo-calendario-spraytec.csv','\uFEFF'+[IMP_COLS,...IMP_EXEMPLO].map(l=>l.map(csvCampo).join(';')).join('\r\n'),'text/csv;charset=utf-8');break;
     case 'imp-copiar':{const x=$('#imp-prompt');try{navigator.clipboard.writeText(IMP_PROMPT).then(()=>toast('Pedido copiado.'),()=>{x.select();toast('Selecionei o texto: copie com Ctrl+C.')})}catch(_){x.select()}break}
     case 'imp-confirmar':{const I=S.imp;if(!I)break;const linhas=I.linhas.map(l=>l.dados);acao('calendario-importar',{arquivo:I.arquivo,linhas},()=>{S.imp=null;closeDrawer();const m=linhas.map(l=>l.data).sort()[0];if(m)S.month=m.slice(0,7);render();toast(linhas.length+' itens importados como pauta.')});break}
     case 'pessoa-nova':openDrawer('pessoa',null);setTimeout(()=>{const x=$('#ps-nome');if(x)x.focus()},0);break;
     case 'pessoa-edit':openDrawer('pessoa',id);break;
-    case 'pessoa-salvar':{const corpo={id:S.drawer.id||null,nome:val('#ps-nome'),email:val('#ps-email'),papel:$('#ps-papel').value,ativo:$('#ps-ativo').checked};
-      api('/api/pessoas/salvar',corpo).then(()=>api('/api/pessoas')).then(j=>{PESSOAS=j;closeDrawer();render();toast('Cadastro salvo.')}).catch(e=>{if(!e.silencioso)toast(e.message)});break}
+    case 'pessoa-salvar':{const corpo={id:S.drawer.id||null,nome:val('#ps-nome'),email:val('#ps-email'),papel:$('#ps-papel').value,ativo:$('#ps-ativo').checked};let novoId=null;
+      api('/api/pessoas/salvar',corpo).then(j=>{novoId=corpo.id?null:j.id;return api('/api/pessoas')}).then(j=>{PESSOAS=j;S.convite=null;render();if(novoId){openDrawer('pessoa',novoId);toast('Pessoa cadastrada. Agora mande o convite.')}else{closeDrawer();toast('Cadastro salvo.')}}).catch(e=>{if(!e.silencioso)toast(e.message)});break}
+    case 'pessoa-convite':{const enviar=!!d.enviar;api('/api/pessoas/convite',{id,enviar}).then(j=>{S.convite={id,link:j.link};return api('/api/pessoas').then(k=>{PESSOAS=k;render();openDrawer('pessoa',id);
+        if(j.enviado)toast('E-mail enviado.');else{const x=$('#ps-link');try{navigator.clipboard.writeText(j.link).then(()=>toast('Link copiado. Mande só para essa pessoa.'),()=>{if(x)x.select();toast('Selecionei o link: copie com Ctrl+C.')})}catch(_){if(x)x.select()}}})}).catch(e=>{if(!e.silencioso)toast(e.message)});break}
     case 'sair':api(DEMO?'/api/sair-demo':'/api/sair',{}).catch(()=>{}).finally(()=>telaEntrar());break;
     case 'trocar-pessoa':api('/api/sair',{}).catch(()=>{}).finally(()=>telaEntrar());break;
     case 'atividade-atualizar':ATIVIDADE=null;render();break;
@@ -1343,7 +1372,7 @@ document.addEventListener('input',e=>{if(e.target&&e.target.classList.contains('
 document.addEventListener('dragend',()=>{drag=null;document.querySelectorAll('.over').forEach(x=>x.classList.remove('over'))});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.pop){S.pop=null;renderPop();return}if(e.key==='Enter'&&e.target&&e.target.dataset&&e.target.dataset.act==='pop'){e.preventDefault();e.target.click();return}if(e.key==='Escape'&&S.drawer){S.needExt=null;S.marcosEd=null;closeDrawer()}if(e.key==='Enter'&&!e.shiftKey&&e.target&&e.target.id==='cm'){e.preventDefault();const b=document.querySelector('[data-act="enviar-msg"]');if(b)b.click()}});
 
-if(location.pathname==='/entrar'&&new URLSearchParams(location.search).get('t'))telaConfirmar(new URLSearchParams(location.search).get('t'));
-else if(new URLSearchParams(location.search).get('link')==='invalido'){history.replaceState(null,'','/');telaEntrar('O link de acesso é inválido ou já foi usado. Peça um novo.')}
-else iniciar();
+{const tk=new URLSearchParams(location.search).get('t');
+ if(tk&&(location.pathname==='/criar-senha'||location.pathname==='/nova-senha'))telaSenha(tk,location.pathname);
+ else iniciar();}
 })();

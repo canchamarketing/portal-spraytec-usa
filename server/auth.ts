@@ -1,7 +1,7 @@
 // Login. Cada pessoa tem a própria conta. Dois jeitos de entrar:
-// 1) link de acesso por e-mail (precisa de SMTP configurado);
+// 1) e-mail e senha (a pessoa cria a senha pelo link de convite e pode redefinir pelo e-mail);
 // 2) modo demonstração: código de acesso + escolha de uma das pessoas de demonstração.
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Banco } from './db.ts';
 import type { Usuario } from './dominio.ts';
@@ -69,7 +69,62 @@ export function permitido(chave: string, max = 8): boolean {
   return true;
 }
 
-// ---------- link de acesso por e-mail ----------
+// ---------- senhas ----------
+// Guardadas com scrypt (resistente a força bruta) e sal próprio; nunca em texto.
+const SCRYPT = { N: 32768, r: 8, p: 1, maxmem: 128 * 1024 * 1024 };
+function scryptAsync(senha: string, sal: Buffer, n: number, r: number, p: number): Promise<Buffer> {
+  return new Promise((ok, erro) => scrypt(senha.normalize('NFKC'), sal, 64, { N: n, r, p, maxmem: SCRYPT.maxmem }, (e, k) => (e ? erro(e) : ok(k))));
+}
+export async function hashSenha(senha: string): Promise<string> {
+  const sal = randomBytes(16);
+  const k = await scryptAsync(senha, sal, SCRYPT.N, SCRYPT.r, SCRYPT.p);
+  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${sal.toString('base64')}$${k.toString('base64')}`;
+}
+const HASH_FALSO = 'scrypt$32768$8$1$AAAAAAAAAAAAAAAAAAAAAA==$' + Buffer.alloc(64).toString('base64');
+// Compara em tempo constante. Sem hash (e-mail que não existe), calcula mesmo assim para não revelar nada pelo tempo.
+export async function verificarSenha(senha: string, armazenado: string | null): Promise<boolean> {
+  const [alg, n, r, p, sal, k] = String(armazenado || HASH_FALSO).split('$');
+  if (alg !== 'scrypt') return false;
+  const calc = await scryptAsync(senha, Buffer.from(sal, 'base64'), Number(n), Number(r), Number(p));
+  const certo = Buffer.from(k, 'base64');
+  return !!armazenado && calc.length === certo.length && timingSafeEqual(calc, certo);
+}
+const COMUNS = ['1234567890', '12345678910', 'spraytec123', 'spraytec2026', 'cancha123', 'senha12345', 'qwertyuiop', 'abcdefghij', 'password123'];
+// Regras: no mínimo 10 caracteres, não pode ser o e-mail nem uma senha óbvia.
+export function problemaNaSenha(senha: unknown, email: string): string | null {
+  if (typeof senha !== 'string' || senha.length < 10) return 'A senha precisa ter pelo menos 10 caracteres.';
+  if (senha.length > 200) return 'A senha está longa demais.';
+  const s = senha.toLowerCase();
+  if (/^(.)\1+$/.test(senha)) return 'A senha não pode ser um caractere repetido.';
+  if (COMUNS.includes(s) || s.includes(email.toLowerCase().split('@')[0])) return 'Essa senha é fácil de adivinhar. Escolha outra.';
+  return null;
+}
+
+// ---------- links de convite e de redefinição (uso único) ----------
+export type TipoToken = 'convite' | 'redefinir';
+export async function criarToken(b: Banco, usuarioId: string, tipo: TipoToken, horas: number): Promise<string> {
+  // Um link novo invalida os anteriores do mesmo tipo.
+  await b.query(`update tokens_login set usado_em = now() where usuario_id=$1 and tipo=$2 and usado_em is null`, [usuarioId, tipo]);
+  const token = randomBytes(32).toString('base64url');
+  await b.query(`insert into tokens_login (token_hash, usuario_id, tipo, expira_em) values ($1, $2, $3, now() + ($4 || ' hours')::interval)`, [hash(token), usuarioId, tipo, String(horas)]);
+  return token;
+}
+export async function consultarToken(b: Banco, token: string): Promise<{ id: string; nome: string; email: string; tipo: TipoToken } | null> {
+  const { rows } = await b.query(
+    `select u.id, u.nome, u.email, t.tipo from tokens_login t join usuarios u on u.id = t.usuario_id
+     where t.token_hash=$1 and t.usado_em is null and t.expira_em > now() and t.tipo in ('convite','redefinir') and u.ativo`, [hash(token)]);
+  return rows[0] || null;
+}
+export async function usarToken(b: Banco, token: string): Promise<{ id: string; nome: string; email: string; tipo: TipoToken } | null> {
+  const { rows } = await b.query(
+    `update tokens_login t set usado_em = now() from usuarios u
+     where t.token_hash=$1 and t.usado_em is null and t.expira_em > now() and t.tipo in ('convite','redefinir') and u.id = t.usuario_id and u.ativo
+     returning u.id, u.nome, u.email, t.tipo`, [hash(token)]);
+  return rows[0] || null;
+}
+export const linkDoToken = (baseUrl: string, token: string, tipo: TipoToken) => `${baseUrl}/${tipo === 'convite' ? 'criar-senha' : 'nova-senha'}?t=${token}`;
+
+// ---------- e-mail ----------
 export const emailConfigurado = () => !!(process.env.SMTP_HOST && process.env.EMAIL_REMETENTE && (!process.env.SMTP_USUARIO || process.env.SMTP_SENHA));
 
 const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c]);
@@ -83,27 +138,29 @@ export async function enviarEmail(para: string, assunto: string, texto: string, 
   await t.sendMail({ from: process.env.EMAIL_REMETENTE, to: para, subject: assunto, text: texto, html });
 }
 
-// Envia o link de acesso (vale 30 minutos e uma vez só). Não diz se o e-mail existe ou não.
-export async function enviarLinkDeAcesso(b: Banco, email: string, baseUrl: string) {
-  const { rows } = await b.query('select id, nome from usuarios where lower(email) = lower($1) and ativo and not demo', [email]);
-  if (!rows[0] || !emailConfigurado()) return;
-  const token = randomBytes(32).toString('base64url');
-  await b.query(`insert into tokens_login (token_hash, usuario_id, expira_em) values ($1, $2, now() + interval '30 minutes')`, [hash(token), rows[0].id]);
-  const link = `${baseUrl}/entrar?t=${token}`;
-  const nome = String(rows[0].nome).split(' ')[0];
-  const texto = `Olá, ${nome}.\n\nPara entrar no Portal Spraytec, abra este link (vale por 30 minutos e uma vez só):\n${link}\n\nSe não foi você que pediu, ignore este e-mail.\n\nPortal de marketing Spraytec · Cancha Marketing`;
+function modeloEmail(baseUrl: string, nome: string, paragrafos: string[], botao: string, link: string, aviso: string) {
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1E2B22">
 <img src="${baseUrl}/logo.png" alt="Spraytec" height="28" style="display:block;margin-bottom:24px">
 <p style="font-size:16px">Olá, ${escHtml(nome)}.</p>
-<p style="font-size:15px;line-height:1.5">Para entrar no Portal de marketing Spraytec, clique no botão abaixo.</p>
-<p style="margin:28px 0"><a href="${link}" style="background:#235F3F;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;display:inline-block">Entrar no portal</a></p>
-<p style="font-size:13px;color:#666666;line-height:1.5">O link vale por 30 minutos e funciona uma vez só. Se não foi você que pediu, pode ignorar este e-mail.</p>
+${paragrafos.map((p) => `<p style="font-size:15px;line-height:1.5">${escHtml(p)}</p>`).join('\n')}
+<p style="margin:28px 0"><a href="${link}" style="background:#235F3F;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;display:inline-block">${escHtml(botao)}</a></p>
+<p style="font-size:13px;color:#666666;line-height:1.5">${escHtml(aviso)}</p>
 <p style="font-size:12px;color:#999999;margin-top:32px">Portal de marketing Spraytec · Cancha Marketing</p></div>`;
-  await enviarEmail(email, 'Seu link de acesso ao Portal Spraytec', texto, html);
+  const texto = `Olá, ${nome}.\n\n${paragrafos.join('\n\n')}\n\n${botao}: ${link}\n\n${aviso}\n\nPortal de marketing Spraytec · Cancha Marketing`;
+  return { html, texto };
 }
-
-export async function usarLinkDeAcesso(b: Banco, token: string): Promise<string | null> {
-  const { rows } = await b.query(
-    `update tokens_login set usado_em = now() where token_hash = $1 and usado_em is null and expira_em > now() returning usuario_id`, [hash(token)]);
-  return rows[0] ? rows[0].usuario_id : null;
+export async function enviarConvite(baseUrl: string, para: { nome: string; email: string }, link: string) {
+  const nome = para.nome.split(' ')[0];
+  const { html, texto } = modeloEmail(baseUrl, nome,
+    ['Você foi convidado para o Portal de marketing Spraytec, onde ficam o calendário de conteúdo, as aprovações, a estratégia e os resultados.',
+      'Para começar, crie a sua senha.'],
+    'Criar minha senha', link, 'O link vale por 7 dias e funciona uma vez só. Depois, é só entrar com o seu e-mail e a senha que criou.');
+  await enviarEmail(para.email, 'Seu acesso ao Portal de marketing Spraytec', texto, html);
+}
+export async function enviarRedefinicao(baseUrl: string, para: { nome: string; email: string }, link: string) {
+  const nome = para.nome.split(' ')[0];
+  const { html, texto } = modeloEmail(baseUrl, nome,
+    ['Recebemos um pedido para criar uma nova senha para o Portal de marketing Spraytec.'],
+    'Criar nova senha', link, 'O link vale por 1 hora e funciona uma vez só. Se não foi você que pediu, ignore este e-mail: sua senha atual continua valendo.');
+  await enviarEmail(para.email, 'Nova senha do Portal Spraytec', texto, html);
 }

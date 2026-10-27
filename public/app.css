@@ -925,3 +925,9 @@ button.hnum:hover{box-shadow:0 0 0 1px var(--accent-ink)}
 /* Importação de planilha */
 .impsteps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:12px;font-size:14px}
 .impsteps textarea{font-family:var(--f-mono);font-size:12px;margin:6px 0}
+
+/* Entrada com e-mail e senha */
+.entrarform{display:flex;flex-direction:column;gap:8px}
+.entrarform label{font-size:13px;color:var(--muted)}
+.entrarform .btn{align-self:flex-start;margin-top:4px}
+.entrarform input[readonly]{opacity:.75}

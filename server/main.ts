@@ -11,8 +11,9 @@ import { visaoPara } from './visao.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
 import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
-  COOKIE_DEMO, codigoDemoConfere, criarSessao, demoLiberado, emailConfigurado, encerrarSessao, enviarLinkDeAcesso,
-  bloqueado, liberarDemo, modoDemo, permitido, registrar, usarLinkDeAcesso, usuarioDaRequisicao,
+  COOKIE_DEMO, codigoDemoConfere, consultarToken, criarSessao, criarToken, demoLiberado, emailConfigurado, encerrarSessao,
+  enviarConvite, enviarRedefinicao, bloqueado, hashSenha, liberarDemo, linkDoToken, modoDemo, permitido, problemaNaSenha,
+  registrar, usarToken, usuarioDaRequisicao, verificarSenha,
 } from './auth.ts';
 
 const PORTA = Number(process.env.PORT || 3000);
@@ -103,7 +104,7 @@ app.get('/saude', async (_req, rep) => {
 app.get('/api/entrar/opcoes', async (req) => {
   const liberado = demoLiberado(req);
   const pessoas = liberado ? (await b.query('select id, nome, papel from usuarios where demo and ativo order by ordem')).rows : [];
-  return { demo: modoDemo(), demoLiberado: liberado, pessoas, email: emailConfigurado() };
+  return { demo: modoDemo(), demoLiberado: liberado, pessoas, email: emailConfigurado(), senha: true };
 });
 app.post('/api/entrar/demo-codigo', async (req, rep) => {
   if (!modoDemo()) return rep.code(404).send({ erro: 'Modo demonstração desligado.' });
@@ -121,25 +122,68 @@ app.post('/api/entrar/demo', async (req, rep) => {
   await criarSessao(b, rows[0].id, req, rep);
   return { ok: true };
 });
-app.post('/api/entrar/email', async (req, rep) => {
-  const email = String((req.body as any)?.email || '').trim().slice(0, 200);
-  if (!permitido('email:' + req.ip, 5)) return rep.code(429).send({ erro: 'Muitos pedidos. Espere alguns minutos.' });
-  if (!emailConfigurado()) return rep.code(503).send({ erro: 'O envio de e-mail ainda não está configurado.' });
-  if (email) await enviarLinkDeAcesso(b, email, BASE_URL).catch((err) => req.log.error({ err }, 'falha ao enviar link'));
-  return { ok: true, msg: 'Se o e-mail estiver cadastrado, o link chega em instantes.' };
-});
-// O link do e-mail abre a tela /entrar, e a pessoa confirma com um clique. Assim, programas de e-mail que
-// abrem links sozinhos (verificação de segurança) não gastam o link antes da pessoa.
-app.get('/api/entrar/link', async (req, rep) => rep.redirect('/entrar?t=' + encodeURIComponent(String((req.query as any)?.t || ''))));
-app.post('/api/entrar/link', async (req, rep) => {
-  if (!permitido('link:' + req.ip, 20)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
-  const t = String((req.body as any)?.t || '');
-  const uid = t && (await usarLinkDeAcesso(b, t));
-  if (!uid) return rep.code(400).send({ erro: 'Este link de acesso já foi usado ou venceu. Peça um novo.' });
+// E-mail e senha. Depois de 5 senhas erradas a conta fica bloqueada por 15 minutos.
+// A resposta de erro é sempre a mesma, para não revelar se o e-mail existe.
+const ERRO_LOGIN = 'E-mail ou senha incorretos.';
+app.post('/api/entrar/senha', async (req, rep) => {
+  if (!permitido('senha:' + req.ip, 30)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
+  const email = String((req.body as any)?.email || '').trim().toLowerCase().slice(0, 200);
+  const senha = String((req.body as any)?.senha || '').slice(0, 200);
+  const u = (await b.query(
+    `select id, nome, papel, senha_hash, bloqueado_ate > now() as bloqueado from usuarios where lower(email)=$1 and ativo and not demo`, [email])).rows[0];
+  const ok = await verificarSenha(senha, u ? u.senha_hash : null);
+  if (u && u.bloqueado) return rep.code(429).send({ erro: 'Conta bloqueada por alguns minutos depois de várias tentativas. Tente de novo mais tarde ou use "Esqueci minha senha".' });
+  if (!u || !ok) {
+    if (u) {
+      const r = (await b.query(`update usuarios set falhas_login = falhas_login + 1 where id=$1 returning falhas_login`, [u.id])).rows[0];
+      if (r.falhas_login >= 5) {
+        await b.query(`update usuarios set falhas_login = 0, bloqueado_ate = now() + interval '15 minutes' where id=$1`, [u.id]);
+        await auditar(b, { id: u.id, nome: u.nome, papel: u.papel }, 'login-bloqueado', 'Conta bloqueada por 15 minutos depois de 5 senhas erradas', null, null, req.ip);
+      }
+    }
+    return rep.code(400).send({ erro: ERRO_LOGIN });
+  }
+  await b.query(`update usuarios set falhas_login = 0, bloqueado_ate = null where id=$1`, [u.id]);
   await encerrarSessao(b, req, rep);
-  await criarSessao(b, uid, req, rep);
-  await auditar(b, { id: uid, nome: (await b.query('select nome from usuarios where id=$1', [uid])).rows[0]?.nome }, 'entrar', 'Entrou no portal pelo link do e-mail', null, null, req.ip);
+  await criarSessao(b, u.id, req, rep);
   return { ok: true };
+});
+// Página de criar senha: mostra de quem é o link (sem gastar o link).
+app.get('/api/senha/link', async (req, rep) => {
+  if (!permitido('link:' + req.ip, 40)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
+  const t = String((req.query as any)?.t || '');
+  const r = t && (await consultarToken(b, t));
+  if (!r) return rep.code(400).send({ erro: 'Este link já foi usado ou venceu. Peça um novo.' });
+  return { nome: r.nome, email: r.email, tipo: r.tipo };
+});
+app.post('/api/senha/definir', async (req, rep) => {
+  if (!permitido('link:' + req.ip, 40)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
+  const t = String((req.body as any)?.t || ''), senha = (req.body as any)?.senha;
+  const antes = t && (await consultarToken(b, t));
+  if (!antes) return rep.code(400).send({ erro: 'Este link já foi usado ou venceu. Peça um novo.' });
+  const problema = problemaNaSenha(senha, antes.email);
+  if (problema) return rep.code(400).send({ erro: problema });
+  const r = await usarToken(b, t);
+  if (!r) return rep.code(400).send({ erro: 'Este link já foi usado ou venceu. Peça um novo.' });
+  await b.query(`update usuarios set senha_hash=$2, senha_definida_em=now(), falhas_login=0, bloqueado_ate=null where id=$1`, [r.id, await hashSenha(senha)]);
+  await b.query('delete from sessoes where usuario_id=$1', [r.id]); // sai dos outros aparelhos
+  await encerrarSessao(b, req, rep);
+  await criarSessao(b, r.id, req, rep);
+  const u = (await b.query('select id, nome, papel from usuarios where id=$1', [r.id])).rows[0];
+  await auditar(b, u, r.tipo === 'convite' ? 'senha-criada' : 'senha-redefinida', r.tipo === 'convite' ? 'Criou a senha e entrou pela primeira vez' : 'Criou uma nova senha', null, null, req.ip);
+  return { ok: true };
+});
+app.post('/api/senha/esqueci', async (req, rep) => {
+  if (!permitido('esqueci:' + req.ip, 5)) return rep.code(429).send({ erro: 'Muitos pedidos. Espere alguns minutos.' });
+  if (!emailConfigurado()) return rep.code(503).send({ erro: 'O envio de e-mail ainda não está configurado. Peça à Cancha um link para criar uma nova senha.' });
+  const email = String((req.body as any)?.email || '').trim().toLowerCase().slice(0, 200);
+  const u = (await b.query(`select id, nome, email, papel from usuarios where lower(email)=$1 and ativo and not demo`, [email])).rows[0];
+  if (u) {
+    const t = await criarToken(b, u.id, 'redefinir', 1);
+    await enviarRedefinicao(BASE_URL, u, linkDoToken(BASE_URL, t, 'redefinir')).catch((err) => req.log.error({ err }, 'falha ao enviar redefinição'));
+    await auditar(b, u, 'senha-esqueci', 'Pediu link para criar nova senha', null, null, req.ip);
+  }
+  return { ok: true, msg: 'Se o e-mail estiver cadastrado, o link para criar uma nova senha chega em instantes.' };
 });
 app.post('/api/sair', async (req, rep) => { await encerrarSessao(b, req, rep); return { ok: true }; });
 app.post('/api/sair-demo', async (req, rep) => { await encerrarSessao(b, req, rep); rep.clearCookie(COOKIE_DEMO, { path: '/' }); return { ok: true }; });
@@ -192,7 +236,7 @@ app.get('/api/atividade', async (req, rep) => {
 app.get('/api/pessoas', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha gerencia os acessos.' });
-  const { rows } = await b.query(`select id, nome, email, papel, ativo, visto_em from usuarios where not demo order by ativo desc, papel, nome`);
+  const { rows } = await b.query(`select id, nome, email, papel, ativo, visto_em, senha_definida_em is not null as tem_senha, convite_enviado_em from usuarios where not demo order by ativo desc, papel, nome`);
   return { pessoas: rows, papeis: NOME_PAPEL, email: emailConfigurado() };
 });
 app.post('/api/pessoas/salvar', async (req, rep) => {
@@ -229,6 +273,34 @@ app.post('/api/pessoas/salvar', async (req, rep) => {
   }).catch((err) => { if (err instanceof ErroAcao) return { erro: err.message }; throw err; });
   if ((r as any).erro) return rep.code(400).send(r);
   return { ok: true, id: (r as any).id };
+});
+
+// Convite: gera o link para a pessoa criar a senha (ou uma nova senha, se ela já tiver uma).
+// Com e-mail configurado, envia; sem e-mail, a Cancha copia o link e manda por outro canal.
+app.post('/api/pessoas/convite', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha gerencia os acessos.' });
+  const d = (req.body as any) || {};
+  const p = (await b.query('select id, nome, email, senha_definida_em is not null as tem_senha from usuarios where id=$1 and ativo and not demo', [d.id])).rows[0];
+  if (!p) return rep.code(400).send({ erro: 'Pessoa não encontrada ou com acesso desativado.' });
+  if (!p.email) return rep.code(400).send({ erro: 'Cadastre o e-mail da pessoa antes.' });
+  const tipo = p.tem_senha ? 'redefinir' : 'convite';
+  const link = linkDoToken(BASE_URL, await criarToken(b, p.id, tipo, tipo === 'convite' ? 24 * 7 : 24), tipo);
+  let enviado = false;
+  if (d.enviar) {
+    if (!emailConfigurado()) return rep.code(503).send({ erro: 'O envio de e-mail ainda não está configurado. Use "Copiar link".' });
+    try {
+      await (tipo === 'convite' ? enviarConvite(BASE_URL, p, link) : enviarRedefinicao(BASE_URL, p, link));
+      enviado = true;
+    } catch (err) {
+      req.log.error({ err }, 'falha ao enviar convite');
+      return rep.code(502).send({ erro: 'Não consegui enviar o e-mail agora. Tente de novo ou use "Copiar link".' });
+    }
+  }
+  await b.query('update usuarios set convite_enviado_em = now() where id=$1', [p.id]);
+  const oque = tipo === 'convite' ? 'convite' : 'link de nova senha';
+  await auditar(b, u, 'pessoa-convite', enviado ? `Enviou ${oque} por e-mail para ${p.nome}` : `Gerou ${oque} para ${p.nome} (copiado para enviar por outro canal)`, { id: p.id, tipo, enviado }, null, req.ip);
+  return { ok: true, tipo, enviado, link: enviado ? undefined : link };
 });
 
 // Recarregar os dados fictícios (só em demonstração, só a Cancha).

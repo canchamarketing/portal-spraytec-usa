@@ -35,8 +35,8 @@ console.log('Sem login');
   checa(r3.status === 403, 'pedido vindo de outro site é bloqueado');
   const r4 = await fetch(BASE + '/api/entrar/demo-codigo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"codigo":"errado"}' });
   checa(r4.status === 400, 'código errado é recusado');
-  const r5 = await fetch(BASE + '/api/entrar/link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"t":"link-falso"}' });
-  checa(r5.status === 400, 'link de acesso falso é recusado');
+  const r5 = await fetch(BASE + '/api/senha/definir', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"t":"link-falso","senha":"uma senha qualquer longa"}' });
+  checa(r5.status === 400, 'link de convite falso é recusado');
 }
 
 console.log('Cancha: recarrega a demonstração');
@@ -177,10 +177,42 @@ console.log('Pessoas e acessos');
   checa(r.status === 200 && r.j.id, 'Cancha cadastra uma pessoa');
   checa((await cancha.req('/api/pessoas/salvar', { nome: 'Outra', email, papel: 'operacao' })).status === 400, 'e-mail repetido é recusado');
   checa((await cancha.req('/api/pessoas/salvar', { nome: 'X', email: 'sem-arroba', papel: 'operacao' })).status === 400, 'e-mail inválido é recusado');
+  checa(!JSON.stringify((await cancha.req('/api/pessoas')).j).includes('senha_hash'), 'a lista de pessoas nunca traz a senha');
+
+  // Convite → criar senha → entrar com e-mail e senha
+  checa((await op.req('/api/pessoas/convite', { id: r.j.id })).status === 403, 'só a Cancha gera convite');
+  const cv = await cancha.req('/api/pessoas/convite', { id: r.j.id });
+  checa(cv.status === 200 && cv.j.tipo === 'convite' && /\/criar-senha\?t=/.test(cv.j.link || ''), 'Cancha gera o link de convite');
+  const t = new URL(cv.j.link).searchParams.get('t');
+  const nova = await fetch(BASE + '/api/senha/link?t=' + t).then((x) => x.json());
+  checa(nova.email === email && nova.tipo === 'convite', 'o link de convite mostra de quem é, sem ser gasto');
+  const post = (path, corpo) => fetch(BASE + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) });
+  checa((await post('/api/senha/definir', { t, senha: 'curta' })).status === 400, 'senha curta é recusada');
+  checa((await post('/api/senha/definir', { t, senha: email.split('@')[0] + '2026!' })).status === 400, 'senha com o próprio e-mail é recusada');
+  const SENHA = 'Uma frase de teste bem longa 7';
+  const def = await post('/api/senha/definir', { t, senha: SENHA });
+  checa(def.status === 200 && (def.headers.getSetCookie() || []).some((c) => c.startsWith('spraytec_sessao=')), 'pessoa cria a senha e já entra');
+  checa((await post('/api/senha/definir', { t, senha: SENHA })).status === 400, 'o link de convite funciona uma vez só');
+  const ent = await post('/api/entrar/senha', { email, senha: SENHA });
+  checa(ent.status === 200, 'entra com e-mail e senha');
+  const naoExiste = await post('/api/entrar/senha', { email: 'ninguem@exemplo.invalid', senha: SENHA });
+  const errada = await post('/api/entrar/senha', { email, senha: 'senha errada aqui' });
+  const m1 = (await naoExiste.json()).erro, m2 = (await errada.json()).erro;
+  checa(naoExiste.status === 400 && errada.status === 400 && m1 === m2, 'mesma mensagem para e-mail inexistente e senha errada');
+  for (let i = 0; i < 4; i++) await post('/api/entrar/senha', { email, senha: 'senha errada aqui' });
+  const bloq = await post('/api/entrar/senha', { email, senha: SENHA });
+  checa(bloq.status === 429, 'depois de 5 senhas erradas a conta fica bloqueada (até com a senha certa)');
+  const cv2 = await cancha.req('/api/pessoas/convite', { id: r.j.id });
+  checa(cv2.status === 200 && cv2.j.tipo === 'redefinir' && /\/nova-senha\?t=/.test(cv2.j.link || ''), 'para quem já tem senha, o link é de nova senha');
+  const t2 = new URL(cv2.j.link).searchParams.get('t');
+  checa((await post('/api/senha/definir', { t2: t2, t: t2, senha: 'Outra frase de teste longa 8' })).status === 200, 'nova senha pelo link desbloqueia a conta');
+  checa((await post('/api/entrar/senha', { email, senha: SENHA })).status === 400, 'a senha antiga deixa de valer');
+
   const r2 = await cancha.req('/api/pessoas/salvar', { id: r.j.id, nome: 'Pessoa Teste', email, papel: 'operacao', ativo: false });
   checa(r2.status === 200, 'Cancha desativa o acesso');
   const lista = (await cancha.req('/api/pessoas')).j.pessoas;
   checa(lista.some((p) => p.id === r.j.id && !p.ativo), 'a pessoa aparece como desativada');
+  checa((await post('/api/entrar/senha', { email, senha: 'Outra frase de teste longa 8' })).status === 400, 'pessoa desativada não entra mais');
 }
 
 console.log('Registro de auditoria');
