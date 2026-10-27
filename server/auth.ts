@@ -127,8 +127,12 @@ const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<':
 
 export async function enviarEmail(para: string, assunto: string, texto: string, html: string) {
   const nodemailer = (await import('nodemailer')).default;
+  // Dois modos: com usuário e senha (ex.: senha de app) ou sem autenticação, pelo redirecionamento SMTP
+  // do Google Workspace, que aceita o IP do servidor. SMTP_NOME é o nome com que o servidor se apresenta.
   const t = nodemailer.createTransport({
     host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure: Number(process.env.SMTP_PORT) === 465,
+    requireTLS: Number(process.env.SMTP_PORT || 587) === 587,
+    name: process.env.SMTP_NOME || undefined,
     auth: process.env.SMTP_USUARIO ? { user: process.env.SMTP_USUARIO, pass: process.env.SMTP_SENHA } : undefined,
   });
   await t.sendMail({ from: process.env.EMAIL_REMETENTE, to: para, subject: assunto, text: texto, html });
