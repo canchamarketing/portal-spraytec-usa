@@ -8,6 +8,7 @@ import { abrirBanco, migrar } from './db.ts';
 import { carregar, salvar, gravarTudo } from './estado.ts';
 import { ACOES, type Aviso } from './acoes.ts';
 import { visaoPara } from './visao.ts';
+import { coletaRodando, coletarMeta, metaConfigurado } from './integracoes/meta.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
 import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
@@ -317,6 +318,33 @@ app.post('/api/pessoas/convite', async (req, rep) => {
   return { ok: true, tipo, enviado, link: enviado ? undefined : link };
 });
 
+// ---------- integrações ----------
+// Números que chegam do Meta (coletados pelo servidor). A produtora não recebe.
+app.get('/api/metricas', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel === 'produtora') return rep.code(403).send({ erro: 'Não permitido.' });
+  const r: any = { conectado: metaConfigurado(), ig: { perfil: null, dias: [], posts: [], stories: [] }, fb: { perfil: null, dias: [], posts: [] }, ads: { anuncios: [], dias: [] } };
+  const lista: Record<string, string> = { dia: 'dias', post: 'posts', story: 'stories', anuncio: 'anuncios', anuncio_dia: 'dias' };
+  const { rows } = await b.query(`select fonte, tipo, id, dados from metricas order by fonte, tipo, id`);
+  for (const x of rows) {
+    if (!r[x.fonte]) continue;
+    if (x.tipo === 'perfil') r[x.fonte].perfil = x.dados;
+    else if (lista[x.tipo]) r[x.fonte][lista[x.tipo]].push(x.tipo === 'dia' ? { d: x.id, ...x.dados } : x.dados);
+  }
+  // O texto do erro (que pode citar configuração) só vai para a Cancha.
+  const st = (await b.query(`select fonte, ultimo_ok, ultima_tentativa, erro from integracoes`)).rows;
+  r.situacao = Object.fromEntries(st.map((x: any) => [x.fonte, { ultimoOk: x.ultimo_ok, tentativa: x.ultima_tentativa, erro: x.erro ? (u.papel === 'cancha' ? x.erro : 'falha na última coleta') : null }]));
+  return r;
+});
+app.post('/api/integracoes/atualizar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha atualiza as integrações.' });
+  if (!metaConfigurado()) return rep.code(503).send({ erro: 'A chave do Meta ainda não foi configurada no servidor.' });
+  if (coletaRodando()) return { ok: true, jaRodando: true };
+  coletarMeta(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));
+  return { ok: true };
+});
+
 // Recarregar os dados fictícios (só em demonstração, só a Cancha).
 app.post('/api/demo/restaurar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
@@ -333,4 +361,10 @@ app.setNotFoundHandler((req, rep) => {
 });
 
 await app.listen({ port: PORTA, host: '0.0.0.0' });
-app.log.info({ banco: b.tipo, migracoes: aplicadas, demo: modoDemo() }, 'Portal Spraytec no ar');
+app.log.info({ banco: b.tipo, migracoes: aplicadas, demo: modoDemo(), meta: metaConfigurado() }, 'Portal Spraytec no ar');
+// Coleta do Meta: a primeira meio minuto depois de subir, depois de hora em hora.
+if (metaConfigurado()) {
+  const coletar = () => coletarMeta(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));
+  setTimeout(coletar, 30e3);
+  setInterval(coletar, 3600e3);
+}
