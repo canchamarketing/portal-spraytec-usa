@@ -9,7 +9,7 @@ import { carregar, salvar, gravarTudo } from './estado.ts';
 import { ACOES } from './acoes.ts';
 import { visaoPara } from './visao.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
-import { ErroAcao, agoraBR, clone, hojeBR, type Usuario } from './dominio.ts';
+import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
   COOKIE_DEMO, codigoDemoConfere, criarSessao, demoLiberado, emailConfigurado, encerrarSessao, enviarLinkDeAcesso,
   bloqueado, liberarDemo, modoDemo, permitido, registrar, usarLinkDeAcesso, usuarioDaRequisicao,
@@ -22,10 +22,11 @@ const aplicadas = await migrar(b);
 
 // Pessoas de demonstração e dados fictícios (só em modo demonstração e com o banco vazio).
 async function garantirUsuariosDemo() {
+  await b.query('update usuarios set ativo=false where demo and not (id = any($1))', [USUARIOS_DEMO.map((u) => u.id)]);
   for (const u of USUARIOS_DEMO)
     await b.query(
       `insert into usuarios (id, nome, papel, demo, ordem) values ($1,$2,$3,true,$4)
-       on conflict (id) do update set nome=excluded.nome, papel=excluded.papel, ordem=excluded.ordem`,
+       on conflict (id) do update set nome=excluded.nome, papel=excluded.papel, ordem=excluded.ordem, ativo=true`,
       [u.id, u.nome, u.papel, u.ordem]);
 }
 async function auditar(q: { query: typeof b.query }, u: Partial<Usuario> | null, acao: string, resumo: string, entrada: any, mudancas: any, ip?: string) {
@@ -82,9 +83,15 @@ async function versao(): Promise<number> {
   const { rows } = await b.query('select coalesce(max(id),0)::int as v from auditoria');
   return rows[0].v;
 }
+async function pessoasAtivas(q: { query: typeof b.query } = b) {
+  return (await q.query(`select id, nome, papel from usuarios where ativo and (demo = $1 or not demo) order by demo, nome`, [modoDemo()])).rows;
+}
 async function estadoPara(u: Usuario) {
   const e = await carregar(b);
-  return { eu: u, hoje: hojeBR(), versao: await versao(), demo: modoDemo(), dados: visaoPara(e, u) };
+  const r: any = { eu: u, hoje: hojeBR(), versao: await versao(), demo: modoDemo(), dados: visaoPara(e, u) };
+  // A Cancha escolhe quem da Operação aprovou quando registra aprovação por WhatsApp ou e-mail.
+  if (u.papel === 'cancha') r.aprovadores = (await pessoasAtivas()).filter((p: any) => p.papel === 'operacao');
+  return r;
 }
 
 // ---------- saúde (para o monitor externo) ----------
@@ -121,12 +128,18 @@ app.post('/api/entrar/email', async (req, rep) => {
   if (email) await enviarLinkDeAcesso(b, email, BASE_URL).catch((err) => req.log.error({ err }, 'falha ao enviar link'));
   return { ok: true, msg: 'Se o e-mail estiver cadastrado, o link chega em instantes.' };
 });
-app.get('/api/entrar/link', async (req, rep) => {
-  const t = String((req.query as any)?.t || '');
+// O link do e-mail abre a tela /entrar, e a pessoa confirma com um clique. Assim, programas de e-mail que
+// abrem links sozinhos (verificação de segurança) não gastam o link antes da pessoa.
+app.get('/api/entrar/link', async (req, rep) => rep.redirect('/entrar?t=' + encodeURIComponent(String((req.query as any)?.t || ''))));
+app.post('/api/entrar/link', async (req, rep) => {
+  if (!permitido('link:' + req.ip, 20)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
+  const t = String((req.body as any)?.t || '');
   const uid = t && (await usarLinkDeAcesso(b, t));
-  if (!uid) return rep.redirect('/?link=invalido');
+  if (!uid) return rep.code(400).send({ erro: 'Este link de acesso já foi usado ou venceu. Peça um novo.' });
+  await encerrarSessao(b, req, rep);
   await criarSessao(b, uid, req, rep);
-  return rep.redirect('/');
+  await auditar(b, { id: uid, nome: (await b.query('select nome from usuarios where id=$1', [uid])).rows[0]?.nome }, 'entrar', 'Entrou no portal pelo link do e-mail', null, null, req.ip);
+  return { ok: true };
 });
 app.post('/api/sair', async (req, rep) => { await encerrarSessao(b, req, rep); return { ok: true }; });
 app.post('/api/sair-demo', async (req, rep) => { await encerrarSessao(b, req, rep); rep.clearCookie(COOKIE_DEMO, { path: '/' }); return { ok: true }; });
@@ -154,8 +167,7 @@ app.post('/api/acao', async (req, rep) => {
     const res = await emFila(() => b.tx(async (q) => {
       const e = await carregar(q);
       const antes = clone(e);
-      const ap = (await q.query(`select nome from usuarios where papel='matheus' and ativo order by demo, ordem limit 1`)).rows[0];
-      const r = def.fn({ e, u, d, hoje: hojeBR(), agora: agoraBR(), aprovador: ap ? ap.nome : 'Matheus' });
+      const r = def.fn({ e, u, d, hoje: hojeBR(), agora: agoraBR(), pessoas: await pessoasAtivas(q) });
       const mud = await salvar(q, antes, e, u.nome);
       if (!def.semAuditoria) await auditar(q, u, acao, r.resumo, d, mud, req.ip);
       return r;
@@ -174,6 +186,49 @@ app.get('/api/atividade', async (req, rep) => {
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha vê o registro completo.' });
   const { rows } = await b.query(`select id, em, usuario_nome, papel, acao, resumo from auditoria order by id desc limit 100`);
   return { itens: rows };
+});
+
+// ---------- pessoas (quem entra no portal) — só a Cancha gerencia ----------
+app.get('/api/pessoas', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha gerencia os acessos.' });
+  const { rows } = await b.query(`select id, nome, email, papel, ativo, visto_em from usuarios where not demo order by ativo desc, papel, nome`);
+  return { pessoas: rows, papeis: NOME_PAPEL, email: emailConfigurado() };
+});
+app.post('/api/pessoas/salvar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha gerencia os acessos.' });
+  const d = (req.body as any) || {};
+  const nome = String(d.nome || '').trim().slice(0, 120);
+  const email = String(d.email || '').trim().toLowerCase().slice(0, 200);
+  const papel = String(d.papel || '');
+  const ativo = d.ativo !== false;
+  if (!nome) return rep.code(400).send({ erro: 'Preencha o nome.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return rep.code(400).send({ erro: 'E-mail inválido.' });
+  if (!(PAPEIS as readonly string[]).includes(papel)) return rep.code(400).send({ erro: 'Papel inválido.' });
+  if (d.id === u.id && (!ativo || papel !== 'cancha')) return rep.code(400).send({ erro: 'Você não pode tirar o seu próprio acesso de Cancha.' });
+  const dup = (await b.query('select id from usuarios where lower(email)=$1 and id <> $2', [email, d.id || ''])).rows[0];
+  if (dup) return rep.code(400).send({ erro: 'Já existe uma pessoa com este e-mail.' });
+  const r = await b.tx(async (q) => {
+    let antes: any = null, id = d.id;
+    if (id) {
+      antes = (await q.query('select nome, email, papel, ativo from usuarios where id=$1 and not demo', [id])).rows[0];
+      if (!antes) throw new ErroAcao('Pessoa não encontrada.');
+      await q.query('update usuarios set nome=$2, email=$3, papel=$4, ativo=$5, atualizado_em=now() where id=$1', [id, nome, email, papel, ativo]);
+      if (!ativo || antes.papel !== papel) await q.query('delete from sessoes where usuario_id=$1', [id]);
+    } else {
+      id = novoId('u-');
+      await q.query('insert into usuarios (id, nome, email, papel, ativo) values ($1,$2,$3,$4,$5)', [id, nome, email, papel, ativo]);
+    }
+    const resumo = !antes ? `Cadastrou ${nome} (${email}) como ${NOME_PAPEL[papel]}`
+      : !ativo && antes.ativo ? `Desativou o acesso de ${nome}`
+      : ativo && !antes.ativo ? `Reativou o acesso de ${nome}`
+      : `Atualizou o cadastro de ${nome} (${NOME_PAPEL[papel]})`;
+    await auditar(q, u, 'pessoa-salvar', resumo, { id, nome, email, papel, ativo }, { antes }, req.ip);
+    return { id };
+  }).catch((err) => { if (err instanceof ErroAcao) return { erro: err.message }; throw err; });
+  if ((r as any).erro) return rep.code(400).send(r);
+  return { ok: true, id: (r as any).id };
 });
 
 // Recarregar os dados fictícios (só em demonstração, só a Cancha).

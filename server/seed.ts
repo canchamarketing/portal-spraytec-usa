@@ -4,12 +4,10 @@ import { addDays, dow, fmt, FERIADOS } from './dominio.ts';
 import { estadoVazio, type Estado } from './estado.ts';
 
 export const USUARIOS_DEMO = [
-  { id: 'u-matheus', nome: 'Matheus', papel: 'matheus', ordem: 1 },
+  { id: 'u-operacao', nome: 'Operação Spraytec', papel: 'operacao', ordem: 1 },
   { id: 'u-diretoria', nome: 'Diretoria Spraytec', papel: 'diretoria', ordem: 2 },
   { id: 'u-atendimento', nome: 'Atendimento Cancha', papel: 'cancha', ordem: 3 },
-  { id: 'u-diogo', nome: 'Diogo', papel: 'cancha', ordem: 4 },
-  { id: 'u-luis', nome: 'Luís', papel: 'cancha', ordem: 5 },
-  { id: 'u-produtora', nome: 'Produtora de vídeo', papel: 'produtora', ordem: 6 },
+  { id: 'u-produtora', nome: 'Produtora de vídeo', papel: 'produtora', ordem: 4 },
 ];
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -39,6 +37,7 @@ export function dadosDemo(hoje: string): Estado {
   const semanaISO = (iso: string) => { const d = new Date(iso + 'T12:00:00Z'); const dia = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dia + 3); const j = new Date(Date.UTC(d.getUTCFullYear(), 0, 4)); return 1 + Math.round(((d.getTime() - j.getTime()) / 864e5 - 3 + ((j.getUTCDay() + 6) % 7)) / 7); };
 
   const e = estadoVazio();
+  const temPauta = (p: any) => !['video', 'design'].includes(p.rede) && p.formato !== 'plano';
   let uid = 1;
   function P(date: string | null, time: string | null, rede: string, formato: string, titulo: string, pilar: string, produto: string, status: string, extra?: any) {
     const corpo = ({
@@ -100,18 +99,18 @@ export function dadosDemo(hoje: string): Estado {
     P('2026-12-01', null, 'ads', 'plano', `Plano de mídia de ${mes(1)}`, 'Produto', 'Bioestimulante', 'aprovacao'),
     P('2026-12-02', '11:30', 'ig', 'carrossel', 'Pós-emergência: a janela certa de aplicação', 'Manejo', 'Linha foliar', 'aprovacao'),
     P('2026-12-03', '08:00', 'email', 'newsletter', `Newsletter de ${mes(1)}: florescimento sem estresse`, 'Manejo', 'Bioestimulante', 'aprovacao'),
-    P('2026-12-04', '18:00', 'ig', 'reel', 'Resultado de campo: ensaio safra 25/26', 'Campo', 'Bioestimulante', 'validacao', { comments: [{ who: 'Matheus', text: 'Mandei para a agronomia conferir os números do ensaio antes de aprovar.', interno: false, quando: com('2026-11-14', '10:12') }] }),
+    P('2026-12-04', '18:00', 'ig', 'reel', 'Resultado de campo: ensaio safra 25/26', 'Campo', 'Bioestimulante', 'aprovacao', { validacao: true, comments: [{ who: 'Matheus', text: 'Mandei para a agronomia conferir os números do ensaio antes de aprovar.', interno: false, quando: com('2026-11-14', '10:12') }] }),
     P('2026-12-05', null, 'design', 'pecas', 'Peças de anúncio: florescimento', 'Produto', 'Bioestimulante', 'aprovacao'),
-    P('2026-12-07', '12:00', 'fb', 'post', 'Cuidados com o calor no florescimento', 'Manejo', 'Bioestimulante', 'ajuste', { comments: [{ who: 'Matheus', text: 'Trocar a foto: essa lavoura é de milho. Usar uma de soja em R1.', interno: false, quando: com('2026-11-14', '09:40') }] }),
+    P('2026-12-07', '12:00', 'fb', 'post', 'Cuidados com o calor no florescimento', 'Manejo', 'Bioestimulante', 'ajuste', { etapaAjuste: 'peca', comments: [{ who: 'Matheus', text: 'Trocar a foto: essa lavoura é de milho. Usar uma de soja em R1.', interno: false, quando: com('2026-11-14', '09:40') }] }),
     P('2026-12-08', '09:00', 'ig', 'story', 'Bastidores: chegada da linha foliar nas revendas', 'Produto', 'Linha foliar', 'aprovacao'),
     P('2026-12-09', '11:30', 'ig', 'post', 'Linha foliar: guia rápido de produtos', 'Produto', 'Linha foliar', 'aprovacao'),
     P('2026-12-09', null, 'video', 'gravacao', 'Gravação: calibragem do pulverizador (Short)', 'Manejo', '—', 'pauta'),
     P('2026-12-10', null, 'design', 'producao', `Peças de ${mes(2)} (lote 1)`, 'Manejo', '—', 'pauta'),
     P('2026-12-11', '17:00', 'yt', 'video', 'Entrevista com agrônomo Spraytec', 'Campo', '—', 'producao', { comments: [{ who: 'Atendimento Cancha', text: `Produtora confirmou gravação dia ${dm('2026-11-20')}. Roteiro v2 aprovado.`, interno: true, quando: com('2026-11-13', '16:05') }] }),
     P('2026-12-14', '11:30', 'ig', 'carrossel', '5 erros comuns na aplicação foliar', 'Educação', 'Linha foliar', 'aprovacao'),
-    P('2026-12-16', '09:00', 'ig', 'story', T.contagem, 'Eventos', '—', 'pauta'),
+    P('2026-12-16', '09:00', 'ig', 'story', T.contagem, 'Eventos', '—', 'pauta_aprovacao'),
     P('2026-12-17', '08:00', 'email', 'newsletter', T.newsEnsaio, 'Campo', 'Bioestimulante', 'producao'),
-    P('2026-12-18', '12:00', 'fb', 'post', T.lab, 'Institucional', '—', 'producao'),
+    P('2026-12-18', '12:00', 'fb', 'post', T.lab, 'Institucional', '—', 'pauta_aprovacao'),
     P('2026-12-21', '18:00', 'ig', 'reel', T.rtv, 'Campo', '—', 'aprovacao'),
     P('2026-12-23', '11:30', 'ig', 'post', T.numeros, 'Institucional', '—', 'aprovado'),
     P(null, null, 'ig', 'post', 'Lançamento: novo produto (aguardando registro MAPA)', 'Produto', 'Novo produto', 'espera'),
@@ -123,7 +122,8 @@ export function dadosDemo(hoje: string): Estado {
     if (['aprovado', 'agendado', 'publicado'].includes(p.status) && !['video', 'design'].includes(p.rede))
       p.hist.push({ q: dm(proto && proto < '2026-12-01' ? '2026-10-22' : '2026-11-13'), t: 'Aprovado por Matheus · portal' });
     if (p.status === 'publicado') p.hist.push({ q: fmt(p.date), t: p.anterior ? 'Publicado pela agência anterior' : 'Concluído' });
-    if (['aprovacao', 'validacao'].includes(p.status)) { p.prazo = prazoCal; p.hist.push({ q: dm('2026-11-13'), t: 'Enviado para aprovação' }); }
+    if (p.status === 'pauta_aprovacao') { p.prazo = prazoCal; p.hist.push({ q: dm('2026-11-13'), t: 'Pauta enviada para aprovação' }); }
+    if (p.status === 'aprovacao') { p.prazo = prazoCal; if (temPauta(p)) p.hist.push({ q: dm('2026-11-06'), t: 'Pauta aprovada por Matheus · portal' }); p.hist.push({ q: dm('2026-11-13'), t: 'Enviado para aprovação' }); }
   }
   const byT = (t: string) => e.posts.find((p) => p.titulo === t);
 
@@ -186,18 +186,18 @@ export function dadosDemo(hoje: string): Estado {
   // Conversas
   const proxFeriado = Object.keys(FERIADOS).sort().find((d) => d > addDays(hoje, 3)) || addDays(hoje, 10);
   e.threads = [
-    { id: 't1', tema: `Calendário de ${mes(1)}`, ref: ref('d', `Aprovar calendário de ${mes(1)}`), unread: { matheus: 0, cancha: 0 }, msgs: [
+    { id: 't1', tema: `Calendário de ${mes(1)}`, ref: ref('d', `Aprovar calendário de ${mes(1)}`), unread: { spraytec: 0, cancha: 0 }, msgs: [
       { de: 'cancha', nome: 'Atendimento Cancha', q: com('2026-11-13', '17:02'), txt: `Matheus, o calendário de ${mes(1)} está no portal, em Aprovação. O prazo é ${dm('2026-11-17')}.` },
-      { de: 'matheus', nome: 'Matheus', q: com('2026-11-14', '10:15'), txt: 'Vi sim. Mandei o reel do ensaio para a agronomia conferir os números. O resto aprovo até o prazo.' },
+      { de: 'spraytec', nome: 'Matheus', q: com('2026-11-14', '10:15'), txt: 'Vi sim. Mandei o reel do ensaio para a agronomia conferir os números. O resto aprovo até o prazo.' },
       { de: 'cancha', nome: 'Atendimento Cancha', q: com('2026-11-14', '10:21'), txt: 'Combinado. O post do calor no florescimento está com a foto sendo trocada e volta para você hoje.' }] },
-    { id: 't2', tema: 'Acesso ao Google Ads', ref: ref('d', 'Liberar acesso de administrador no Google Ads'), unread: { matheus: 0, cancha: 0 }, msgs: [
+    { id: 't2', tema: 'Acesso ao Google Ads', ref: ref('d', 'Liberar acesso de administrador no Google Ads'), unread: { spraytec: 0, cancha: 0 }, msgs: [
       { de: 'cancha', nome: 'Luís', q: com('2026-10-22', '09:30'), txt: 'Para rodar a etapa 1 do Google Ads precisamos de acesso de administrador na conta. Pode liberar para o e-mail da Cancha?' },
       { de: 'cancha', nome: 'Atendimento Cancha', q: com('2026-11-05', '11:00'), txt: 'Passando para lembrar do acesso. Enquanto isso, a campanha de pesquisa segue parada.' },
-      { de: 'matheus', nome: 'Matheus', q: com('2026-11-06', '14:40'), txt: 'O TI está vendo. Quem tem o acesso hoje é a agência anterior, estou cobrando.' }] },
-    { id: 't3', tema: 'Fotos do dia de campo', ref: ref('d', 'Fotos do dia de campo na pasta do Drive'), unread: { matheus: 0, cancha: 1 }, msgs: [
-      { de: 'matheus', nome: 'Matheus', q: com('2026-11-15', '18:05'), txt: 'As fotos do dia de campo chegam amanhã. Coloco na pasta do Drive.' }] },
-    { id: 't4', tema: `Feriado de ${fmt(proxFeriado)}`, ref: null, unread: { matheus: 1, cancha: 1 }, msgs: [
-      { de: 'matheus', nome: 'Matheus', q: fmt(hoje) + ' 09:20', txt: `A expedição não funciona no feriado de ${fmt(proxFeriado)}. Dá para incluir um story avisando um dia antes?` },
+      { de: 'spraytec', nome: 'Matheus', q: com('2026-11-06', '14:40'), txt: 'O TI está vendo. Quem tem o acesso hoje é a agência anterior, estou cobrando.' }] },
+    { id: 't3', tema: 'Fotos do dia de campo', ref: ref('d', 'Fotos do dia de campo na pasta do Drive'), unread: { spraytec: 0, cancha: 1 }, msgs: [
+      { de: 'spraytec', nome: 'Matheus', q: com('2026-11-15', '18:05'), txt: 'As fotos do dia de campo chegam amanhã. Coloco na pasta do Drive.' }] },
+    { id: 't4', tema: `Feriado de ${fmt(proxFeriado)}`, ref: null, unread: { spraytec: 1, cancha: 1 }, msgs: [
+      { de: 'spraytec', nome: 'Matheus', q: fmt(hoje) + ' 09:20', txt: `A expedição não funciona no feriado de ${fmt(proxFeriado)}. Dá para incluir um story avisando um dia antes?` },
       { de: 'cancha', nome: 'Atendimento Cancha', q: fmt(hoje) + ' 09:34', txt: 'Dá sim. Montamos hoje e mandamos para sua aprovação até 14h.' }] },
   ];
 

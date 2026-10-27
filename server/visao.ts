@@ -26,7 +26,7 @@ export function visaoPara(e0: Estado, u: Usuario) {
     return x;
   });
   e.relatorios = e.relatorios.filter((r: any) => r.status !== 'rascunho');
-  // As conversas são entre o Matheus e a Cancha; diretoria e leitores não recebem.
-  if (u.papel !== 'matheus') e.threads = [];
+  // As conversas são entre a Operação Spraytec e a Cancha; diretoria e leitores não recebem.
+  if (u.papel !== 'operacao') e.threads = [];
   return e;
 }

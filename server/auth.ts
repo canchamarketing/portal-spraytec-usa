@@ -70,23 +70,36 @@ export function permitido(chave: string, max = 8): boolean {
 }
 
 // ---------- link de acesso por e-mail ----------
-export const emailConfigurado = () => !!(process.env.SMTP_HOST && process.env.EMAIL_REMETENTE);
+export const emailConfigurado = () => !!(process.env.SMTP_HOST && process.env.EMAIL_REMETENTE && (!process.env.SMTP_USUARIO || process.env.SMTP_SENHA));
 
-export async function enviarLinkDeAcesso(b: Banco, email: string, baseUrl: string) {
-  const { rows } = await b.query('select id, nome from usuarios where lower(email) = lower($1) and ativo', [email]);
-  if (!rows[0] || !emailConfigurado()) return;
-  const token = randomBytes(32).toString('base64url');
-  await b.query(`insert into tokens_login (token_hash, usuario_id, expira_em) values ($1, $2, now() + interval '15 minutes')`, [hash(token), rows[0].id]);
+const escHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as any)[c]);
+
+export async function enviarEmail(para: string, assunto: string, texto: string, html: string) {
   const nodemailer = (await import('nodemailer')).default;
   const t = nodemailer.createTransport({
     host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure: Number(process.env.SMTP_PORT) === 465,
     auth: process.env.SMTP_USUARIO ? { user: process.env.SMTP_USUARIO, pass: process.env.SMTP_SENHA } : undefined,
   });
-  const link = `${baseUrl}/api/entrar/link?t=${token}`;
-  await t.sendMail({
-    from: process.env.EMAIL_REMETENTE, to: email, subject: 'Seu link de acesso ao Portal Spraytec',
-    text: `Olá, ${rows[0].nome}.\n\nPara entrar no Portal Spraytec, abra este link (vale por 15 minutos e só uma vez):\n${link}\n\nSe não foi você que pediu, ignore este e-mail.`,
-  });
+  await t.sendMail({ from: process.env.EMAIL_REMETENTE, to: para, subject: assunto, text: texto, html });
+}
+
+// Envia o link de acesso (vale 30 minutos e uma vez só). Não diz se o e-mail existe ou não.
+export async function enviarLinkDeAcesso(b: Banco, email: string, baseUrl: string) {
+  const { rows } = await b.query('select id, nome from usuarios where lower(email) = lower($1) and ativo and not demo', [email]);
+  if (!rows[0] || !emailConfigurado()) return;
+  const token = randomBytes(32).toString('base64url');
+  await b.query(`insert into tokens_login (token_hash, usuario_id, expira_em) values ($1, $2, now() + interval '30 minutes')`, [hash(token), rows[0].id]);
+  const link = `${baseUrl}/entrar?t=${token}`;
+  const nome = String(rows[0].nome).split(' ')[0];
+  const texto = `Olá, ${nome}.\n\nPara entrar no Portal Spraytec, abra este link (vale por 30 minutos e uma vez só):\n${link}\n\nSe não foi você que pediu, ignore este e-mail.\n\nPortal de marketing Spraytec · Cancha Marketing`;
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1E2B22">
+<img src="${baseUrl}/logo.png" alt="Spraytec" height="28" style="display:block;margin-bottom:24px">
+<p style="font-size:16px">Olá, ${escHtml(nome)}.</p>
+<p style="font-size:15px;line-height:1.5">Para entrar no Portal de marketing Spraytec, clique no botão abaixo.</p>
+<p style="margin:28px 0"><a href="${link}" style="background:#235F3F;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;display:inline-block">Entrar no portal</a></p>
+<p style="font-size:13px;color:#666666;line-height:1.5">O link vale por 30 minutos e funciona uma vez só. Se não foi você que pediu, pode ignorar este e-mail.</p>
+<p style="font-size:12px;color:#999999;margin-top:32px">Portal de marketing Spraytec · Cancha Marketing</p></div>`;
+  await enviarEmail(email, 'Seu link de acesso ao Portal Spraytec', texto, html);
 }
 
 export async function usarLinkDeAcesso(b: Banco, token: string): Promise<string | null> {

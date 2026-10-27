@@ -1,12 +1,17 @@
 // Regras e utilidades do domínio, usadas pelas ações do servidor.
 
-export const PAPEIS = ['matheus', 'diretoria', 'cancha', 'produtora', 'leitor'] as const;
+export const PAPEIS = ['operacao', 'diretoria', 'cancha', 'produtora', 'leitor'] as const;
 export type Papel = (typeof PAPEIS)[number];
 export type Usuario = { id: string; nome: string; papel: Papel; email: string | null; demo: boolean };
+export const NOME_PAPEL: Record<string, string> = {
+  operacao: 'Operação Spraytec', diretoria: 'Diretoria Spraytec', cancha: 'Cancha', produtora: 'Produtora de vídeo', leitor: 'Leitor',
+};
 
+// Fluxo de um post ou e-mail: a Spraytec aprova a pauta antes da produção e a peça depois.
+// "Validação interna" não é uma etapa: é uma marca no item em aprovação (continua com a Spraytec).
 export const STATUS: Record<string, string> = {
-  pauta: 'Pauta', producao: 'Em produção', aprovacao: 'Em aprovação', validacao: 'Validação interna Spraytec',
-  ajuste: 'Ajuste solicitado', aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado', espera: 'Em espera',
+  pauta: 'Pauta', pauta_aprovacao: 'Pauta em aprovação', producao: 'Em produção', aprovacao: 'Em aprovação',
+  ajuste: 'Ajuste', aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado', espera: 'Em espera',
 };
 export const ETAPAS_VIDEO = ['pauta', 'viabilidade', 'roteiro', 'gravacao', 'entregue'];
 
@@ -41,7 +46,9 @@ export function addBiz(iso: string, n: number): string {
   while (n > 0) { d = addDays(d, 1); if (isBiz(d)) n--; }
   return d;
 }
-export const isoValida = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));
+// Data AAAA-MM-DD que existe de verdade (31/02 não passa: o JavaScript transformaria em 03/03).
+export const isoValida = (s: unknown): s is string =>
+  typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s)) && new Date(s + 'T12:00:00Z').toISOString().slice(0, 10) === s;
 
 export const novoId = (prefixo: string) => prefixo + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 export const clone = <T>(o: T): T => JSON.parse(JSON.stringify(o));
