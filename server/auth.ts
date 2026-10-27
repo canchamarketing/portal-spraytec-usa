@@ -149,6 +149,11 @@ ${paragrafos.map((p) => `<p style="font-size:15px;line-height:1.5">${escHtml(p)}
   const texto = `Olá, ${nome}.\n\n${paragrafos.join('\n\n')}\n\n${botao}: ${link}\n\n${aviso}\n\nPortal de marketing Spraytec · Cancha Marketing`;
   return { html, texto };
 }
+export async function enviarAviso(baseUrl: string, para: { nome: string; email: string }, assunto: string, paragrafos: string[], link: string) {
+  const { html, texto } = modeloEmail(baseUrl, para.nome.split(' ')[0], paragrafos, 'Abrir no portal', link,
+    'Você recebeu este e-mail porque foi mencionado no Portal de marketing Spraytec.');
+  await enviarEmail(para.email, assunto, texto, html);
+}
 export async function enviarConvite(baseUrl: string, para: { nome: string; email: string }, link: string) {
   const nome = para.nome.split(' ')[0];
   const { html, texto } = modeloEmail(baseUrl, nome,

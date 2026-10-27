@@ -60,9 +60,9 @@ function carregarFonteExemplo(){
     arquivo:a[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/-$/,'')+(a[1]==='vídeo'?'.mp4':'.jpg'),
     mod:f(addDays(TODAY,-[4,6,10,17,19][i%5]))}));
   // stories capturados enquanto estão no ar (26 dias úteis para trás)
-  const STORY_TEMAS=[['Lavoura de cliente em Toledo','Campo'],['Visita de RTV','Relacionamento'],['Pulverização ao amanhecer','Manejo'],['Dia de campo','Eventos'],['Embalagens na revenda','Produto'],['Equipe na fábrica','Institucional']];
+  const STORY_TEMAS=[['Lavoura de cliente em Toledo','Campo','Linha foliar'],['Visita de RTV','Relacionamento','—'],['Pulverização ao amanhecer','Manejo','Bioestimulante'],['Dia de campo','Eventos','—'],['Embalagens na revenda','Produto','Linha foliar'],['Equipe na fábrica','Institucional','—']];
   STORIES_DESDE=addDays(TODAY,-25);stories=[];
-  {let d=TODAY,k=0;while(stories.length<26&&d>=STORIES_DESDE){if(isBiz(d)){const nq=d===TODAY?2:2+(k%3);for(let j=0;j<nq;j++){const tm=STORY_TEMAS[(k+j)%6];stories.push({date:d,hora:['09:12','10:40','11:15','15:02','16:30'][(j+k)%5],tipo:j===0&&k%4===1?'agendado':'repost',titulo:tm[0],pilar:tm[1],alcance:800+((k*7+j*13)%9)*140,respostas:(k+j)%6})}k++}d=addDays(d,-1)}}
+  {let d=TODAY,k=0;while(stories.length<26&&d>=STORIES_DESDE){if(isBiz(d)){const nq=d===TODAY?2:2+(k%3);for(let j=0;j<nq;j++){const tm=STORY_TEMAS[(k+j)%6];stories.push({date:d,hora:['09:12','10:40','11:15','15:02','16:30'][(j+k)%5],tipo:j===0&&k%4===1?'agendado':'repost',titulo:tm[0],pilar:tm[1],produto:tm[2],alcance:800+((k*7+j*13)%9)*140,respostas:(k+j)%6})}k++}d=addDays(d,-1)}}
   const m0=TODAY.slice(0,8),ult=new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7),0)).getUTCDate();
   const pm=addDays(m0+'01',-1);
   darkposts=[
@@ -99,8 +99,8 @@ function chatSection(){
     ${threads.map(t=>{const last=t.msgs[t.msgs.length-1];const un=t.unread[me];return `<button class="thr" data-thread="${t.id}" aria-pressed="${t.id===th.id}"><span class="tt"><span># ${esc(t.tema)}</span>${un?`<span class="badge">${un}</span>`:''}</span><span class="ls">${last?esc(last.nome+': '+last.txt):'Sem mensagens ainda'}</span></button>`}).join('')}</aside>
    <div class="conv"><div class="convh"><b># ${esc(th.tema)}</b>${S.linkPick?`<span class="linkpick"><label for="ld" class="muted" style="font-size:12px">Demanda</label><select id="ld">${demandas.filter(x=>!x.feito||'d:'+x.id===th.ref).sort((a,b)=>a.data.localeCompare(b.data)).map(x=>`<option value="d:${x.id}" ${'d:'+x.id===th.ref?'selected':''}>${fmt(x.data)} · ${esc(x.t)} (${QUEM[x.quem]})</option>`).join('')}</select><button class="btn primary" data-act="ligar-salvar">Ligar</button>${th.ref?'<button class="btn" data-act="ligar-remover">Remover ligação</button>':''}<button class="btn" data-act="ligar-cancelar">Cancelar</button></span>`
       :r?`<button class="lnk" ${r.attr}>Ligado a <span class="kt" style="--kc:var(${r.kc})">${esc(r.tipo.toUpperCase())}</span> ${esc(r.t)}</button><button class="linkbtn" data-act="ligar-abrir">Trocar</button>`:`<button class="linkbtn" data-act="ligar-abrir">+ Ligar a uma demanda</button>`}</div>
-    <div class="msgs" id="msgs">${th.msgs.map(m=>`<div class="msg"><span class="av2 ${m.de}">${m.nome[0]}</span><div style="min-width:0"><div class="mh"><b>${esc(m.nome)}</b><span class="muted mono" style="font-size:11px">${m.q}</span></div><div>${esc(m.txt)}</div></div></div>`).join('')||'<p class="muted">Comece a conversa.</p>'}</div>
-    <div class="composer"><textarea id="cm" rows="2" placeholder="Escrever em # ${esc(th.tema)}" aria-label="Mensagem"></textarea><button class="btn primary" data-act="enviar-msg">Enviar</button></div></div>
+    <div class="msgs" id="msgs">${th.msgs.map(m=>`<div class="msg"><span class="av2 ${m.de}">${m.nome[0]}</span><div style="min-width:0"><div class="mh"><b>${esc(m.nome)}</b><span class="muted mono" style="font-size:11px">${m.q}</span></div><div>${mencHtml(m.txt)}</div></div></div>`).join('')||'<p class="muted">Comece a conversa.</p>'}</div>
+    <div class="composer"><textarea id="cm" rows="2" placeholder="Escrever em # ${esc(th.tema)} (use @ para mencionar alguém)" aria-label="Mensagem" data-mencao></textarea><button class="btn primary" data-act="enviar-msg">Enviar</button></div></div>
   </div></section>`;
 }
 function demChip(d,drag){return `<div class="dm ${d.feito?'done':''} ${!d.feito&&d.data<TODAY?'late':''}" style="--kc:var(--k-${d.quem})" data-dem="${d.id}" ${drag&&!d.feito?`draggable="true" data-ddrag="${d.id}"`:''}><span class="who">${QUEM[d.quem].toUpperCase()}</span><span>${esc(d.t)}</span></div>`}
@@ -198,10 +198,49 @@ function popApply(){popRead();const P=S.pop,d=S.pdraft;const v=id=>{const e=$('#
   else if(P.k==='ritmo'){d.ritmo=P.list.filter(r=>(r.num+r.unid).trim());d.verba=d.verba.map((x,j)=>({k:v('pp-vk'+j)||x.k,v:Number(v('pp-vv'+j))||0}))}
   return true}
 
+// PLANO POR PLANILHA: exporta objetivo, metas, jornada (com ações por frente) e investimento.
+// Importar monta um rascunho; ele só vale depois de enviado e aprovado pela Spraytec, como qualquer edição.
+const PL_COLS=['secao','nome','frente','valor','indicador','descricao'];
+const PL_METAS=[['contatos','Contatos no mês'],['cpl','Custo por contato']];
+function planoExportar(){const d=curPlano();const L=[PL_COLS];
+  L.push(['objetivo','','','','',d.objetivo||'']);(d.objItens||[]).forEach(x=>L.push(['foco','','','','',x]));
+  PL_METAS.forEach(([k,l])=>L.push(['meta',l,'',d.metas[k]??'','','']));
+  d.jornada.forEach(e=>{L.push(['etapa',e.n,'',e.v||0,IND[e.ind]||'',e.d||'']);(e.acoes||[]).forEach(a=>L.push(['acao',e.n,CH[a.c]||a.c,'','',a.t]))});
+  d.verba.forEach(v=>L.push(['verba',v.k,'',v.v||0,'','']));
+  baixarArquivo('plano-de-midia-spraytec.csv','﻿'+L.map(l=>l.map(csvCampo).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+  toast('Plano exportado. Edite e importe de volta: vira um rascunho para enviar à Spraytec.')}
+function planoProcessar(txt){const L=lerCSV(txt);if(!L.length)return {erros:['O arquivo está vazio.']};
+  const cab=L[0].map(semAcento),idx={};PL_COLS.forEach(c=>{idx[c]=cab.indexOf(c)});
+  if(idx.secao<0)return {erros:['Falta a coluna "secao". Comece pelo plano exportado.']};
+  const pega=(r,c)=>idx[c]>=0?String(r[idx[c]]||'').trim():'';const num=v=>{const x=Number(String(v).replace(/[R$\s.]/g,'').replace(',','.'));return isFinite(x)?x:NaN};
+  const base=clone(curPlano()),d={objItens:[],metas:clone(base.metas),jornada:[],verba:[]},erros=[];let temObj=false;
+  const frenteDe=v=>{const s=semAcento(v);return Object.keys(CH).find(k=>k===s||semAcento(CH[k])===s||(s==='trafego'&&k==='trafego'))};
+  const indDe=v=>{const s=semAcento(v);return s?Object.keys(IND).find(k=>k===s||semAcento(IND[k])===s):''};
+  L.slice(1).forEach((r,i)=>{const n=i+2,sec=semAcento(pega(r,'secao')),nome=pega(r,'nome'),desc=pega(r,'descricao'),val=pega(r,'valor');
+    if(!sec)return;
+    if(sec==='objetivo'){d.objetivo=desc||nome;temObj=true}
+    else if(sec==='foco'){if(desc||nome)d.objItens.push(desc||nome)}
+    else if(sec==='meta'){const m=PL_METAS.find(([k,l])=>semAcento(l)===semAcento(nome)||k===semAcento(nome));if(!m)erros.push(`Linha ${n}: meta "${nome}" desconhecida (use ${PL_METAS.map(x=>x[1]).join(' ou ')}).`);else if(isNaN(num(val)))erros.push(`Linha ${n}: valor da meta inválido.`);else d.metas[m[0]]=num(val)}
+    else if(sec==='etapa'){if(!nome){erros.push(`Linha ${n}: etapa sem nome.`);return}const ind=indDe(pega(r,'indicador'));if(ind===undefined)erros.push(`Linha ${n}: indicador desconhecido (use ${Object.values(IND).join(', ')}).`);
+      const v=val?num(val):0;if(isNaN(v))erros.push(`Linha ${n}: valor inválido.`);d.jornada.push({n:nome,d:desc,v:v||0,ind:ind||'',acoes:[]})}
+    else if(sec==='acao'){const e=d.jornada.find(x=>x.n===nome);const c=frenteDe(pega(r,'frente'));
+      if(!e)erros.push(`Linha ${n}: a ação aponta para a etapa "${nome}", que não aparece antes na planilha.`);else if(!c)erros.push(`Linha ${n}: frente desconhecida (use ${Object.values(CH).join(', ')}).`);else if(desc)e.acoes.push({c,t:desc})}
+    else if(sec==='verba'){const v=num(val);if(!nome)erros.push(`Linha ${n}: investimento sem nome.`);else if(isNaN(v))erros.push(`Linha ${n}: valor do investimento inválido.`);else d.verba.push({k:nome,v})}
+    else erros.push(`Linha ${n}: seção "${pega(r,'secao')}" desconhecida (use objetivo, foco, meta, etapa, acao ou verba).`)});
+  if(!temObj||!d.objetivo)erros.push('Falta a linha do objetivo.');if(!d.jornada.length)erros.push('Falta pelo menos uma etapa da jornada.');if(!d.verba.length)erros.push('Falta pelo menos uma linha de investimento.');
+  if(erros.length)return {erros};
+  // a jornada guarda o mesmo formato do editor (campos ausentes ficam como estavam na versão atual)
+  d.jornada.forEach(e=>{const o=base.jornada.find(x=>x.n===e.n);if(o)Object.keys(o).forEach(k=>{if(!(k in e))e[k]=clone(o[k])})});
+  return {dados:Object.assign(base,{objetivo:d.objetivo,objItens:d.objItens,metas:d.metas,jornada:d.jornada,verba:d.verba})}}
+async function planoLerArquivo(file){const buf=await file.arrayBuffer();let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(_){txt=new TextDecoder('windows-1252').decode(buf)}
+  const r=planoProcessar(txt);
+  if(r.erros){toast(r.erros.slice(0,3).join(' ')+(r.erros.length>3?` (e mais ${r.erros.length-3})`:''));return}
+  readPlanoForm();S.pdraft=r.dados;S.pedit=null;S.pnota=S.pnota||'';render();
+  toast(changedParts(S.pdraft).length?'Rascunho montado a partir da planilha. Confira as alterações, explique o que mudou e envie para aprovação.':'A planilha é igual à versão aprovada: nada mudou.')}
 function planoSection(){
   if(!plano)return '<p class="muted">O plano de mídia ainda não foi cadastrado.</p>';
   const pd=plano.pendente,team=isTeam(),dr=S.pdraft,ch=dr?changedParts(dr):[];
-  return `<section class="planosec"><div class="headrow" style="margin-bottom:4px"><div><p class="muted" style="margin:0;font-size:13px">Versão ${plano.versao}, aprovada em ${plano.aprovado}.${(h=>h&&h.antes?` <button class="linkbtn" data-act="ver-mud" data-id="${h.v}">O que mudou nesta versão</button>`:'')(plano.hist[plano.hist.length-1])}${team&&!dr?' Clique em qualquer parte do quadro para editar.':''}</p></div></div>
+  return `<section class="planosec"><div class="headrow" style="margin-bottom:4px"><div><p class="muted" style="margin:0;font-size:13px">Versão ${plano.versao}, aprovada em ${plano.aprovado}.${(h=>h&&h.antes?` <button class="linkbtn" data-act="ver-mud" data-id="${h.v}">O que mudou nesta versão</button>`:'')(plano.hist[plano.hist.length-1])}${team&&!dr?' Clique em qualquer parte do quadro para editar.':''}</p></div>${team?`<div class="actions"><button class="btn sm" data-act="plano-exportar">Exportar planilha</button><label class="btn sm" style="cursor:pointer">Importar planilha<input type="file" id="plano-arq" accept=".csv,text/csv,text/plain" hidden></label></div>`:''}</div>
    ${pd&&!dr?`<div class="pchange"><span class="pdot"></span><b>${isM()?'Nova versão para aprovar':pd.ajuste?'Ajuste pedido':'Aguardando aprovação'}</b>
      <button class="linkbtn" data-act="ver-mud" data-id="pendente">Ver alterações</button>
      ${isM()&&!pd.ajuste?`<button class="btn primary sm" data-act="approve" data-id="${planoItem.id}">Aprovar</button><details class="padj"><summary class="linkbtn">Pedir ajuste</summary><div class="padjbox"><textarea id="padj" aria-label="O que precisa mudar" placeholder="O que precisa mudar?"></textarea><button class="btn danger sm" data-act="plano-ajuste">Enviar</button></div></details>`:''}
@@ -255,7 +294,7 @@ function drawerNovo(){const date=S.drawer.id||TODAY;const tipo=S.novoTipo||(isM(
    <label for="nt-titulo">${isDem?'O que precisa ser feito':'Título'}</label><input type="text" id="nt-titulo" placeholder="${isDem?'Ex.: Enviar fotos da feira':isProd?'Ex.: Peças da 1ª quinzena de janeiro':'Ex.: Manejo do florescimento em 5 passos'}">
    <div class="ler"><div style="flex:1"><label for="nt-data">Data</label><input type="date" id="nt-data" value="${date}" class="pe"></div>${!isDem&&!isProd?`<div style="flex:1"><label for="nt-hora">Horário</label><input type="time" id="nt-hora" value="11:30" class="pe"></div>`:''}</div>
    ${!isDem?`<div class="ler"><div style="flex:1"><label for="nt-pilar">Pilar</label><select id="nt-pilar">${Object.keys(PILAR_HUE).map(k=>`<option>${k}</option>`).join('')}</select></div><div style="flex:1"><label for="nt-prod">Produto</label><input type="text" id="nt-prod" placeholder="Opcional"></div></div>`:''}
-   <label for="nt-texto">${isDem?'Detalhes':tipo.startsWith('email')?'Assunto e texto':isProd?'Descrição':'Legenda'}</label><textarea id="nt-texto" placeholder="Opcional, dá para escrever depois"></textarea>
+   <label for="nt-texto">${isDem?'Detalhes':isProd?'Descrição':'Pauta (tema, ideia e abordagem)'}</label><textarea id="nt-texto" placeholder="Opcional, dá para escrever depois"></textarea>
    ${!isDem?`<label for="nt-drive">Material no Google Drive</label><input type="text" id="nt-drive" placeholder="https://drive.google.com/... (opcional)">`:''}
    <label for="nt-liga">Ligar a</label><select id="nt-liga"><option value="">Nada por enquanto</option>${ligaveis.map(([v,l])=>`<option value="${v}">${esc(l)}</option>`).join('')}</select>
    ${isM()&&!isDem?'<p class="muted" style="font-size:12px;margin:0">Entra como pauta sugerida por você. A Cancha produz e manda para sua aprovação.</p>':''}
@@ -264,7 +303,7 @@ function lerNovo(){const t=($('#nt-titulo').value||'').trim();if(!t){toast('Dê 
   const v=id=>{const e=$('#'+id);return e?(e.value||'').trim():''};
   return {tipo:v('nt-tipo'),titulo:t,data:v('nt-data')||TODAY,hora:v('nt-hora')||null,pilar:v('nt-pilar'),produto:v('nt-prod'),texto:v('nt-texto'),drive:v('nt-drive'),liga:v('nt-liga')||null}}
 
-const S={acat:{},aq:{},per:{preset:'30',de:'',ate:'',cmp:'prev',cde:null,cate:null},psort:'alc',pdraft:null,pedit:null,pnota:'',thread:null,novoTema:false,linkPick:false,role:'',view:'hoje',month:'',dmonth:'',tipos:{post:true,email:true,design:true,video:true,demanda:true},quem:'todas',atipo:'todos',psub:'funil',asub:'materiais',rede:'instagram',drawer:null,pasta:null,sel:{}};
+const S={acat:{},aq:{},prod:'',per:{preset:'30',de:'',ate:'',cmp:'prev',cde:null,cate:null},psort:'alc',pdraft:null,pedit:null,pnota:'',thread:null,novoTema:false,linkPick:false,role:'',view:'hoje',month:'',dmonth:'',tipos:{post:true,email:true,design:true,video:true,demanda:true},quem:'todas',atipo:'todos',psub:'funil',asub:'materiais',rede:'instagram',drawer:null,pasta:null,sel:{}};
 
 // helpers
 const $=s=>document.querySelector(s);
@@ -540,7 +579,7 @@ function drawerRapida(){const fila=pendingApprovals();const i=Math.min(S.rapI||0
   const p=fila[i%fila.length];
   return `<header><div><div class="eyebrow">Aprovação rápida · ${(i%fila.length)+1} de ${fila.length}</div><h2>${esc(p.titulo)}</h2><div class="muted" style="font-size:13px">${tipoAprov(p)} · ${NETNAME[p.rede]} · publicação ${fmtLong(p.date)}</div></div>${closeBtn()}</header>
   <div class="content"><div class="pv-lg">${p.formato==='plano'?'<div class="pv doc" style="--pvs:12px"><span class="sm">PLANO DE MÍDIA</span><b>'+esc(p.titulo)+'</b></div>':preview(p)}</div>
-   ${p.formato==='plano'?'<button class="linkbtn" data-act="ver-mud" data-id="pendente">Ver alterações do plano</button>':`<div class="caption" style="max-height:120px;overflow:auto">${esc(p.legenda)}</div>`}
+   ${p.formato==='plano'?'<button class="linkbtn" data-act="ver-mud" data-id="pendente">Ver alterações do plano</button>':`<div class="caption" style="max-height:120px;overflow:auto">${esc(p.status==='pauta_aprovacao'?p.pauta:p.legenda)}</div>`}
    <button class="btn primary big" data-act="rap-aprovar" data-id="${p.id}">Aprovar</button>
    <details class="padj2"><summary class="btn big" style="text-align:center;list-style:none">Pedir ajuste</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><textarea id="rap-adj" class="pe" placeholder="O que precisa mudar?"></textarea><button class="btn danger" data-act="rap-ajuste" data-id="${p.id}">Enviar ajuste</button></div></details>
    <button class="linkbtn" data-act="rap-pular" style="align-self:center">Pular por enquanto</button>
@@ -615,14 +654,14 @@ function viewCalendario(){
   const list=Array.from({length:days},(_,i)=>S.month+'-'+String(i+1).padStart(2,'0')).filter(d=>vp.some(p=>p.date===d)).map(d=>`<section class="panel"><div class="eyebrow">${fmtLong(d)}</div><div class="items">${vp.filter(p=>p.date===d).sort(byTime).map(calItem).join('')}</div></section>`).join('');
   const mk=MARCOS.filter(x=>x.ini<=S.month+'-31'&&x.fim>=S.month+'-01');
   const espera=vp.filter(p=>p.status==='espera');
-  const sw=`<div class="seg" role="group" aria-label="Visão"><button data-calv="mes" aria-pressed="${(S.calv||'mes')==='mes'}">Calendário</button>${isTeam()||isM()?`<button data-calv="kanban" aria-pressed="${S.calv==='kanban'}">Kanban</button>`:''}<button data-calv="video" aria-pressed="${S.calv==='video'}">Produção de vídeo</button></div>`;
+  const sw=`<div class="seg" role="group" aria-label="Visão"><button data-calv="mes" aria-pressed="${(S.calv||'mes')==='mes'}">Calendário</button>${isTeam()||isM()?`<button data-calv="kanban" aria-pressed="${S.calv==='kanban'}">Kanban</button>`:''}<button data-calv="video" aria-pressed="${S.calv==='video'}">Roteiros de vídeo</button></div>`;
   if(S.calv==='video')return `${head('Calendário','',sw)}${viewVideoKanban()}`;
   if(S.calv==='kanban'&&isTeam())return `${head('Calendário','',sw)}${viewStatusKanban()}`;
   if(S.calv==='kanban'&&isM())return `${head('Calendário','',sw)}${viewClientKanban()}`;
   return `${head('Calendário','Posts, e-mail, produção de design e vídeo e as demandas, tudo ligado. Clique num item para ver os detalhes e o que está ligado a ele.',sw)}
   <div class="toolbar">${monthNav('month')}
    <div class="filters" role="group" aria-label="Tipos">${TIPOS.map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
-   <div class="actions">${isTeam()?'<button class="btn" data-act="marcos">Editar safra e eventos</button><button class="btn" data-act="importar">Importar planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>
+   <div class="actions">${isTeam()?'<button class="btn" data-act="marcos">Editar safra e eventos</button><button class="btn" data-act="importar">Planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>
   <div class="calwrap">
    ${calGrid(S.month,d=>vp.filter(p=>p.date===d).sort(byTime).map(calItem).join('')+(S.tipos.demanda?demandas.filter(x=>x.data===d).map(x=>demChip(x,!isDir())).join(''):''),true,'cal-add')}
    <div class="calist"><section class="panel"><div class="eyebrow" style="margin-bottom:6px">Safra, comercial e eventos</div><div class="mkchips">${mk.map(x=>`<button class="band b-${x.tipo}" data-act="${isTeam()?'marcos':''}"><b>${MK_TIPO[x.tipo]}</b><span>${esc(x.nome)} · ${fmt(x.ini)}–${fmt(x.fim)}</span></button>`).join('')}</div></section>${list||'<p class="muted">Nada neste mês.</p>'}</div>
@@ -736,7 +775,7 @@ function inR(r,d){return d&&d>=r.de&&d<=r.ate}
 function trafStats(r,isCur){const f=daysOf(r)/30;const adj=isCur?{i:1,im:1,c:1,ct:1}:r.ate<addDays(TODAY,-300)?{i:.55,im:.6,c:.5,ct:.4}:{i:.95,im:.9,c:.86,ct:.8};
   const base=[['Meta Ads',9800,214000,4980,128],['Google Ads',6900,58000,3960,74],['YouTube Ads',1500,120000,480,12]].map(([k,i,im,c,ct])=>({k,i:i*f*adj.i,im:im*f*adj.im,c:c*f*adj.c,ct:Math.max(0,Math.round(ct*f*adj.ct))}));
   const T=base.reduce((a,x)=>({i:a.i+x.i,im:a.im+x.im,c:a.c+x.c,ct:a.ct+x.ct}),{i:0,im:0,c:0,ct:0});return {base,T}}
-function socialStats(r){const pub=posts.filter(p=>['ig','fb','yt'].includes(p.rede)&&p.status==='publicado'&&inR(r,p.date));const st=stories.filter(s=>inR(r,s.date));
+function socialStats(r){const pub=posts.filter(p=>['ig','fb','yt'].includes(p.rede)&&p.status==='publicado'&&inR(r,p.date)&&prodOk(p.produto));const st=stories.filter(s=>inR(r,s.date)&&prodOk(s.produto));
   const sum=k=>pub.reduce((a,p)=>a+metricsOf(p)[k],0);return {pub,st,alc:sum('alc'),inter:sum('curt')+sum('com')+sum('salv')+sum('comp'),eng:pub.length?pub.reduce((a,p)=>a+metricsOf(p).eng,0)/pub.length:null,stAlc:st.length?st.reduce((a,s)=>a+s.alcance,0)/st.length:null,seg:r.de>=addDays(TODAY,-120)?Math.round(612*daysOf(r)/30*(r.ate===S.per.ate?1:.8)):null}}
 // exemplo: os e-mails publicados no calendário recebem números fictícios; antes deles, 3 envios de exemplo
 function campsEmail(){const pub=posts.filter(p=>p.rede==='email'&&p.status==='publicado'&&p.date).sort((a,b)=>b.date.localeCompare(a.date)).map((p,i)=>[p.titulo,p.date,12410-i*230,33.4-i*1.5,4.6-i*.2,0.2]);
@@ -774,12 +813,12 @@ function perfSocial(){
   const ord={alc:(a,b)=>metricsOf(b).alc-metricsOf(a).alc,eng:(a,b)=>metricsOf(b).eng-metricsOf(a).eng,recent:(a,b)=>b.date.localeCompare(a.date)}[S.psort||'alc'];
   const list=pub.slice().sort(ord);const topA=pub.slice().sort((a,b)=>metricsOf(b).alc-metricsOf(a).alc)[0],topE=pub.slice().sort((a,b)=>metricsOf(b).eng-metricsOf(a).eng)[0];
   const has=SP&&(SP.pub.length||SP.st.length);
-  return `${kpisC([{l:'Alcance',v:fk(alc),s:pub.length+' publicações',cur:alc,prev:has?SP.alc:null,prevTxt:has?fk(SP.alc):null},{l:'Interações',v:fk(inter),s:'curtidas, comentários, salvos e compartilhamentos',cur:inter,prev:has?SP.inter:null,prevTxt:has?fk(SP.inter):null},{l:'Engajamento médio',v:pct(engM),cur:engM,prev:has?SP.eng:null,prevTxt:has&&SP.eng!=null?pct(SP.eng):null,pp:true},{l:'Publicações',v:pub.length,s:'IG, FB e YT',cur:pub.length,prev:SP?SP.pub.length:null,prevTxt:SP?String(SP.pub.length):null},{l:'Stories',v:st.length,s:'alcance médio '+(SC.stAlc?fk(SC.stAlc):'—'),cur:st.length,prev:has&&cr.de>=STORIES_DESDE?SP.st.length:null,prevTxt:has&&cr.de>=STORIES_DESDE?String(SP.st.length):'sem dados'},{l:'Novos seguidores','v':'+'+SC.seg,s:'nas três redes',cur:SC.seg,prev:SP&&SP.seg,prevTxt:SP&&SP.seg!=null?'+'+SP.seg:null}],cr)}
+  return `<div class="actions" style="align-items:center"><span class="eyebrow">Produto</span>${prodFiltro()}</div>${kpisC([{l:'Alcance',v:fk(alc),s:pub.length+' publicações',cur:alc,prev:has?SP.alc:null,prevTxt:has?fk(SP.alc):null},{l:'Interações',v:fk(inter),s:'curtidas, comentários, salvos e compartilhamentos',cur:inter,prev:has?SP.inter:null,prevTxt:has?fk(SP.inter):null},{l:'Engajamento médio',v:pct(engM),cur:engM,prev:has?SP.eng:null,prevTxt:has&&SP.eng!=null?pct(SP.eng):null,pp:true},{l:'Publicações',v:pub.length,s:'IG, FB e YT',cur:pub.length,prev:SP?SP.pub.length:null,prevTxt:SP?String(SP.pub.length):null},{l:'Stories',v:st.length,s:'alcance médio '+(SC.stAlc?fk(SC.stAlc):'—'),cur:st.length,prev:has&&cr.de>=STORIES_DESDE?SP.st.length:null,prevTxt:has&&cr.de>=STORIES_DESDE?String(SP.st.length):'sem dados'},{l:'Novos seguidores','v':'+'+SC.seg,s:'nas três redes',cur:SC.seg,prev:SP&&SP.seg,prevTxt:SP&&SP.seg!=null?'+'+SP.seg:null}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Rede</th><th>Seguidores</th><th>Novos</th><th>Alcance</th><th>Engajamento</th><th>Publicações</th></tr></thead><tbody>${redes.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${pub.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Instagram, Facebook e YouTube.</p></div>
+  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${pub.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Instagram, Facebook e YouTube${S.prod?' · '+(S.prod==='—'?'sem produto':esc(S.prod)):''}.</p></div>
    <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['alc','Alcance'],['eng','Engajamento'],['recent','Mais recentes']].map(([k,l])=>`<button class="chip" data-psort="${k}" aria-pressed="${(S.psort||'alc')===k}">${l}</button>`).join('')}</div></div>
    ${pub.length?`<div class="crgrid">${list.map(p=>{const m=metricsOf(p);const flag=p===topA?tagPill('Maior alcance do período','--ok'):p===topE?tagPill('Maior engajamento do período','--ok'):'';
-     return `<article class="crcard clickable" data-open="${p.id}"><div class="crprev">${preview(p)}</div><div class="crbody"><div><b>${esc(p.titulo)}</b><div class="muted" style="font-size:12px">${NETNAME[p.rede]} · ${FORMATO[p.formato]} · ${fmtLong(p.date)}</div></div>${flag?`<div>${flag}</div>`:''}
+     return `<article class="crcard clickable" data-open="${p.id}"><div class="crprev">${preview(p)}</div><div class="crbody"><div><b>${esc(p.titulo)}</b><div class="muted" style="font-size:12px">${NETNAME[p.rede]} · ${FORMATO[p.formato]} · ${fmtLong(p.date)}${semProd(p.produto)?'':' · '+esc(p.produto)}</div></div>${flag?`<div>${flag}</div>`:''}
       <div class="crm"><div><span>Alcance</span><b>${fk(m.alc)}</b></div><div><span>Engajamento</span><b>${pct(m.eng)}</b></div><div><span>${m.views?'Visualizações':'Curtidas'}</span><b>${fk(m.views||m.curt)}</b></div><div><span>Comentários</span><b>${n(m.com)}</b></div><div><span>Salvamentos</span><b>${n(m.salv)}</b></div><div><span>Compartilh.</span><b>${n(m.comp)}</b></div></div></div></article>`}).join('')}</div>`:'<p class="muted">Nenhum post publicado nesse período.</p>'}</section>`;
 }
 function perfEmail(){
@@ -808,6 +847,18 @@ function readRelDest(){S.relDest=(S.relDest||[]).map((_,i)=>{const e=document.ge
 function lerRel(){readRelDest();const t=$('#rl-t').value.trim();if(!t){toast('Dê um título ao relatório.');$('#rl-t').focus();return null}
   return {t,tipo:$('#rl-tipo').value,capa:$('#rl-capa').value.trim()||t,per:$('#rl-per').value.trim(),status:$('#rl-st').value,entrega:$('#rl-dt').value||TODAY,link:$('#rl-link').value.trim(),dest:S.relDest.map(x=>x.trim()).filter(Boolean),nota:$('#rl-nota').value.trim()}}
 
+// PRODUTOS: os do guia de marca primeiro, depois os que já aparecem nos posts
+function produtosLista(){const g=GUIA.produtos.map(x=>x.split('|')[0].trim()).filter(Boolean);const usados=[...new Set(posts.map(p=>p.produto).filter(x=>x&&x!=='—'))].filter(x=>!g.includes(x)).sort((a,b)=>a.localeCompare(b,'pt-BR'));return g.concat(usados)}
+const semProd=x=>!x||x==='—';
+function prodOk(x){return !S.prod||(S.prod==='—'?semProd(x):x===S.prod)}
+function prodFiltro(){const l=produtosLista();if(S.prod&&S.prod!=='—'&&!l.includes(S.prod))l.push(S.prod);
+  return `<select id="f-prod" class="pe" aria-label="Filtrar por produto" style="width:auto"><option value="">Todos os produtos</option>${l.map(x=>`<option value="${esc(x)}" ${S.prod===x?'selected':''}>${esc(x)}</option>`).join('')}<option value="—" ${S.prod==='—'?'selected':''}>Sem produto</option></select>`}
+// classificação na gaveta do post (Operação e Cancha)
+function classifPost(p){const l=produtosLista();if(!semProd(p.produto)&&!l.includes(p.produto))l.push(p.produto);
+  return `<details class="padj"><summary class="linkbtn">Classificar</summary><div class="extbox"><label class="muted" for="pc-prod">Produto</label><select id="pc-prod" class="pe"><option value="—">Sem produto</option>${l.map(x=>`<option ${p.produto===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
+   <label class="muted" for="pc-pilar">Pilar</label><select id="pc-pilar" class="pe">${[...new Set(Object.keys(PILAR_HUE).concat(p.pilar))].map(k=>`<option ${k===p.pilar?'selected':''}>${esc(k)}</option>`).join('')}</select>
+   <p class="muted" style="font-size:12px;margin:0">A lista de produtos vem do guia de marca (Acervo › Guia de marca).</p><div class="actions"><button class="btn" data-act="p-classif" data-id="${p.id}">Salvar classificação</button></div></div></details>`}
+
 // ACERVO: listas limpas por categoria (mesmo padrão dos relatórios)
 function acvToolbar(sub,cats,extra){const sel=S.acat[sub]||'todos';const tot=cats.reduce((a,c)=>a+c[2],0);
   return `<div class="toolbar"><div class="filters"><button class="chip" data-acat="${sub}|todos" aria-pressed="${sel==='todos'}">Todos · ${tot}</button>${cats.filter(c=>c[2]).map(([k,l,c])=>`<button class="chip" data-acat="${sub}|${k}" aria-pressed="${sel===k}">${l} · ${c}</button>`).join('')}</div>
@@ -828,13 +879,13 @@ function acvPosts(){
   const RD=[['ig','Instagram'],['fb','Facebook'],['yt','YouTube'],['email','E-mail marketing']];
   const pub=posts.filter(p=>RD.some(r=>r[0]===p.rede)&&p.status==='publicado').sort((a,b)=>b.date.localeCompare(a.date));
   const cats=RD.map(([k,l])=>[k,l,pub.filter(p=>p.rede===k).length]);
-  const vis=pub.filter(p=>acvMatch('posts',p.rede,p.titulo+' '+p.pilar+' '+p.produto));
-  return `${acvToolbar('posts',cats)}${gridGroups(RD.map(([k,l])=>({t:l,items:vis.filter(p=>p.rede===k).map(p=>{const m=k!=='email'?metricsOf(p):null;
-    return acard(preview(p),ktag(FORMATO[p.formato].toUpperCase(),'--k-'+(k==='email'?'email':'post')),esc(p.titulo),m?`alcance ${fk(m.alc)} · ${pct(m.eng)}`:esc(p.pilar),fmt(p.date),`data-open="${p.id}" tabindex="0" role="button"`)})})))}`}
+  const vis=pub.filter(p=>prodOk(p.produto)&&acvMatch('posts',p.rede,p.titulo+' '+p.pilar+' '+p.produto));
+  return `${acvToolbar('posts',cats,prodFiltro())}${gridGroups(RD.map(([k,l])=>({t:l,items:vis.filter(p=>p.rede===k).map(p=>{const m=k!=='email'?metricsOf(p):null;
+    return acard(preview(p),ktag(FORMATO[p.formato].toUpperCase(),'--k-'+(k==='email'?'email':'post')),esc(p.titulo),(semProd(p.produto)?'':esc(p.produto)+' · ')+(m?`alcance ${fk(m.alc)} · ${pct(m.eng)}`:esc(p.pilar)),fmt(p.date),`data-open="${p.id}" tabindex="0" role="button"`)})})))}`}
 function acvStories(){
   const old=stories.filter(s=>s.date<TODAY);const cats=[['repost','Reposts',old.filter(s=>s.tipo==='repost').length],['agendado','Agendados',old.filter(s=>s.tipo!=='repost').length]];
-  const vis=old.filter(s=>acvMatch('stories',s.tipo==='repost'?'repost':'agendado',s.titulo+' '+s.pilar));const dates=[...new Set(vis.map(s=>s.date))];
-  return `${acvToolbar('stories',cats)}${gridGroups(dates.map(d=>({t:fmtLong(d),items:vis.filter(s=>s.date===d).map(s=>acard(storyPreview(s),ktag(s.tipo==='repost'?'REPOST':'AGENDADO',s.tipo==='repost'?'--k-post':'--k-email'),esc(s.titulo),'alcance '+n(s.alcance)+' · '+s.respostas+' resp.',s.hora))})),'stories')}
+  const vis=old.filter(s=>prodOk(s.produto)&&acvMatch('stories',s.tipo==='repost'?'repost':'agendado',s.titulo+' '+s.pilar+' '+(s.produto||'')));const dates=[...new Set(vis.map(s=>s.date))];
+  return `${acvToolbar('stories',cats,prodFiltro())}${gridGroups(dates.map(d=>({t:fmtLong(d),items:vis.filter(s=>s.date===d).map(s=>acard(storyPreview(s),ktag(s.tipo==='repost'?'REPOST':'AGENDADO',s.tipo==='repost'?'--k-post':'--k-email'),esc(s.titulo),'alcance '+n(s.alcance)+' · '+s.respostas+' resp.',s.hora))})),'stories')}
    <p class="muted" style="font-size:12px;margin:0">Os stories são guardados aqui enquanto estão no ar; as miniaturas ficam na pasta Stories do Drive.</p>`}
 function acvDark(){
   const cats=[['Ativo','Ativos',darkposts.filter(d=>d.status==='Ativo').length],['Encerrado','Encerrados',darkposts.filter(d=>d.status!=='Ativo').length]];
@@ -925,24 +976,27 @@ function viewVideos(){
 
 // ===================== IMPORTAR CALENDÁRIO POR PLANILHA =====================
 // Planilha padrão (CSV). Pode ser preenchida à mão, no Google Sheets/Excel ou gerada pelo Claude.
-const IMP_COLS=['data','hora','canal','formato','titulo','pilar','produto','pauta','link_drive'];
+const IMP_COLS=['id','data','hora','canal','formato','etapa','titulo','pilar','produto','pauta','legenda','link_drive'];
 const IMP_EXEMPLO=[
-  ['05/12/2026','11:30','Instagram','Carrossel','Florescimento: 5 cuidados com o calor','Manejo','Bioestimulante','Carrossel educativo com os 5 cuidados no florescimento. Fechar com chamada para o RTV.',''],
-  ['08/12/2026','18:00','Instagram','Reel','Dia de campo em 30 segundos','Eventos','','Reel com os melhores momentos do dia de campo.',''],
-  ['10/12/2026','08:00','E-mail','Newsletter','Newsletter de dezembro','Manejo','Linha foliar','Assunto: o manejo de dezembro. Destaque para a nutrição foliar.',''],
-  ['12/12/2026','','Demanda Spraytec','','Enviar fotos do dia de campo','','','Fotos na pasta do Drive.',''],
+  ['','05/12/2026','11:30','Instagram','Carrossel','Pauta','Florescimento: 5 cuidados com o calor','Manejo','Bioestimulante','Carrossel educativo com os 5 cuidados no florescimento. Fechar com chamada para o RTV.','',''],
+  ['','08/12/2026','18:00','Instagram','Reel','Pauta em aprovação','Dia de campo em 30 segundos','Eventos','','Reel com os melhores momentos do dia de campo.','',''],
+  ['','10/12/2026','08:00','E-mail','Newsletter','Pauta','Newsletter de dezembro','Manejo','Linha foliar','Assunto: o manejo de dezembro. Destaque para a nutrição foliar.','',''],
+  ['','12/12/2026','','Demanda Spraytec','','','Enviar fotos do dia de campo','','','Fotos na pasta do Drive.','',''],
 ];
-const IMP_PROMPT=`Monte o calendário de conteúdo da Spraytec para [MÊS] em formato CSV, separado por ponto e vírgula, com exatamente estas colunas na primeira linha:
-data;hora;canal;formato;titulo;pilar;produto;pauta;link_drive
+function impPrompt(){const pr=produtosLista();return `Monte o calendário de conteúdo da Spraytec para [MÊS] em formato CSV, separado por ponto e vírgula, com exatamente estas colunas na primeira linha:
+${IMP_COLS.join(';')}
 
 Regras:
+- id: deixe vazio (o portal cria o id).
 - data no formato dd/mm/aaaa; hora no formato hh:mm (pode ficar vazia).
 - canal: Instagram, Facebook, YouTube, E-mail, Design, Vídeo, Demanda Cancha ou Demanda Spraytec.
 - formato: Post, Carrossel, Reel ou Story (Instagram); Post (Facebook); Vídeo ou Short (YouTube); Newsletter (E-mail); Peças (Design); Gravação ou Entrega (Vídeo). Para demandas, deixe vazio.
+- etapa: Pauta.
 - pilar: Manejo, Campo, Produto, Educação, Institucional, Relacionamento ou Eventos.
+- produto: ${pr.length?pr.join(', ')+', ou vazio se o conteúdo não for de um produto':'vazio'}.
 - pauta: o tema e a ideia do conteúdo, em uma ou duas frases.
-- link_drive: deixe vazio se não houver.
-Responda só com o CSV, sem comentários.`;
+- legenda e link_drive: deixe vazios (a legenda é escrita depois que a Spraytec aprova a pauta).
+Responda só com o CSV, sem comentários.`}
 const semAcento=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
 function lerCSV(txt){
   txt=txt.replace(/^﻿/,'');const primeira=txt.split(/\r?\n/)[0]||'';
@@ -965,33 +1019,74 @@ function impTipo(canal,formato){const c=semAcento(canal),f=semAcento(formato);
   if(c==='design')return 'design|producao';
   if(c==='video')return {gravacao:'video|gravacao',entrega:'video|entrega'}[f]||null;
   return null}
+function etapaDe(v){const s=semAcento(v);if(!s)return '';for(const [k,x] of Object.entries(STATUS))if(semAcento(x.l)===s||k===s.replace(/ /g,'_'))return k;
+  return {producao:'producao','ajuste solicitado':'ajuste','em ajuste':'ajuste',aprovacao:'aprovacao'}[s]||null}
+const etapaPautaCli=p=>temPauta(p)&&(p.status==='pauta'||p.status==='espera'||(p.status==='ajuste'&&p.etapaAjuste==='pauta'));
+// O que uma linha com id muda no item (mesmas regras do servidor). Campo vazio = mantém.
+function impDiff(p,d){const eq=(a,b)=>String(a??'').replace(/\r\n?/g,'\n').trim()===String(b??'').replace(/\r\n?/g,'\n').trim();
+  const ed=['pauta','producao','ajuste','espera'].includes(p.status),st=k=>(STATUS[k]||{l:k}).l;
+  if(d.tipo&&d.tipo!==p.rede+'|'+p.formato)return {erro:'canal e formato não mudam pela planilha',campos:[]};
+  let pauta=d.pauta,leg=d.legenda;if(!temPauta(p)&&pauta&&!leg){leg=pauta;pauta=''}
+  const campos=[];let erro='';
+  const ct=(nome,a,b,pode)=>{if(!b||eq(a,b))return;if(!ed){erro=erro||'está em "'+st(p.status)+'": '+nome+' não muda mais';return}if(pode===false){erro=erro||'a pauta já foi aprovada e não muda';return}campos.push(nome)};
+  ct('título',p.titulo,d.titulo);ct('pauta',p.pauta,pauta,etapaPautaCli(p));ct('legenda',p.legenda,leg);ct('link do Drive',p.drive,d.drive);if(!['video','design'].includes(p.rede))ct('horário',p.time,d.hora);
+  if(d.pilar&&d.pilar!==p.pilar)campos.push('pilar');if(d.produto&&d.produto!==p.produto)campos.push('produto');
+  if(d.data&&d.data!==p.date){if(p.status==='publicado')erro=erro||'já publicado: a data não muda';else campos.push('data')}
+  if(d.etapa&&d.etapa!==p.status){const ok=(d.etapa==='pauta_aprovacao'&&p.status==='pauta')||(d.etapa==='aprovacao'&&p.status==='producao'&&!['video','design'].includes(p.rede))||(p.status==='ajuste'&&d.etapa===(p.etapaAjuste==='pauta'?'pauta_aprovacao':'aprovacao'));
+    if(!ok)erro=erro||'etapa: de "'+st(p.status)+'" para "'+st(d.etapa)+'" só pelo portal';
+    else if(d.etapa==='pauta_aprovacao'&&p.status==='pauta'&&!(pauta||p.pauta))erro=erro||'sem pauta para enviar para aprovação';
+    else campos.push('enviar para '+st(d.etapa).toLowerCase())}
+  return {erro,campos}}
 function impProcessar(txt,arquivo){
   const L=lerCSV(txt);if(!L.length)return {arquivo,erroGeral:'O arquivo está vazio.',linhas:[]};
   const cab=L[0].map(semAcento),idx={};IMP_COLS.forEach(c=>{idx[c]=cab.indexOf(c)});
-  const faltam=['data','canal','titulo'].filter(c=>idx[c]<0);if(faltam.length)return {arquivo,erroGeral:'Faltam colunas no cabeçalho: '+faltam.join(', ')+'. Use o modelo.',linhas:[]};
+  if(idx.titulo<0||(idx.id<0&&(idx.data<0||idx.canal<0)))return {arquivo,erroGeral:'Faltam colunas no cabeçalho (título, data e canal, ou id). Use o modelo ou exporte o mês.',linhas:[]};
   const pega=(r,c)=>idx[c]>=0?String(r[idx[c]]||'').trim():'';
   const pilares=Object.keys(PILAR_HUE),pilarDe=v=>pilares.find(p=>semAcento(p)===semAcento(v))||'';
-  const linhas=L.slice(1).map((r,i)=>{const data=impData(pega(r,'data')),tipo=impTipo(pega(r,'canal'),pega(r,'formato')),titulo=pega(r,'titulo'),hora=pega(r,'hora'),drive=pega(r,'link_drive');
-    const erros=[];if(!data)erros.push('data inválida');if(!tipo)erros.push('canal/formato não reconhecido');if(!titulo)erros.push('sem título');
+  const ids=new Set();
+  const linhas=L.slice(1).map((r,i)=>{const id=pega(r,'id'),p=id?posts.find(x=>x.id===id&&x.formato!=='plano'):null;
+    const dv=pega(r,'data'),data=dv?impData(dv):null,cv=pega(r,'canal'),tipo=cv?impTipo(cv,pega(r,'formato')):null;
+    const titulo=pega(r,'titulo'),hora=pega(r,'hora'),drive=pega(r,'link_drive'),ev=pega(r,'etapa'),etapa=etapaDe(ev),pv=pega(r,'pilar');
+    const erros=[];
+    if(id&&!p)erros.push('id não encontrado no portal');if(id&&ids.has(id))erros.push('id repetido na planilha');if(id)ids.add(id);
+    if(dv?!data:!id)erros.push('data inválida');if(cv?!tipo:!id)erros.push('canal/formato não reconhecido');if(!id&&!titulo)erros.push('sem título');
     if(hora&&!/^\d{1,2}:\d{2}$/.test(hora))erros.push('hora inválida');if(drive&&!/^https?:\/\//i.test(drive))erros.push('link do Drive inválido');
-    const pv=pega(r,'pilar');if(pv&&!pilarDe(pv))erros.push('pilar desconhecido');
-    return {n:i+2,erros,dados:{tipo,titulo,data,hora:hora?hora.padStart(5,'0'):null,pilar:pilarDe(pv),produto:pega(r,'produto'),texto:pega(r,'pauta'),drive}}});
+    if(pv&&!pilarDe(pv))erros.push('pilar desconhecido');if(ev&&etapa===null)erros.push('etapa desconhecida');
+    const dados={n:i+2,id:id||undefined,tipo,titulo,data,hora:hora?hora.padStart(5,'0'):null,pilar:pilarDe(pv),produto:pega(r,'produto'),pauta:pega(r,'pauta'),legenda:pega(r,'legenda'),drive,etapa:etapa||''};
+    if(!id&&tipo&&!tipo.startsWith('demanda')){if(etapa&&!['pauta','pauta_aprovacao'].includes(etapa))erros.push('item novo entra como Pauta ou Pauta em aprovação');
+      else if(etapa==='pauta_aprovacao'&&!dados.pauta)erros.push('sem pauta para enviar para aprovação')}
+    let acao='novo',campos=[];
+    if(p&&!erros.length){const r2=impDiff(p,dados);if(r2.erro)erros.push(r2.erro);campos=r2.campos;acao=campos.length?'atualiza':'igual'}
+    return {n:i+2,erros,acao,campos,dados,item:p}});
   return {arquivo,linhas}}
+// Exporta o mês na mesma planilha: editar e importar de volta atualiza os itens pelo id, sem duplicar.
+const CANAL_DE={ig:'Instagram',fb:'Facebook',yt:'YouTube',email:'E-mail',design:'Design',video:'Vídeo'};
+const FORMATO_DE={'ig|post':'Post','ig|carrossel':'Carrossel','ig|reel':'Reel','ig|story':'Story','fb|post':'Post','yt|video':'Vídeo','yt|short':'Short','email|newsletter':'Newsletter','design|producao':'Peças','video|gravacao':'Gravação','video|entrega':'Entrega'};
+const mesNome=()=>MONTHS[+S.month.slice(5,7)-1].toLowerCase()+' de '+S.month.slice(0,4);
+function exportarMes(){const its=posts.filter(p=>p.date&&p.date.startsWith(S.month)&&FORMATO_DE[p.rede+'|'+p.formato]).sort((a,b)=>(a.date+(a.time||'99')).localeCompare(b.date+(b.time||'99')));
+  if(!its.length){toast('Nada no calendário de '+mesNome()+' para exportar.');return}
+  const dt=d=>d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+  const linhas=its.map(p=>[p.id,dt(p.date),p.time||'',CANAL_DE[p.rede],FORMATO_DE[p.rede+'|'+p.formato],STATUS[p.status].l,p.titulo,p.pilar,p.produto==='—'?'':p.produto,p.pauta||'',p.legenda||'',p.drive||'']);
+  baixarArquivo('calendario-spraytec-'+S.month+'.csv','﻿'+[IMP_COLS,...linhas].map(l=>l.map(csvCampo).join(';')).join('\r\n'),'text/csv;charset=utf-8');
+  toast(its.length+' itens de '+mesNome()+' exportados.')}
 function baixarArquivo(nome,conteudo,tipo){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([conteudo],{type:tipo}));a.download=nome;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
-function csvCampo(v){v=String(v==null?'':v);return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
-function drawerImportar(){const I=S.imp;const ok=I&&I.linhas.filter(l=>!l.erros.length).length,ruins=I?I.linhas.filter(l=>l.erros.length).length:0;
+function csvCampo(v){v=String(v==null?'':v);return /[;"\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function drawerImportar(){const I=S.imp;const L=I?I.linhas:[];const ruins=L.filter(l=>l.erros.length).length,novos=L.filter(l=>!l.erros.length&&l.acao==='novo').length,atu=L.filter(l=>!l.erros.length&&l.acao==='atualiza').length,iguais=L.filter(l=>!l.erros.length&&l.acao==='igual').length;
   const nomeTipo=t=>(NOVO_TIPOS.find(x=>x[0]===t)||[0,t||'—'])[1];
-  return `<header><div><div class="eyebrow">Calendário</div><h2>Importar planilha</h2></div>${closeBtn()}</header>
+  const acaoTxt=l=>l.erros.length?`<span style="color:var(--bad);font-size:12px">${esc(l.erros.join(', '))}</span>`:l.acao==='novo'?tagPill('novo','--ok'):l.acao==='igual'?'<span class="muted" style="font-size:12px">sem mudança</span>':`<span style="font-size:12px">atualiza: ${esc(l.campos.join(', '))}</span>`;
+  return `<header><div><div class="eyebrow">Calendário</div><h2>Planilha do calendário</h2></div>${closeBtn()}</header>
   <div class="content">
-   <ol class="impsteps"><li><b>Baixe o modelo</b> e preencha uma linha por item (post, e-mail, produção ou demanda).<div class="actions" style="margin-top:6px"><button class="btn" data-act="imp-modelo">Baixar modelo (CSV)</button></div></li>
-    <li><b>Ou peça ao Claude</b>: copie o pedido abaixo, troque [MÊS] e salve a resposta como arquivo .csv.<details class="padj" style="margin-top:6px"><summary class="linkbtn">Ver o pedido para o Claude</summary><textarea class="pe" rows="9" readonly id="imp-prompt">${esc(IMP_PROMPT)}</textarea><button class="btn sm" data-act="imp-copiar">Copiar pedido</button></details></li>
+   <ol class="impsteps"><li><b>Comece pelo modelo ou pelo mês do calendário.</b> Uma linha por item (post, e-mail, produção ou demanda).<div class="actions" style="margin-top:6px"><button class="btn" data-act="imp-modelo">Baixar modelo (CSV)</button><button class="btn" data-act="exportar-mes">Exportar ${esc(mesNome())}</button></div>
+     <p class="muted" style="font-size:12px;margin:6px 0 0">Linhas sem id viram itens novos. Linhas com id (as do mês exportado) atualizam o item, sem duplicar; campo vazio mantém o que está no portal. Para enviar uma pauta para aprovação, troque a etapa para "Pauta em aprovação"; para enviar a peça, "Em aprovação".</p></li>
+    <li><b>Ou peça ao Claude</b>: copie o pedido abaixo, troque [MÊS] e salve a resposta como arquivo .csv.<details class="padj" style="margin-top:6px"><summary class="linkbtn">Ver o pedido para o Claude</summary><textarea class="pe" rows="9" readonly id="imp-prompt">${esc(impPrompt())}</textarea><button class="btn sm" data-act="imp-copiar">Copiar pedido</button></details></li>
     <li><b>Envie o arquivo</b>. No Google Sheets: Arquivo › Fazer download › CSV. No Excel: Salvar como › CSV UTF-8.<div style="margin-top:6px"><input type="file" id="imp-arq" accept=".csv,text/csv,text/plain"></div></li></ol>
    ${I&&I.erroGeral?`<div class="notice">${esc(I.erroGeral)}</div>`:''}
-   ${I&&I.linhas.length?`<div class="eyebrow">${esc(I.arquivo)} · ${I.linhas.length} linhas · ${ok} prontas${ruins?` · <span style="color:var(--bad)">${ruins} com erro</span>`:''}</div>
-   <div class="tablewrap"><table class="ap" style="min-width:560px"><thead><tr><th>Linha</th><th>Data</th><th>Tipo</th><th>Título</th><th></th></tr></thead><tbody>${I.linhas.map(l=>`<tr><td class="mono">${l.n}</td><td class="mono">${l.dados.data?fmt(l.dados.data):'—'}${l.dados.hora?' '+l.dados.hora:''}</td><td>${esc(nomeTipo(l.dados.tipo))}</td><td>${esc(l.dados.titulo)}</td><td>${l.erros.length?`<span style="color:var(--bad);font-size:12px">${esc(l.erros.join(', '))}</span>`:tagPill('ok','--ok')}</td></tr>`).join('')}</tbody></table></div>
+   ${L.length?`<div class="eyebrow">${esc(I.arquivo)} · ${L.length} linhas · ${novos} novos · ${atu} atualizações${iguais?` · ${iguais} sem mudança`:''}${ruins?` · <span style="color:var(--bad)">${ruins} com erro</span>`:''}</div>
+   <div class="tablewrap"><table class="ap" style="min-width:600px"><thead><tr><th>Linha</th><th>Data</th><th>Tipo</th><th>Título</th><th></th></tr></thead><tbody>${L.map(l=>{const p=l.item;const data=l.dados.data||(p&&p.date);const tit=l.dados.titulo||(p&&p.titulo)||'';const tipo=l.dados.tipo||(p&&p.rede+'|'+p.formato);
+     return `<tr><td class="mono">${l.n}</td><td class="mono">${data?fmt(data):'—'}${l.dados.hora?' '+l.dados.hora:''}</td><td>${esc(nomeTipo(tipo))}</td><td>${esc(tit)}</td><td>${acaoTxt(l)}</td></tr>`}).join('')}</tbody></table></div>
    ${ruins?'<p class="muted" style="font-size:13px;margin:0">Corrija as linhas com erro na planilha e envie de novo. Nada é importado enquanto houver erro.</p>':''}
-   <div class="actions"><button class="btn primary" data-act="imp-confirmar" ${ruins||!ok?'disabled':''}>Importar ${ok} ${ok===1?'item':'itens'}</button></div>
-   <p class="muted" style="font-size:12px;margin:0">Os itens entram como pauta. Depois a Cancha envia cada pauta para aprovação da Spraytec.</p>`:''}
+   <div class="actions"><button class="btn primary" data-act="imp-confirmar" ${ruins||!(novos+atu)?'disabled':''}>${novos+atu?`Importar: ${[novos?novos+(novos===1?' novo':' novos'):'',atu?atu+(atu===1?' atualização':' atualizações'):''].filter(Boolean).join(' e ')}`:'Nada para importar'}</button></div>
+   <p class="muted" style="font-size:12px;margin:0">Itens novos entram como pauta (ou já em aprovação, se a etapa disser). Tudo fica no histórico de cada item.</p>`:''}
   </div>`}
 async function impLerArquivo(file){const buf=await file.arrayBuffer();let txt;try{txt=new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(_){txt=new TextDecoder('windows-1252').decode(buf)}
   S.imp=impProcessar(txt,file.name);renderDrawer()}
@@ -1057,22 +1152,55 @@ function drawerPost(p){
       if(p.status==='producao')b.push(`<button class="btn primary" data-act="send" data-id="${p.id}">${['video','design'].includes(p.rede)?'Marcar como concluído':'Enviar peça para aprovação'}</button>`);
       if(p.status==='ajuste')b.push(`<button class="btn primary" data-act="newver" data-id="${p.id}">${p.etapaAjuste==='pauta'?'Reenviar pauta ajustada':'Subir nova versão e reenviar'}</button>`);
       const ext=EM_APROVACAO.includes(p.status)?`<details class="padj" ${S.needExt===p.id?'open':''}><summary class="btn ${S.needExt===p.id?'primary':''}">Registrar aprovação por WhatsApp/e-mail</summary><div class="extbox"><label class="muted" for="ext-quem">Quem da Spraytec aprovou</label><select id="ext-quem" class="pe">${APROVADORES.map(a=>`<option value="${esc(a.id)}">${esc(a.nome)}</option>`).join('')||'<option value="">Nenhuma pessoa da Operação cadastrada</option>'}</select><label class="muted" for="ext-canal">Por onde aprovou</label><select id="ext-canal" class="pe"><option>WhatsApp</option><option>E-mail</option><option>Reunião</option></select><label class="muted" for="ext-link">Link do print ou do e-mail no Drive (recomendado)</label><input id="ext-link" class="pe" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="external" data-id="${p.id}">Registrar aprovação${ehPauta?' da pauta':''}</button><span class="muted" style="font-size:12px">Fica no histórico com o nome de quem aprovou, o seu e o comprovante.</span></div></details>`:'';
-      const edita=['pauta','producao','ajuste','espera'].includes(p.status)&&p.formato!=='plano'?`<details class="padj"><summary class="btn">Editar conteúdo</summary><div class="extbox"><label class="muted" for="pe-titulo">Título</label><input id="pe-titulo" class="pe" value="${esc(p.titulo)}"><label class="muted" for="pe-leg">${p.status==='pauta'||p.etapaAjuste==='pauta'?'Pauta (tema, ideia e abordagem)':({email:'Assunto e texto',design:'Descrição',video:'Descrição'}[p.rede]||'Legenda')}</label><textarea id="pe-leg" class="pe" rows="5">${esc(p.legenda)}</textarea>${['video','design'].includes(p.rede)?'':`<label class="muted" for="pe-hora">Horário</label><input id="pe-hora" type="time" class="pe" value="${p.time||''}">`}<label class="muted" for="pe-drive">Link do material no Google Drive</label><input id="pe-drive" class="pe" value="${esc(p.drive||'')}" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="post-editar" data-id="${p.id}">Salvar conteúdo</button></div></details>`:'';
+      const edita=['pauta','producao','ajuste','espera'].includes(p.status)&&p.formato!=='plano'?`<details class="padj"><summary class="btn">Editar conteúdo</summary><div class="extbox"><label class="muted" for="pe-titulo">Título</label><input id="pe-titulo" class="pe" value="${esc(p.titulo)}">${etapaPautaCli(p)?`<label class="muted" for="pe-pauta">Pauta (tema, ideia e abordagem)</label><textarea id="pe-pauta" class="pe" rows="4">${esc(p.pauta||'')}</textarea>`:''}${temPauta(p)&&(p.status==='pauta'||(p.status==='ajuste'&&p.etapaAjuste==='pauta'))?'':`<label class="muted" for="pe-leg">${({email:'Assunto e texto',design:'Descrição',video:'Descrição'}[p.rede]||'Legenda')}</label><textarea id="pe-leg" class="pe" rows="5">${esc(p.legenda)}</textarea>`}${['video','design'].includes(p.rede)?'':`<label class="muted" for="pe-hora">Horário</label><input id="pe-hora" type="time" class="pe" value="${p.time||''}">`}<label class="muted" for="pe-drive">Link do material no Google Drive</label><input id="pe-drive" class="pe" value="${esc(p.drive||'')}" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="post-editar" data-id="${p.id}">Salvar conteúdo</button></div></details>`:'';
       acts=`<div class="actions">${b.join('')}</div>${ext}${edita}${statusEditor(p)}`;}
   }
   const textoLabel={email:'Assunto e texto',ads:'Resumo',design:'Descrição',video:'Descrição'}[p.rede]||'Legenda';
-  return `<header><div><div class="eyebrow">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div><h2>${hid?'Em preparação pela Cancha':esc(p.titulo)}</h2></div>${closeBtn()}</header>
+  const naPauta=temPauta(p)&&(['pauta','pauta_aprovacao'].includes(p.status)||(p.status==='ajuste'&&p.etapaAjuste==='pauta'));
+  const pautaBloco=temPauta(p)&&(p.pauta||naPauta)?`<div><div class="eyebrow" style="margin-bottom:6px">${naPauta||p.status==='espera'?'Pauta':'Pauta aprovada'}</div><div class="caption">${p.pauta?esc(p.pauta):'Ainda sem pauta.'}</div></div>`:'';
+  const legBloco=naPauta&&!p.legenda?'':`<div><div class="eyebrow" style="margin-bottom:6px">${textoLabel}</div><div class="caption">${p.faltaTexto?'Ainda sem textos.':p.legenda?esc(p.legenda):'Ainda sem texto.'}</div></div>`;
+  const prep=hid&&p.status==='producao';
+  return `<header><div><div class="eyebrow">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div><h2>${hid&&!prep?'Em preparação pela Cancha':esc(p.titulo)}</h2></div>${closeBtn()}</header>
   <div class="content">
    ${p.formato==='plano'?planoSection().replace('<section class="panel">','<div>').replace(/<\/section>$/,'</div>'):`<div class="pv-lg">${preview(p)}</div><p class="muted" style="font-size:12px;margin:-8px 0 0;text-align:center">Prévia aproximada. ${p.drive?`<a href="${esc(p.drive)}" target="_blank" rel="noopener">Abrir a arte no Google Drive</a>`:'A arte fica na pasta do Google Drive.'}</p>`}
-   <dl class="kv" style="margin:0"><dt>Status</dt><dd>${pill(p.status)} ${marcas(p)}</dd><dt>Data</dt><dd class="mono">${p.date?fmtLong(p.date)+(p.time?' '+p.time:''):'sem data'}</dd><dt>Pilar</dt><dd>${p.pilar}</dd><dt>Produto</dt><dd>${p.produto}</dd>${peso?`<dt>Cota de design</dt><dd>${peso} peça${peso>1?'s':''} · rodada ${p.rodada} de 2</dd>`:''}</dl>
-   ${p.formato==='plano'?'':hid?'<div class="notice lock">O texto e a arte aparecem quando o item for enviado para aprovação.</div>':`<div><div class="eyebrow" style="margin-bottom:6px">${textoLabel}</div><div class="caption">${p.faltaTexto?'Ainda sem textos.':esc(p.legenda)}</div></div>`}
+   <dl class="kv" style="margin:0"><dt>Status</dt><dd>${pill(p.status)} ${marcas(p)}</dd><dt>Data</dt><dd class="mono">${p.date?fmtLong(p.date)+(p.time?' '+p.time:''):'sem data'}</dd><dt>Pilar</dt><dd>${p.pilar}</dd><dt>Produto</dt><dd>${esc(p.produto)}</dd>${peso?`<dt>Cota de design</dt><dd>${peso} peça${peso>1?'s':''} · rodada ${p.rodada} de 2</dd>`:''}</dl>
+   ${p.formato==='plano'?'':hid?(prep?pautaBloco:'')+`<div class="notice lock">${prep?'A legenda e a arte aparecem quando a peça for enviada para aprovação.':'O texto aparece quando a pauta for enviada para aprovação.'}</div>`:pautaBloco+legBloco}
    ${acts}
+   ${(isTeam()||isM())&&p.formato!=='plano'&&!hid?classifPost(p):''}
    ${linksSection('p:'+p.id)}
-   <div><div class="eyebrow" style="margin-bottom:6px">Comentários</div><div style="display:flex;flex-direction:column;gap:6px">${coms.map(c=>`<div class="comment ${c.interno?'internal':''}"><div class="who"><b>${esc(c.who)}</b>${c.quando}${c.interno?'<span class="tag">interno</span>':''}</div>${esc(c.text)}</div>`).join('')||'<p class="muted" style="margin:0">Sem comentários.</p>'}</div>
-    <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px"><textarea id="newc" placeholder="Escrever comentário"></textarea>${team?'<label class="check"><input type="checkbox" id="newci" checked> Interno (o cliente não vê)</label>':''}<div class="actions"><button class="btn" data-act="comment" data-id="${p.id}">Comentar</button></div></div></div>
+   <div><div class="eyebrow" style="margin-bottom:6px">Comentários</div><div style="display:flex;flex-direction:column;gap:6px">${coms.map(c=>`<div class="comment ${c.interno?'internal':''}"><div class="who"><b>${esc(c.who)}</b>${c.quando}${c.interno?'<span class="tag">interno</span>':''}</div>${mencHtml(c.text)}</div>`).join('')||'<p class="muted" style="margin:0">Sem comentários.</p>'}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px"><textarea id="newc" placeholder="Escrever comentário (use @ para mencionar alguém)" data-mencao></textarea>${team?'<label class="check"><input type="checkbox" id="newci" checked> Interno (o cliente não vê)</label>':''}<div class="actions"><button class="btn" data-act="comment" data-id="${p.id}">Comentar</button></div></div></div>
    <div><div class="eyebrow" style="margin-bottom:6px">Histórico</div><div class="hist">${histHtml(p.hist)}</div></div>
   </div>`;
 }
+// MENÇÕES: destaque do @Nome no texto e lista de nomes ao digitar @
+let MENCIONAVEIS=[];
+function mencHtml(txt){let h=esc(txt);if(!/@/.test(txt))return h;
+  const nomes=MENCIONAVEIS.map(p=>p.nome).concat(EU?[EU.nome]:[]).sort((a,b)=>b.length-a.length);
+  for(const nm of nomes){const re=new RegExp('@'+esc(nm).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\p{L}\\d])','giu');h=h.replace(re,m=>`<b class="mencao">${m}</b>`)}
+  return h}
+let MENC=null;// {el, ini, itens, i}
+function mencFechar(){MENC=null;const p=document.getElementById('mencpop');if(p)p.remove()}
+function mencAbrir(el){const pos=el.selectionStart,antes=el.value.slice(0,pos);const m=antes.match(/(^|\s)@([\p{L}]*)$/u);if(!m){mencFechar();return}
+  const q=semAcento(m[2]);const interno=el.id==='newc'&&$('#newci')&&$('#newci').checked;
+  const itens=MENCIONAVEIS.filter(p=>(!interno||p.papel==='cancha')&&semAcento(p.nome).split(/\s+/).some(w=>w.startsWith(q))).slice(0,6);
+  if(!itens.length){mencFechar();return}
+  MENC={el,ini:pos-m[2].length-1,itens,i:MENC&&MENC.el===el?Math.min(MENC.i,itens.length-1):0};
+  let p=document.getElementById('mencpop');if(!p){p=document.createElement('div');p.id='mencpop';p.className='mencpop';p.setAttribute('role','listbox');document.body.appendChild(p)}
+  const r=el.getBoundingClientRect();p.style.left=Math.max(8,r.left)+'px';p.style.top=(r.bottom+4)+'px';p.style.minWidth=Math.min(r.width,280)+'px';
+  p.innerHTML=itens.map((x,k)=>`<button type="button" role="option" aria-selected="${k===MENC.i}" data-menc="${k}"><b>${esc(x.nome)}</b><span class="muted">${esc(ROLES[x.papel]||x.papel)}</span></button>`).join('')}
+function mencEscolher(k){if(!MENC)return;const {el,ini}=MENC,x=MENC.itens[k];const fim=el.selectionStart;const ins='@'+x.nome+' ';
+  el.value=el.value.slice(0,ini)+ins+el.value.slice(fim);const c=ini+ins.length;mencFechar();el.focus();el.setSelectionRange(c,c)}
+document.addEventListener('mousedown',e=>{const b=e.target.closest&&e.target.closest('[data-menc]');if(b){e.preventDefault();mencEscolher(Number(b.dataset.menc));return}if(MENC&&e.target!==MENC.el)mencFechar()});
+document.addEventListener('input',e=>{if(e.target&&e.target.dataset&&'mencao' in e.target.dataset)mencAbrir(e.target)});
+document.addEventListener('keydown',e=>{if(!MENC||e.target!==MENC.el)return;
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();MENC.i=(MENC.i+(e.key==='ArrowDown'?1:MENC.itens.length-1))%MENC.itens.length;mencAbrir(MENC.el)}
+  else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();e.stopImmediatePropagation();mencEscolher(MENC.i)}
+  else if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();mencFechar()}},true);
+window.addEventListener('scroll',()=>{if(MENC)mencFechar()},true);
+// Link do e-mail de aviso: /?abrir=p:ID (post) ou t:ID (conversa)
+function abrirDoLink(){const a=new URLSearchParams(location.search).get('abrir');if(!a)return;history.replaceState(null,'','/');
+  const [k,id]=a.split(':');if(k==='p'&&posts.some(p=>p.id===id))openDrawer('post',id);else if(k==='t'&&threads.some(t=>t.id===id)){S.thread=id;S.view='hoje';render();irChat()}}
 function histHtml(h){return (h||[]).map(x=>`<div><span class="mono">${esc(x.q)}</span> · ${esc(x.t)}${x.por&&!String(x.t).includes(x.por)?` <span class="muted">(${esc(x.por)})</span>`:''}</div>`).join('')||'<span class="muted">Sem registros.</span>'}
 function drawerVideo(v){
   const isP=S.role==='produtora',team=isTeam();let acts='';
@@ -1154,7 +1282,7 @@ let EU=null,DEMO=false,ULTIMA_VISITA=null,VERSAO=0,ocupado=false,ATIVIDADE=null,
 function fmtVisita(iso){const p=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(new Date(iso));const g=t=>(p.find(x=>x.type===t)||{}).value||'';return `${g('weekday').replace('.','')}, ${g('day')}/${g('month')} às ${g('hour')}:${g('minute')}`}
 function aplicar(j){
   const primeira=!EU,novoDia=TODAY!==j.hoje;
-  EU=j.eu;DEMO=!!j.demo;VERSAO=j.versao;TODAY=j.hoje;APROVADORES=j.aprovadores||[];if(j.ultimaVisita!==undefined)ULTIMA_VISITA=j.ultimaVisita;
+  EU=j.eu;DEMO=!!j.demo;VERSAO=j.versao;TODAY=j.hoje;APROVADORES=j.aprovadores||[];MENCIONAVEIS=j.mencionaveis||[];if(j.ultimaVisita!==undefined)ULTIMA_VISITA=j.ultimaVisita;
   const d=j.dados||{};
   posts=d.posts||[];videos=d.videos||[];demandas=d.demandas||[];threads=d.threads||[];MARCOS=d.marcos||[];ANO=d.ano||[];CONC=d.conc||[];
   APRENDIZADOS=d.aprendizados||[];RELATORIOS=d.relatorios||[];plano=d.plano||null;GUIA=d.guia||GUIA;LANES=d.lanes||[];CONC_ACOES=d.concAcoes||[];LINKS=d.links||[];
@@ -1175,7 +1303,7 @@ async function acao(nome,dados,depois){
   finally{ocupado=false;document.body.classList.remove('salvando')}}
 function acaoSilenciosa(nome,dados){api('/api/acao',Object.assign({acao:nome},dados||{})).then(j=>{VERSAO=j.versao}).catch(()=>{})}
 async function iniciar(){
-  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0)}catch(_){}}
+  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0);abrirDoLink()}catch(_){}}
 // Atualiza sozinho quando outra pessoa muda algo (ex.: a Spraytec aprova pelo celular), sem atrapalhar quem está editando.
 setInterval(async()=>{
   if(!EU||document.hidden||ocupado)return;
@@ -1257,8 +1385,11 @@ document.addEventListener('click',e=>{
     case 'close':{const wasV=S.drawer&&S.drawer.kind==='video';S.needExt=null;S.marcosEd=null;S.convite=null;closeDrawer();if(wasV)render();break}
     case 'importar':S.imp=null;openDrawer('importar');break;
     case 'imp-modelo':baixarArquivo('modelo-calendario-spraytec.csv','\uFEFF'+[IMP_COLS,...IMP_EXEMPLO].map(l=>l.map(csvCampo).join(';')).join('\r\n'),'text/csv;charset=utf-8');break;
-    case 'imp-copiar':{const x=$('#imp-prompt');try{navigator.clipboard.writeText(IMP_PROMPT).then(()=>toast('Pedido copiado.'),()=>{x.select();toast('Selecionei o texto: copie com Ctrl+C.')})}catch(_){x.select()}break}
-    case 'imp-confirmar':{const I=S.imp;if(!I)break;const linhas=I.linhas.map(l=>l.dados);acao('calendario-importar',{arquivo:I.arquivo,linhas},()=>{S.imp=null;closeDrawer();const m=linhas.map(l=>l.data).sort()[0];if(m)S.month=m.slice(0,7);render();toast(linhas.length+' itens importados como pauta.')});break}
+    case 'imp-copiar':{const x=$('#imp-prompt');try{navigator.clipboard.writeText(impPrompt()).then(()=>toast('Pedido copiado.'),()=>{x.select();toast('Selecionei o texto: copie com Ctrl+C.')})}catch(_){x.select()}break}
+    case 'imp-confirmar':{const I=S.imp;if(!I)break;const env=I.linhas.filter(l=>l.acao!=='igual');const linhas=env.map(l=>l.dados);const nv=env.filter(l=>l.acao==='novo').length,at=env.length-nv;
+      acao('calendario-importar',{arquivo:I.arquivo,linhas},()=>{S.imp=null;closeDrawer();const m=env.filter(l=>l.acao==='novo').map(l=>l.dados.data).filter(Boolean).sort()[0];if(m)S.month=m.slice(0,7);render();toast([nv?nv+(nv===1?' item novo':' itens novos'):'',at?at+(at===1?' atualizado':' atualizados'):''].filter(Boolean).join(' e ')+'.')});break}
+    case 'exportar-mes':exportarMes();break;
+    case 'plano-exportar':readPlanoForm();planoExportar();break;
     case 'pessoa-nova':openDrawer('pessoa',null);setTimeout(()=>{const x=$('#ps-nome');if(x)x.focus()},0);break;
     case 'pessoa-edit':openDrawer('pessoa',id);break;
     case 'pessoa-salvar':{const corpo={id:S.drawer.id||null,nome:val('#ps-nome'),email:val('#ps-email'),papel:$('#ps-papel').value,ativo:$('#ps-ativo').checked};let novoId=null;
@@ -1324,7 +1455,7 @@ document.addEventListener('click',e=>{
     case 'pop-ok':if(popApply()){S.pop=null;renderPop();render();toast('Aplicado ao rascunho.')}break;
     case 'vk-novo':acao('video-novo',{},j=>{openDrawer('video',j.criado);toast('Pauta criada. Dê um nome e envie para a produtora.')});break;
     case 'video-salvar':{const r=$('#vr-'+id);acao('video-salvar',{id,titulo:val('#vt-'+id),roteiro:r?r.value:undefined},()=>toast('Vídeo salvo.'));break}
-    case 'post-editar':acao('post-editar',{id,titulo:val('#pe-titulo'),legenda:$('#pe-leg').value,hora:val('#pe-hora')||null,drive:val('#pe-drive')},()=>toast('Conteúdo salvo.'));break;
+    case 'post-editar':acao('post-editar',{id,titulo:val('#pe-titulo'),legenda:$('#pe-leg')?$('#pe-leg').value:undefined,pauta:$('#pe-pauta')?$('#pe-pauta').value:undefined,hora:val('#pe-hora')||null,drive:val('#pe-drive')},()=>toast('Conteúdo salvo.'));break;
     case 'st-save':{const ns=$('#st-sel').value;acao('status',{id,status:ns},()=>toast('Status: '+STATUS[ns].l+'.'));break}
     case 'st-pub':acao('publicar',{id,link:val('#pub-link')},()=>toast('Marcado como publicado.'));break;
     case 'ver-mud':openDrawer('mud',id);break;
@@ -1340,6 +1471,7 @@ document.addEventListener('click',e=>{
     case 'enviar-pauta':acao('enviar-pauta',{id},()=>toast('Pauta enviada para aprovação da Spraytec.'));break;
     case 'external':acao('aprovacao-externa',{id,quem:val('#ext-quem'),canal:$('#ext-canal')?$('#ext-canal').value:'WhatsApp',evidencia:val('#ext-link')},()=>{S.needExt=null;render();toast('Aprovação externa registrada no histórico.')});break;
     case 'textos':acao('textos',{id,legenda:val('#tx-leg')},()=>toast('Textos adicionados. Foi para validação interna da Spraytec.'));break;
+    case 'p-classif':acao('post-classificar',{id,produto:val('#pc-prod'),pilar:val('#pc-pilar')},()=>toast('Classificação salva.'));break;
     case 'comment':{const c=val('#newc');if(!c)return;acao('comentar',{id,txt:c,interno:!!($('#newci')&&$('#newci').checked)});break}
     case 'approve-sel':{const ids=Object.keys(S.sel).filter(k=>S.sel[k]);if(!ids.length){toast('Marque pelo menos um item.');return}acao('aprovar-lote',{ids},()=>{S.sel={};render();toast(ids.length+(ids.length>1?' itens aprovados.':' item aprovado.'))});break}
     case 'marcos':S.marcosEd=clone(MARCOS);openDrawer('marcos');break;
@@ -1367,7 +1499,7 @@ document.addEventListener('drop',e=>{const c=e.target.closest('[data-day],[data-
   if(g.k==='dem'){if(day!=='espera')acao('demanda-data',{id:g.id,data:day},()=>toast('Demanda movida para '+fmtLong(day)+'.'));return}
   if(day==='espera')acao('post-data',{id:g.id,data:null},()=>toast('Movido para em espera.'));
   else{const was=(posts.find(x=>x.id===g.id)||{}).status;acao('post-data',{id:g.id,data:day},()=>toast(was==='agendado'?'Data alterada e reagendado, sem duplicar.':'Data alterada para '+fmtLong(day)+'.'))}});
-document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='imp-arq'&&t.files&&t.files[0]){impLerArquivo(t.files[0]);return}if(t&&t.id==='per-cmp'){S.per.cmp=t.value;if(t.value==='custom'){const r={de:addDays(S.per.de,-perDays()),ate:addDays(S.per.de,-1)};S.per.cde=r.de;S.per.cate=r.ate}render();return}if(t&&(t.id==='per-cde'||t.id==='per-cate')&&t.value){S.per[t.id==='per-cde'?'cde':'cate']=t.value;if(S.per.cde>S.per.cate){const x=S.per.cde;S.per.cde=S.per.cate;S.per.cate=x}render();return}if(t&&(t.id==='per-de'||t.id==='per-ate')&&t.value){S.per.preset='custom';S.per[t.id==='per-de'?'de':'ate']=t.value;if(S.per.de>S.per.ate){const x=S.per.de;S.per.de=S.per.ate;S.per.ate=x}render();return}if(t&&t.id==='nt-tipo'){const keep={ti:$('#nt-titulo').value,da:$('#nt-data').value};S.novoTipo=t.value;S.drawer.id=keep.da;renderDrawer();$('#nt-titulo').value=keep.ti;$('#nt-tipo').focus()}});
+document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='plano-arq'&&t.files&&t.files[0]){const fl=t.files[0];t.value='';planoLerArquivo(fl);return}if(t&&t.id==='f-prod'){S.prod=t.value;render();return}if(t&&t.id==='imp-arq'&&t.files&&t.files[0]){impLerArquivo(t.files[0]);return}if(t&&t.id==='per-cmp'){S.per.cmp=t.value;if(t.value==='custom'){const r={de:addDays(S.per.de,-perDays()),ate:addDays(S.per.de,-1)};S.per.cde=r.de;S.per.cate=r.ate}render();return}if(t&&(t.id==='per-cde'||t.id==='per-cate')&&t.value){S.per[t.id==='per-cde'?'cde':'cate']=t.value;if(S.per.cde>S.per.cate){const x=S.per.cde;S.per.cde=S.per.cate;S.per.cate=x}render();return}if(t&&(t.id==='per-de'||t.id==='per-ate')&&t.value){S.per.preset='custom';S.per[t.id==='per-de'?'de':'ate']=t.value;if(S.per.de>S.per.ate){const x=S.per.de;S.per.de=S.per.ate;S.per.ate=x}render();return}if(t&&t.id==='nt-tipo'){const keep={ti:$('#nt-titulo').value,da:$('#nt-data').value};S.novoTipo=t.value;S.drawer.id=keep.da;renderDrawer();$('#nt-titulo').value=keep.ti;$('#nt-tipo').focus()}});
 document.addEventListener('input',e=>{if(e.target&&e.target.classList.contains('acq')){const sb=e.target.dataset.sub;S.aq[sb]=e.target.value;const pos=e.target.selectionStart;render();const x=document.getElementById('acq-'+sb);if(x){x.focus();try{x.setSelectionRange(pos,pos)}catch(_){}}return}if(e.target&&e.target.id==='rel-q'){S.relQ=e.target.value;const pos=e.target.selectionStart;render();const x=$('#rel-q');if(x){x.focus();try{x.setSelectionRange(pos,pos)}catch(_){}}return}const t=e.target;if(t.classList&&t.classList.contains('pe')&&t.dataset.orig!==undefined)t.classList.toggle('chgd',t.value!==t.dataset.orig)});
 document.addEventListener('dragend',()=>{drag=null;document.querySelectorAll('.over').forEach(x=>x.classList.remove('over'))});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.pop){S.pop=null;renderPop();return}if(e.key==='Enter'&&e.target&&e.target.dataset&&e.target.dataset.act==='pop'){e.preventDefault();e.target.click();return}if(e.key==='Escape'&&S.drawer){S.needExt=null;S.marcosEd=null;closeDrawer()}if(e.key==='Enter'&&!e.shiftKey&&e.target&&e.target.id==='cm'){e.preventDefault();const b=document.querySelector('[data-act="enviar-msg"]');if(b)b.click()}});

@@ -83,7 +83,9 @@ e = await op.estado();
 checa(!e.dados.posts.some((p) => p.comments.some((c) => c.interno)), 'Operação não recebe comentários internos');
 const rasc = e.dados.posts.find((p) => p.status === 'producao' && !['video', 'design'].includes(p.rede));
 checa(rasc && rasc.legenda === '', 'Operação não recebe o texto de itens em produção');
-checa(e.dados.posts.find((p) => p.id === novaPauta)?.legenda === 'Ideia da pauta.', 'Operação vê o texto da pauta enviada para aprovação');
+checa(e.dados.posts.find((p) => p.id === novaPauta)?.pauta === 'Ideia da pauta.', 'Operação vê o texto da pauta enviada para aprovação');
+checa(rasc && rasc.pauta !== '', 'Operação vê a pauta aprovada de itens em produção');
+checa(e.dados.posts.filter((p) => p.status === 'pauta' && !['video', 'design'].includes(p.rede)).every((p) => p.pauta === '' && p.legenda === ''), 'Operação não recebe pautas que a Cancha ainda está escrevendo');
 checa(!e.dados.relatorios.some((r) => r.status === 'rascunho'), 'Operação não vê relatórios em rascunho');
 checa(e.dados.threads.length > 0, 'Operação vê as conversas com a Cancha');
 {
@@ -149,6 +151,46 @@ console.log('Importação de planilha');
     { tipo: 'demanda|spraytec', titulo: 'Enviar fotos', data: e.hoje }] });
   checa(boa.status === 200 && boa.j.dados.posts.length === antes + 2 && boa.j.dados.demandas.some((d) => d.t === 'Enviar fotos'), 'planilha válida cria posts como pauta e a demanda');
   checa(boa.j.dados.posts.filter((p) => /^Importado/.test(p.titulo)).every((p) => p.status === 'pauta'), 'itens importados entram como pauta');
+  const imp1 = boa.j.dados.posts.find((p) => p.titulo === 'Importado 1');
+  checa(imp1.pauta === 'Pauta 1' && imp1.legenda === '', 'texto da planilha vai para a pauta, não para a legenda');
+  // Atualizar pelo id (planilha exportada e importada de volta)
+  const n0 = boa.j.dados.posts.length;
+  const up = await cancha.acao('calendario-importar', { arquivo: 'mes.csv', linhas: [{ n: 2, id: imp1.id, pauta: 'Pauta 1 revisada', produto: 'Linha foliar', etapa: 'pauta_aprovacao' }] });
+  const imp1b = up.j.dados?.posts.find((p) => p.id === imp1.id);
+  checa(up.status === 200 && up.j.dados.posts.length === n0 && imp1b.pauta === 'Pauta 1 revisada' && imp1b.produto === 'Linha foliar', 'linha com id atualiza o item sem duplicar');
+  checa(imp1b.status === 'pauta_aprovacao' && imp1b.hist.some((h) => /Atualizado pela planilha "mes.csv"/.test(h.t)), 'etapa "Pauta em aprovação" envia a pauta e fica no histórico');
+  const igual = await cancha.acao('calendario-importar', { arquivo: 'mes.csv', linhas: [{ n: 2, id: imp1.id, titulo: 'Importado 1', pauta: 'Pauta 1 revisada', etapa: 'pauta_aprovacao' }] });
+  checa(igual.status === 200, 'linha igual ao portal passa mesmo com o item em aprovação');
+  const trava = await cancha.acao('calendario-importar', { arquivo: 'mes.csv', linhas: [{ n: 5, id: imp1.id, pauta: 'mudei durante a aprovação' }] });
+  checa(trava.status === 400 && /Linha 5/.test(trava.j.erro), 'item em aprovação não muda pela planilha');
+  const pula = await cancha.acao('calendario-importar', { arquivo: 'mes.csv', linhas: [{ n: 2, id: imp1.id, etapa: 'publicado' }] });
+  checa(pula.status === 400, 'planilha não pula etapas do fluxo');
+  const sumiu = await cancha.acao('calendario-importar', { arquivo: 'mes.csv', linhas: [{ n: 2, id: 'p-nao-existe', titulo: 'x' }] });
+  checa(sumiu.status === 400 && /não existe/.test(sumiu.j.erro), 'id que não existe barra a importação');
+}
+
+console.log('Classificação por produto');
+{
+  const p = (await cancha.estado()).dados.posts.find((x) => x.status === 'publicado' && x.rede === 'ig');
+  const r = await cancha.acao('post-classificar', { id: p.id, produto: 'Bioestimulante' });
+  const p2 = r.j.dados?.posts.find((x) => x.id === p.id);
+  checa(r.status === 200 && p2.produto === 'Bioestimulante' && p2.hist.some((h) => /Classificação alterada/.test(h.t)), 'Cancha classifica um post publicado por produto');
+  const prd = await sessao('u-produtora');
+  checa((await prd.acao('post-classificar', { id: p.id, produto: 'x' })).status === 403, 'produtora não classifica posts');
+}
+
+console.log('Menções');
+{
+  const est = await cancha.estado();
+  checa(Array.isArray(est.mencionaveis) && est.mencionaveis.some((p) => p.id === 'u-operacao'), 'Cancha recebe a lista de quem pode ser mencionado');
+  const th = est.dados.threads[0];
+  const r = await cancha.acao('mensagem', { id: th.id, txt: 'Oi @Operação Spraytec, pode olhar?' });
+  const m = r.j.dados?.threads.find((x) => x.id === th.id).msgs.at(-1);
+  checa(r.status === 200 && m.mencoes?.includes('u-operacao'), 'mensagem guarda quem foi mencionado');
+  const p = est.dados.posts.find((x) => x.status === 'aprovacao');
+  const r2 = await cancha.acao('comentar', { id: p.id, txt: 'Atenção, @Operação Spraytec', interno: true });
+  const c2 = r2.j.dados?.posts.find((x) => x.id === p.id).comments.at(-1);
+  checa(r2.status === 200 && !c2.mencoes, 'comentário interno não menciona quem não pode lê-lo');
 }
 
 console.log('Produtora');

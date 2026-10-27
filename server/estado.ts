@@ -24,7 +24,18 @@ export async function carregar(q: Consulta): Promise<Estado> {
     if (r.colecao === 'config') { if ((CONFIGS as readonly string[]).includes(r.id)) e[r.id] = r.dados; }
     else if ((LISTAS as readonly string[]).includes(r.colecao)) e[r.colecao].push(r.dados);
   }
+  e.posts.forEach(separarPauta);
   return e;
+}
+
+// Até 27/10/2026 a pauta ficava no campo da legenda. Itens ainda na etapa de pauta passam o texto
+// para o campo próprio; nos demais a pauta fica vazia e a legenda continua onde estava.
+function separarPauta(p: any) {
+  if (p.pauta !== undefined) return;
+  const etapaPauta = !['video', 'design'].includes(p.rede) && p.formato !== 'plano'
+    && (['pauta', 'pauta_aprovacao'].includes(p.status) || (p.status === 'ajuste' && p.etapaAjuste === 'pauta'));
+  p.pauta = etapaPauta ? p.legenda || '' : '';
+  if (etapaPauta) p.legenda = '';
 }
 
 export type Mudanca = { colecao: string; id: string; antes: any; depois: any };

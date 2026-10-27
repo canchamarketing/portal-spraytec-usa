@@ -3,7 +3,7 @@
 import { clone, type Usuario } from './dominio.ts';
 import type { Estado } from './estado.ts';
 
-const emPreparo = (p: any) => (p.status === 'pauta' || p.status === 'producao') && !['video', 'design'].includes(p.rede);
+const temPauta = (p: any) => !['video', 'design'].includes(p.rede) && p.formato !== 'plano';
 
 export function visaoPara(e0: Estado, u: Usuario) {
   const e: any = clone(e0);
@@ -22,7 +22,9 @@ export function visaoPara(e0: Estado, u: Usuario) {
   // Cliente (Matheus, diretoria, leitores): sem comentários internos e sem o texto de rascunhos.
   e.posts = e.posts.map((p: any) => {
     const x = { ...p, comments: (p.comments || []).filter((c: any) => !c.interno) };
-    if (emPreparo(p)) { x.legenda = ''; delete x.drive; }
+    // Pauta ainda sendo escrita: nada aparece. Em produção: a pauta aprovada aparece; legenda e arte, só na aprovação.
+    if (temPauta(p) && p.status === 'pauta') { x.pauta = ''; x.legenda = ''; delete x.drive; }
+    if (temPauta(p) && p.status === 'producao') { x.legenda = ''; delete x.drive; }
     return x;
   });
   e.relatorios = e.relatorios.filter((r: any) => r.status !== 'rascunho');

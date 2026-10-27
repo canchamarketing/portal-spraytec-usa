@@ -448,6 +448,11 @@ table.ap tr:hover td{background:var(--bg)}
 .msg{display:flex;gap:10px}
 .msg .mh{display:flex;gap:8px;align-items:baseline}
 .av2.spraytec{background:var(--k-spraytec);color:#fff}
+.mencao{color:var(--accent-ink);font-weight:600}
+.mencpop{position:fixed;z-index:1000;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);padding:4px;display:flex;flex-direction:column;max-width:320px}
+.mencpop button{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:1px;padding:6px 10px;border-radius:6px;font-size:13px}
+.mencpop button span{font-size:11px}
+.mencpop button[aria-selected="true"],.mencpop button:hover{background:var(--bg)}
 .composer{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px;align-items:flex-end}
 @media (max-width:860px){.chat{grid-template-columns:1fr;height:auto}.threads{border-right:0;border-bottom:1px solid var(--line);max-height:220px}.msgs{max-height:360px}}
 

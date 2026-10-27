@@ -8,10 +8,24 @@ import type { Estado } from './estado.ts';
 
 export type Pessoa = { id: string; nome: string; papel: string };
 export type Ctx = { e: Estado; u: Usuario; d: any; hoje: string; agora: string; pessoas: Pessoa[] };
-export type Resultado = { resumo: string; criado?: string };
+// Aviso por e-mail que sai depois de gravar (ex.: menção). "abrir" é o item que o link abre no portal.
+export type Aviso = { para: string[]; assunto: string; paragrafos: string[]; abrir: string };
+export type Resultado = { resumo: string; criado?: string; avisos?: Aviso[] };
 type Def = { papeis: Papel[]; semAuditoria?: boolean; fn: (c: Ctx) => Resultado };
 
 // ---------- utilidades ----------
+// Menções: a tela completa "@Nome Sobrenome"; "@Nome" também vale quando só uma pessoa tem esse primeiro nome.
+// Só conta quem pode ler o que foi escrito (papeis), e ninguém menciona a si mesmo.
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function mencoes(pessoas: Pessoa[], eu: string, txt: string, papeis: string[]): string[] {
+  const t = txt.toLowerCase();
+  const pode = pessoas.filter((p) => papeis.includes(p.papel) && p.id !== eu);
+  const primeiro = (p: Pessoa) => p.nome.toLowerCase().split(/\s+/)[0];
+  const fim = '(?![\\p{L}\\d])';
+  return pode.filter((p) => new RegExp('@' + escRe(p.nome.toLowerCase()) + fim, 'u').test(t)
+    || (pode.filter((x) => primeiro(x) === primeiro(p)).length === 1 && new RegExp('@' + escRe(primeiro(p)) + fim, 'u').test(t))).map((p) => p.id);
+}
+const trecho = (s: string) => (s.length > 300 ? s.slice(0, 297) + '...' : s);
 const PRODUCAO = ['video', 'design'];
 const ehProducao = (p: any) => PRODUCAO.includes(p.rede);
 // Posts e e-mails passam pela aprovação da pauta; produção de design/vídeo e o plano têm fluxo próprio.
@@ -144,12 +158,77 @@ function linkUrl(v: unknown, campo: string): string {
 }
 const lista = (v: unknown, max = 60) => (Array.isArray(v) ? v : []).map((x) => (typeof x === 'string' ? x.trim() : '')).filter(Boolean).slice(0, max).map((x) => x.slice(0, 500));
 
+// Envios para aprovação (usados pelos botões e pela planilha).
+function enviarPauta(c: Ctx, p: any) {
+  if (!temPauta(p)) throw new ErroAcao('Este item não passa por aprovação de pauta.');
+  if (p.status !== 'pauta') throw new ErroAcao('Só pautas podem ser enviadas para aprovação.');
+  if (!String(p.pauta || '').trim()) throw new ErroAcao('Escreva a pauta antes de enviar para aprovação.');
+  p.status = 'pauta_aprovacao'; p.prazo = addBiz(c.hoje, 2); hist(c, p, 'Pauta enviada para aprovação');
+}
+function enviarPeca(c: Ctx, p: any) {
+  if (p.status !== 'producao' || ehProducao(p)) throw new ErroAcao('Só posts e e-mails em produção vão para aprovação.');
+  p.status = 'aprovacao'; p.prazo = addBiz(c.hoje, 2); hist(c, p, 'Enviado para aprovação');
+}
+function reenviar(c: Ctx, p: any) {
+  if (p.status !== 'ajuste') throw new ErroAcao('Só itens com ajuste pedido recebem nova versão.');
+  if (p.formato === 'plano') throw new ErroAcao('Para o plano, edite o quadro e envie de novo.');
+  const pauta = p.etapaAjuste === 'pauta';
+  p.status = pauta ? 'pauta_aprovacao' : 'aprovacao'; p.prazo = addBiz(c.hoje, 2); delete p.etapaAjuste;
+  if (!pauta) p.rodada = Math.min(3, (p.rodada || 1) + 1);
+  hist(c, p, pauta ? 'Pauta ajustada e reenviada para aprovação' : `Nova versão (rodada ${p.rodada}) enviada para aprovação`);
+  return pauta;
+}
+const etapaDaPauta = (p: any) => temPauta(p) && (p.status === 'pauta' || p.status === 'espera' || (p.status === 'ajuste' && p.etapaAjuste === 'pauta'));
+const EDITAVEL = ['pauta', 'producao', 'ajuste', 'espera'];
+const igual = (a: unknown, b: unknown) => String(a ?? '').replace(/\r\n?/g, '\n').trim() === String(b ?? '').replace(/\r\n?/g, '\n').trim();
+
+// Atualiza um item existente a partir de uma linha da planilha. Campo vazio na planilha = mantém o que está no portal.
+// Conteúdo só muda enquanto o item está em preparo; o que já foi para aprovação só aceita classificação e data.
+function atualizarItem(c: Ctx, p: any, l: any, arquivo: string): boolean {
+  const vale = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  // Design e vídeo não têm pauta: o texto da coluna pauta vale como descrição.
+  if (!temPauta(p) && vale(l.pauta) && !vale(l.legenda)) l = { ...l, legenda: l.pauta, pauta: '' };
+  const mud: string[] = [];
+  if (vale(l.tipo) && l.tipo !== p.rede + '|' + p.formato) throw new ErroAcao('O canal e o formato não mudam pela planilha.');
+  const conteudo = (campo: string, nome: string, atual: unknown, novo: unknown, aplica: (v: string) => void) => {
+    if (!vale(novo) || igual(atual, novo)) return;
+    if (!EDITAVEL.includes(p.status)) throw new ErroAcao(`"${p.titulo}" está em "${STATUS[p.status]}" e o ${nome} não muda mais. Para mudar, volte o item para produção no portal.`);
+    if (campo === 'pauta' && !etapaDaPauta(p)) throw new ErroAcao(`a pauta de "${p.titulo}" já foi aprovada e não muda.`);
+    aplica(String(novo).trim()); mud.push(nome);
+  };
+  conteudo('titulo', 'título', p.titulo, l.titulo, (v) => (p.titulo = texto(v, 'título', 200)));
+  conteudo('pauta', 'pauta', p.pauta, l.pauta, (v) => (p.pauta = texto(v, 'pauta', 4000)));
+  conteudo('legenda', 'legenda', p.legenda, l.legenda, (v) => (p.legenda = texto(v, 'legenda', 6000)));
+  conteudo('drive', 'link do Drive', p.drive, l.drive, (v) => (p.drive = linkUrl(v, 'Link do Drive')));
+  if (!ehProducao(p)) conteudo('hora', 'horário', p.time, l.hora, (v) => { if (!/^\d{2}:\d{2}$/.test(v)) throw new ErroAcao('Horário inválido.'); p.time = v; });
+  if (vale(l.pilar) && l.pilar !== p.pilar) { p.pilar = texto(l.pilar, 'pilar', 40); mud.push('pilar'); }
+  if (vale(l.produto) && l.produto !== p.produto) { p.produto = texto(l.produto, 'produto', 80); mud.push('produto'); }
+  if (vale(l.data) && l.data !== p.date) {
+    if (!isoValida(l.data)) throw new ErroAcao('Data inválida.');
+    if (p.status === 'publicado') throw new ErroAcao(`"${p.titulo}" já foi publicado e não muda de data.`);
+    p.date = l.data; mud.push('data');
+    if (p.status === 'espera') p.status = 'pauta';
+    if (['agendado', 'aprovado'].includes(p.status)) p.status = inWindow(c, p) ? 'agendado' : 'aprovado';
+  }
+  if (mud.length) hist(c, p, `Atualizado pela planilha "${arquivo}" (${mud.join(', ')})`);
+  // Etapa: a planilha só faz o passo seguinte do fluxo (enviar para aprovação). O resto é pelo portal.
+  const etapa = vale(l.etapa) ? l.etapa : '';
+  if (etapa && etapa !== p.status) {
+    if (etapa === 'pauta_aprovacao' && p.status === 'pauta') enviarPauta(c, p);
+    else if (etapa === 'aprovacao' && p.status === 'producao' && !ehProducao(p)) enviarPeca(c, p);
+    else if (p.status === 'ajuste' && etapa === (p.etapaAjuste === 'pauta' ? 'pauta_aprovacao' : 'aprovacao')) reenviar(c, p);
+    else throw new ErroAcao(`"${p.titulo}" está em "${STATUS[p.status]}" e não vai para "${STATUS[etapa] || etapa}" pela planilha. Faça essa mudança no portal.`);
+    mud.push('etapa');
+  }
+  return mud.length > 0;
+}
+
 // Cria um item do calendário (usado pelo "+ Adicionar" e pela importação de planilha).
 const TIPOS_NOVO = ['ig|post', 'ig|carrossel', 'ig|reel', 'ig|story', 'fb|post', 'yt|video', 'yt|short', 'email|newsletter', 'design|producao', 'video|gravacao', 'video|entrega'];
 function novoItem(c: Ctx, d: any): string {
   const tipo = String(d.tipo || ''), t = texto(d.titulo, 'título', 200), date = isoValida(d.data) ? d.data : c.hoje;
-  const txt = texto(d.texto, 'texto', 4000, false);
   if (tipo.startsWith('demanda|')) {
+    const txt = texto(d.pauta ?? d.texto, 'detalhes', 4000, false);
     const quem = tipo.split('|')[1] === 'cancha' ? 'cancha' : 'spraytec';
     const dm = { id: novoId('d'), quem, t, data: date, det: txt };
     c.e.demandas.push(dm);
@@ -158,15 +237,20 @@ function novoItem(c: Ctx, d: any): string {
   if (!TIPOS_NOVO.includes(tipo)) throw new ErroAcao(`Tipo inválido: ${tipo || '(vazio)'}.`);
   const [rede, formato] = tipo.split('|');
   const hora = typeof d.hora === 'string' && /^\d{2}:\d{2}$/.test(d.hora) ? d.hora : null;
+  // Posts e e-mails têm pauta (tema e ideia, aprovada pela Spraytec) e legenda (texto final). Design e vídeo têm só descrição.
+  const comPauta = !PRODUCAO.includes(rede);
   const p: any = {
     id: novoId('p'), date, time: PRODUCAO.includes(rede) ? null : hora, rede, formato, titulo: t,
     pilar: texto(d.pilar, 'pilar', 40, false) || 'Manejo', produto: texto(d.produto, 'produto', 80, false) || '—',
-    status: 'pauta', rodada: 1, legenda: txt, comments: [], hist: [],
+    status: 'pauta', rodada: 1, pauta: comPauta ? texto(d.pauta ?? d.texto, 'pauta', 4000, false) : '',
+    legenda: texto(comPauta ? d.legenda : d.legenda || d.pauta || d.texto, 'legenda', 6000, false), comments: [], hist: [],
   };
   const dv = linkUrl(d.drive, 'Material no Google Drive');
   if (dv) p.drive = dv;
   hist(c, p, (d.origem || 'Adicionado ao calendário') + ' por ' + c.u.nome + (c.u.papel === 'operacao' ? ' (sugestão)' : ''));
   if (c.u.papel === 'operacao') p.comments.push({ who: c.u.nome, text: 'Pauta sugerida por mim pelo calendário.', interno: false, quando: c.agora });
+  if (d.etapa === 'pauta_aprovacao' && c.u.papel === 'cancha') enviarPauta(c, p);
+  else if (d.etapa && d.etapa !== 'pauta') throw new ErroAcao('Item novo entra como Pauta ou Pauta em aprovação.');
   c.e.posts.push(p);
   return 'p:' + p.id;
 }
@@ -278,9 +362,7 @@ export const ACOES: Record<string, Def> = {
     papeis: C,
     fn: (c) => {
       const p = post(c, c.d.id);
-      if (!temPauta(p)) throw new ErroAcao('Este item não passa por aprovação de pauta.');
-      if (p.status !== 'pauta') throw new ErroAcao('Só pautas podem ser enviadas para aprovação.');
-      p.status = 'pauta_aprovacao'; p.prazo = addBiz(c.hoje, 2); hist(c, p, 'Pauta enviada para aprovação');
+      enviarPauta(c, p);
       return { resumo: `Enviou a pauta "${p.titulo}" para aprovação` };
     },
   },
@@ -309,7 +391,7 @@ export const ACOES: Record<string, Def> = {
         markLinkedDemands(c.e, 'p:' + p.id, (x) => x.quem === 'cancha');
         return { resumo: `Concluiu "${p.titulo}"${k ? ` e enviou ${k} itens ligados para aprovação` : ''}` };
       }
-      p.status = 'aprovacao'; p.prazo = addBiz(c.hoje, 2); hist(c, p, 'Enviado para aprovação');
+      enviarPeca(c, p);
       return { resumo: `Enviou "${p.titulo}" para aprovação` };
     },
   },
@@ -317,12 +399,7 @@ export const ACOES: Record<string, Def> = {
     papeis: C,
     fn: (c) => {
       const p = post(c, c.d.id);
-      if (p.status !== 'ajuste') throw new ErroAcao('Só itens com ajuste pedido recebem nova versão.');
-      if (p.formato === 'plano') throw new ErroAcao('Para o plano, edite o quadro e envie de novo.');
-      const pauta = p.etapaAjuste === 'pauta';
-      p.status = pauta ? 'pauta_aprovacao' : 'aprovacao'; p.prazo = addBiz(c.hoje, 2); delete p.etapaAjuste;
-      if (!pauta) p.rodada = Math.min(3, (p.rodada || 1) + 1);
-      hist(c, p, pauta ? 'Pauta ajustada e reenviada para aprovação' : `Nova versão (rodada ${p.rodada}) enviada para aprovação`);
+      const pauta = reenviar(c, p);
       return { resumo: `Reenviou ${pauta ? 'a pauta ' : ''}"${p.titulo}"${pauta ? '' : ` (rodada ${p.rodada})`}` };
     },
   },
@@ -380,11 +457,21 @@ export const ACOES: Record<string, Def> = {
       if (!linhas.length) throw new ErroAcao('A planilha não tem linhas para importar.');
       if (linhas.length > 300) throw new ErroAcao('No máximo 300 linhas por vez.');
       const arquivo = texto(c.d.arquivo, 'arquivo', 200, false) || 'planilha';
+      const vistos = new Set<string>();
+      let novos = 0, atualizados = 0;
       linhas.forEach((l: any, i: number) => {
-        try { novoItem(c, { ...l, origem: `Importado da planilha "${arquivo}"` }); }
-        catch (err) { throw new ErroAcao(`Linha ${i + 2} da planilha: ${(err as Error).message} Nada foi importado.`); }
+        const n = Number.isInteger(l.n) ? l.n : i + 2;
+        try {
+          if (l.id) {
+            if (vistos.has(l.id)) throw new ErroAcao('o mesmo id aparece em duas linhas.');
+            vistos.add(l.id);
+            const p = c.e.posts.find((x) => x.id === l.id);
+            if (!p || p.formato === 'plano') throw new ErroAcao(`o id ${l.id} não existe no portal.`);
+            if (atualizarItem(c, p, l, arquivo)) atualizados++;
+          } else { novoItem(c, { ...l, origem: `Importado da planilha "${arquivo}"` }); novos++; }
+        } catch (err) { throw new ErroAcao(`Linha ${n} da planilha: ${(err as Error).message} Nada foi importado.`); }
       });
-      return { resumo: `Importou ${linhas.length} itens da planilha "${arquivo}"` };
+      return { resumo: `Planilha "${arquivo}": ${novos} novos, ${atualizados} atualizados` };
     },
   },
   // O que foi enviado para aprovação não muda por baixo: para editar, o item precisa voltar para produção.
@@ -394,15 +481,32 @@ export const ACOES: Record<string, Def> = {
       const p = post(c, c.d.id);
       if (!['pauta', 'producao', 'ajuste', 'espera'].includes(p.status))
         throw new ErroAcao('Depois de enviado para aprovação, o conteúdo não muda. Volte o item para produção antes de editar.');
-      const antes = JSON.stringify([p.titulo, p.legenda, p.drive || '', p.time || '']);
+      const antes = JSON.stringify([p.titulo, p.pauta, p.legenda, p.drive || '', p.time || '']);
       p.titulo = texto(c.d.titulo, 'título', 200);
-      p.legenda = texto(c.d.legenda, 'texto', 6000, false);
+      if (c.d.pauta !== undefined && !igual(c.d.pauta, p.pauta)) {
+        if (!etapaDaPauta(p)) throw new ErroAcao('A pauta já foi aprovada e não muda.');
+        p.pauta = texto(c.d.pauta, 'pauta', 4000, false);
+      }
+      if (c.d.legenda !== undefined) p.legenda = texto(c.d.legenda, 'texto', 6000, false);
       const dv = linkUrl(c.d.drive, 'Link do material no Google Drive');
       if (dv) p.drive = dv; else delete p.drive;
       if (!ehProducao(p) && typeof c.d.hora === 'string' && /^\d{2}:\d{2}$/.test(c.d.hora)) p.time = c.d.hora;
-      if (antes === JSON.stringify([p.titulo, p.legenda, p.drive || '', p.time || ''])) return { resumo: 'Sem mudança' };
+      if (antes === JSON.stringify([p.titulo, p.pauta, p.legenda, p.drive || '', p.time || ''])) return { resumo: 'Sem mudança' };
       hist(c, p, 'Conteúdo editado (título, texto ou material)');
       return { resumo: `Editou o conteúdo de "${p.titulo}"` };
+    },
+  },
+  'post-classificar': {
+    papeis: MC,
+    fn: (c) => {
+      const p = post(c, c.d.id);
+      const produto = texto(c.d.produto, 'produto', 80, false) || '—';
+      const pilar = typeof c.d.pilar === 'string' && c.d.pilar.trim() ? texto(c.d.pilar, 'pilar', 40) : p.pilar;
+      if (produto === p.produto && pilar === p.pilar) return { resumo: 'Sem mudança' };
+      const mud = [produto !== p.produto ? 'produto: ' + produto : '', pilar !== p.pilar ? 'pilar: ' + pilar : ''].filter(Boolean).join(', ');
+      p.produto = produto; p.pilar = pilar;
+      hist(c, p, 'Classificação alterada (' + mud + ')');
+      return { resumo: `Classificou "${p.titulo}" (${mud})` };
     },
   },
   comentar: {
@@ -410,8 +514,12 @@ export const ACOES: Record<string, Def> = {
     fn: (c) => {
       const p = post(c, c.d.id), txt = texto(c.d.txt, 'comentário', 3000);
       const interno = c.u.papel === 'cancha' && !!c.d.interno;
-      p.comments.push({ who: c.u.nome, text: txt, interno, quando: c.agora });
-      return { resumo: `Comentou${interno ? ' (interno)' : ''} em "${p.titulo}"` };
+      // Comentário interno só a Cancha lê; os demais também a Operação e os leitores.
+      const men = mencoes(c.pessoas, c.u.id, txt, interno ? ['cancha'] : ['operacao', 'cancha', 'leitor']);
+      p.comments.push({ who: c.u.nome, text: txt, interno, quando: c.agora, ...(men.length ? { mencoes: men } : {}) });
+      const avisos = men.length ? [{ para: men, assunto: `${c.u.nome} mencionou você no Portal Spraytec`,
+        paragrafos: [`${c.u.nome} mencionou você num comentário${interno ? ' interno' : ''} em "${p.titulo}":`, '"' + trecho(txt) + '"'], abrir: 'p:' + p.id }] : undefined;
+      return { resumo: `Comentou${interno ? ' (interno)' : ''} em "${p.titulo}"`, avisos };
     },
   },
 
@@ -472,9 +580,12 @@ export const ACOES: Record<string, Def> = {
       const th = c.e.threads.find((t) => t.id === c.d.id); if (!th) throw new ErroAcao('Conversa não encontrada.');
       const txt = texto(c.d.txt, 'mensagem', 4000);
       const ld = lado(c.u);
-      th.msgs.push({ de: ld, nome: c.u.nome, q: c.agora, txt });
+      const men = mencoes(c.pessoas, c.u.id, txt, ['operacao', 'cancha']);
+      th.msgs.push({ de: ld, nome: c.u.nome, q: c.agora, txt, ...(men.length ? { mencoes: men } : {}) });
       th.unread[ld === 'spraytec' ? 'cancha' : 'spraytec']++;
-      return { resumo: `Escreveu em "${th.tema}"` };
+      const avisos = men.length ? [{ para: men, assunto: `${c.u.nome} mencionou você no Portal Spraytec`,
+        paragrafos: [`${c.u.nome} mencionou você na conversa "${th.tema}":`, '"' + trecho(txt) + '"'], abrir: 't:' + th.id }] : undefined;
+      return { resumo: `Escreveu em "${th.tema}"`, avisos };
     },
   },
   'conversa-lida': {

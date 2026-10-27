@@ -6,13 +6,13 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { abrirBanco, migrar } from './db.ts';
 import { carregar, salvar, gravarTudo } from './estado.ts';
-import { ACOES } from './acoes.ts';
+import { ACOES, type Aviso } from './acoes.ts';
 import { visaoPara } from './visao.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
 import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
   COOKIE_DEMO, codigoDemoConfere, consultarToken, criarSessao, criarToken, demoLiberado, emailConfigurado, encerrarSessao,
-  enviarConvite, enviarRedefinicao, bloqueado, hashSenha, liberarDemo, linkDoToken, modoDemo, permitido, problemaNaSenha,
+  enviarAviso, enviarConvite, enviarRedefinicao, bloqueado, hashSenha, liberarDemo, linkDoToken, modoDemo, permitido, problemaNaSenha,
   registrar, usarToken, usuarioDaRequisicao, verificarSenha,
 } from './auth.ts';
 
@@ -91,7 +91,10 @@ async function estadoPara(u: Usuario) {
   const e = await carregar(b);
   const r: any = { eu: u, hoje: hojeBR(), versao: await versao(), demo: modoDemo(), dados: visaoPara(e, u) };
   // A Cancha escolhe quem da Operação aprovou quando registra aprovação por WhatsApp ou e-mail.
-  if (u.papel === 'cancha') r.aprovadores = (await pessoasAtivas()).filter((p: any) => p.papel === 'operacao');
+  const pessoas = await pessoasAtivas();
+  if (u.papel === 'cancha') r.aprovadores = pessoas.filter((p: any) => p.papel === 'operacao');
+  // Quem pode ser mencionado com @ (quem lê comentários e conversas).
+  if (['operacao', 'cancha', 'leitor'].includes(u.papel)) r.mencionaveis = pessoas.filter((p: any) => ['operacao', 'cancha', 'leitor'].includes(p.papel) && p.id !== u.id);
   return r;
 }
 
@@ -201,6 +204,16 @@ app.get('/api/estado', async (req, rep) => {
 });
 app.get('/api/versao', async (req, rep) => { const u = await exigir(req, rep); if (!u) return; return { versao: await versao() }; });
 
+// Avisos por e-mail (menções). Saem depois de gravar; se o envio falhar, a ação continua valendo.
+// Quem está no modo demonstração não dispara e-mail para pessoas reais.
+async function avisar(avisos: Aviso[], autor: Usuario) {
+  if (autor.demo || !emailConfigurado()) return;
+  for (const a of avisos) {
+    const { rows } = await b.query(`select id, nome, email from usuarios where id = any($1) and ativo and not demo and email is not null`, [a.para]);
+    for (const p of rows) if (p.id !== autor.id) await enviarAviso(BASE_URL, p, a.assunto, a.paragrafos, `${BASE_URL}/?abrir=${encodeURIComponent(a.abrir)}`);
+  }
+}
+
 app.post('/api/acao', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   const { acao, ...d } = (req.body as any) || {};
@@ -216,6 +229,7 @@ app.post('/api/acao', async (req, rep) => {
       if (!def.semAuditoria) await auditar(q, u, acao, r.resumo, d, mud, req.ip);
       return r;
     }));
+    if (res.avisos?.length) avisar(res.avisos, u).catch((err) => req.log.error({ err }, 'falha ao enviar aviso'));
     return { ok: true, criado: res.criado, ...(await estadoPara(u)) };
   } catch (err) {
     if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message, codigo: err.codigo });

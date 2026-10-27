@@ -116,8 +116,20 @@ export function dadosDemo(hoje: string): Estado {
     P(null, null, 'ig', 'post', 'Lançamento: novo produto (aguardando registro MAPA)', 'Produto', 'Novo produto', 'espera'),
   ];
   const prazoCal = D('2026-11-17');
+  // Pauta: o tema e a ideia que a Spraytec aprova antes da produção (a legenda é o texto final).
+  const IDEIA: any = {
+    Manejo: 'Mostrar o que observar na lavoura nesta fase e o momento certo de agir, com a palavra da agronomia. Fechar chamando o RTV.',
+    Campo: 'Imagens reais de lavoura de cliente, com o produtor contando como foi. Tom de conversa, sem prometer número.',
+    Produto: 'Explicar como o produto age na planta e em que momento entra no manejo, sempre conforme a bula.',
+    Educação: 'Conteúdo para salvar: passo a passo curto e técnico, validado pela agronomia.',
+    Institucional: 'Bastidores da Spraytec: pessoas, fábrica e o cuidado com quem produz.',
+    Relacionamento: 'Puxar conversa com o produtor com uma pergunta simples sobre a safra.',
+    Eventos: 'Divulgar data, local e como participar, com chamada para inscrição.',
+  };
   for (const p of e.posts) {
     const proto = p._proto; delete p._proto;
+    p.pauta = temPauta(p) ? `Tema: ${p.titulo}. ${IDEIA[p.pilar] || 'Conteúdo do time Spraytec para quem produz.'}` : '';
+    if (temPauta(p) && ['pauta', 'pauta_aprovacao'].includes(p.status)) p.legenda = '';
     p.hist.push({ q: '—', t: 'Criado pela Cancha' });
     if (['aprovado', 'agendado', 'publicado'].includes(p.status) && !['video', 'design'].includes(p.rede))
       p.hist.push({ q: dm(proto && proto < '2026-12-01' ? '2026-10-22' : '2026-11-13'), t: 'Aprovado por Matheus · portal' });
