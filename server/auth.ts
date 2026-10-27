@@ -89,14 +89,10 @@ export async function verificarSenha(senha: string, armazenado: string | null): 
   const certo = Buffer.from(k, 'base64');
   return !!armazenado && calc.length === certo.length && timingSafeEqual(calc, certo);
 }
-const COMUNS = ['1234567890', '12345678910', 'spraytec123', 'spraytec2026', 'cancha123', 'senha12345', 'qwertyuiop', 'abcdefghij', 'password123'];
-// Regras: no mínimo 10 caracteres, não pode ser o e-mail nem uma senha óbvia.
-export function problemaNaSenha(senha: unknown, email: string): string | null {
-  if (typeof senha !== 'string' || senha.length < 10) return 'A senha precisa ter pelo menos 10 caracteres.';
+// Regra (decisão da Cancha): no mínimo 8 caracteres.
+export function problemaNaSenha(senha: unknown, _email: string): string | null {
+  if (typeof senha !== 'string' || senha.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
   if (senha.length > 200) return 'A senha está longa demais.';
-  const s = senha.toLowerCase();
-  if (/^(.)\1+$/.test(senha)) return 'A senha não pode ser um caractere repetido.';
-  if (COMUNS.includes(s) || s.includes(email.toLowerCase().split('@')[0])) return 'Essa senha é fácil de adivinhar. Escolha outra.';
   return null;
 }
 

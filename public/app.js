@@ -1032,9 +1032,9 @@ async function telaSenha(t,caminho){
   $('#main').innerHTML=`<div class="wrap"><div class="entrar"><div><h1>${novo?'Crie sua senha':'Crie uma nova senha'}</h1><p class="sub">Olá, ${esc(info.nome.split(' ')[0])}. ${novo?'Este é o seu acesso ao Portal de marketing Spraytec.':''}</p></div>
    <section class="panel"><form class="entrarform" data-form="definir" data-t="${esc(t)}">
     <input type="email" autocomplete="username" value="${esc(info.email)}" readonly class="pe" aria-label="E-mail">
-    <label for="ns1">Senha</label><input type="password" id="ns1" class="pe" autocomplete="new-password" minlength="10" required>
-    <label for="ns2">Repita a senha</label><input type="password" id="ns2" class="pe" autocomplete="new-password" minlength="10" required>
-    <p class="muted" style="font-size:12.5px;margin:0">No mínimo 10 caracteres. Uma frase curta que só você saiba é uma boa senha.</p>
+    <label for="ns1">Senha</label><input type="password" id="ns1" class="pe" autocomplete="new-password" minlength="8" required>
+    <label for="ns2">Repita a senha</label><input type="password" id="ns2" class="pe" autocomplete="new-password" minlength="8" required>
+    <p class="muted" style="font-size:12.5px;margin:0">No mínimo 8 caracteres.</p>
     <button class="btn primary">${novo?'Criar senha e entrar':'Salvar nova senha e entrar'}</button></form></section>
    <footer class="porcancha"><span>Um portal feito por</span><img src="/cancha-vertical.png" alt="Cancha Marketing" height="44"></footer></div></div>`;
   $('#ns1').focus();
