@@ -76,10 +76,17 @@ function escolher(lista: any[], id: string | undefined, nome: string, variavel: 
   throw new ErroMeta(`A chave enxerga mais de uma ${nome} (${lista.map((l) => l.name).join(', ')}). Diga qual em ${variavel}.`);
 }
 
+// A Página do Facebook e o Instagram são escolhidos à parte: o Instagram pode estar ligado a uma Página
+// pequena e a Página oficial ser outra. Sem META_PAGINA_ID, vale a Página "Spraytec" com mais seguidores.
 async function descobrirPagina() {
-  const paginas = await todas('me/accounts', { fields: 'id,name,access_token,instagram_business_account{id,username}', limit: 100 }, 200);
-  const p = escolher(paginas, process.env.META_PAGINA_ID, 'página do Facebook', 'META_PAGINA_ID');
-  return { id: p.id as string, nome: p.name as string, token: p.access_token as string | undefined, ig: p.instagram_business_account as { id: string; username: string } | undefined };
+  const paginas = await todas('me/accounts', { fields: 'id,name,followers_count,fan_count,access_token,instagram_business_account{id,username}', limit: 100 }, 200);
+  const seg = (p: any) => p.followers_count ?? p.fan_count ?? 0;
+  let p: any;
+  if (process.env.META_PAGINA_ID || paginas.length <= 1) p = escolher(paginas, process.env.META_PAGINA_ID, 'página do Facebook', 'META_PAGINA_ID');
+  else p = [...(paginas.filter((x) => /spraytec/i.test(x.name || '')).length ? paginas.filter((x) => /spraytec/i.test(x.name || '')) : paginas)].sort((a, b) => seg(b) - seg(a))[0];
+  const comIG = paginas.filter((x) => x.instagram_business_account);
+  const ig = p.instagram_business_account || (comIG.length === 1 ? comIG[0].instagram_business_account : undefined);
+  return { id: p.id as string, nome: p.name as string, token: p.access_token as string | undefined, ig: ig as { id: string; username: string } | undefined };
 }
 
 // ---------- Instagram ----------
@@ -111,12 +118,12 @@ async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
 
 // ---------- Página do Facebook ----------
 const FB_POST = ['post_impressions_unique', 'post_clicks'];
-async function coletarFB(q: Consulta, pg: { id: string; token?: string }, completa: boolean) {
+async function coletarFB(q: Consulta, pg: { id: string; nome?: string; token?: string }, completa: boolean) {
   const t = pg.token || process.env.META_TOKEN || '';
   const perfil = await graph(pg.id, { fields: 'name,followers_count,fan_count,link' }, t);
   await gravar(q, 'fb', 'perfil', 'atual', perfil);
   await gravar(q, 'fb', 'dia', hojeBR(), { seguidores: perfil.followers_count ?? perfil.fan_count });
-  if (!completa) return {};
+  if (!completa) return { pagina: pg.nome };
   const posts = await todas(pg.id + '/posts', {
     fields: 'id,message,created_time,permalink_url,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)', limit: 50,
   }, 300, t);
@@ -127,7 +134,7 @@ async function coletarFB(q: Consulta, pg: { id: string; token?: string }, comple
     const extra = Date.parse(p.created_time) > recente ? { metricas: await insights(p.id, 'fbpost', FB_POST, t), metricas_em: new Date().toISOString() } : {};
     await gravar(q, 'fb', 'post', p.id, { ...base, ...extra });
   }
-  return { posts: posts.length };
+  return { pagina: pg.nome, posts: posts.length };
 }
 
 // ---------- Anúncios ----------
