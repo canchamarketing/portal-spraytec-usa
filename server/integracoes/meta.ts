@@ -51,13 +51,13 @@ async function insights(id: string, tipo: string, metricas: string[], token?: st
 
 // Grava sem apagar o que já havia: campos novos se juntam aos antigos (as métricas de um post
 // antigo continuam lá mesmo nas coletas em que ele não é consultado de novo).
-async function gravar(q: Consulta, fonte: string, tipo: string, id: string, dados: any) {
+export async function gravar(q: Consulta, fonte: string, tipo: string, id: string, dados: any) {
   await q.query(
     `insert into metricas (fonte, tipo, id, dados) values ($1,$2,$3,$4)
      on conflict (fonte, tipo, id) do update set dados = metricas.dados || excluded.dados, atualizado_em = now()`,
     [fonte, tipo, id, JSON.stringify(dados)]);
 }
-async function situacao(q: Consulta, fonte: string, erro: string | null, detalhe?: any) {
+export async function situacao(q: Consulta, fonte: string, erro: string | null, detalhe?: any) {
   await q.query(
     `insert into integracoes (fonte, ultimo_ok, ultima_tentativa, erro, detalhe) values ($1, case when $2::text is null then now() end, now(), $2, $3)
      on conflict (fonte) do update set ultima_tentativa = now(), erro = $2,

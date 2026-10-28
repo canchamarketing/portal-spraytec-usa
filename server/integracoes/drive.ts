@@ -25,12 +25,12 @@ export const driveConfigurado = () => !!(process.env.GOOGLE_CLIENT_ID && process
 
 // ---------- autorização guardada cifrada ----------
 const chave = () => Buffer.from(process.env.DRIVE_CHAVE!, 'hex');
-function cifrar(t: string) {
+export function cifrar(t: string) {
   const iv = randomBytes(12), c = createCipheriv('aes-256-gcm', chave(), iv);
   const x = Buffer.concat([c.update(t, 'utf8'), c.final()]);
   return [iv, c.getAuthTag(), x].map((b) => b.toString('base64')).join('.');
 }
-function decifrar(s: string) {
+export function decifrar(s: string) {
   const [iv, tag, x] = s.split('.').map((v) => Buffer.from(v, 'base64'));
   const d = createDecipheriv('aes-256-gcm', chave(), iv); d.setAuthTag(tag);
   return Buffer.concat([d.update(x), d.final()]).toString('utf8');
@@ -49,16 +49,16 @@ export async function carregarDrive(q: Consulta) {
 }
 
 // ---------- conexão (OAuth) ----------
-export function urlAutorizacao(retorno: string, estado: string) {
+export function urlAutorizacao(retorno: string, estado: string, escopo = ESCOPO) {
   const u = new URL(AUTH_URL);
   u.search = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID!, redirect_uri: retorno, response_type: 'code', scope: ESCOPO,
+    client_id: process.env.GOOGLE_CLIENT_ID!, redirect_uri: retorno, response_type: 'code', scope: escopo,
     access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'false', state: estado,
   }).toString();
   return u.toString();
 }
 
-async function pedirToken(params: Record<string, string>) {
+export async function pedirToken(params: Record<string, string>) {
   const r = await fetch(TOKEN_URL(), {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID!, client_secret: process.env.GOOGLE_CLIENT_SECRET!, ...params }),

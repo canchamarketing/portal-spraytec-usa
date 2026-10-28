@@ -79,7 +79,7 @@ function carregarFonteExemplo(){
 // DADOS DO META (Instagram, Página e anúncios), coletados pelo servidor. Enquanto uma fonte não tem
 // coleta boa, as telas dela continuam com o exemplo. undefined = carregando; null = indisponível.
 let META;
-const FONTE_NOME={ig:'Instagram',fb:'Facebook',ads:'Anúncios do Meta'};
+const FONTE_NOME={ig:'Instagram',fb:'Facebook',ads:'Anúncios do Meta',ga4:'Google Analytics'};
 const metaTem=f=>!!(META&&META.situacao[f]&&META.situacao[f].ultimoOk);
 const igUser=()=>esc((META&&META.ig.perfil&&META.ig.perfil.username)||'spraytecbr');
 const imgTag=(u,cls)=>u?`<img class="${cls||''}" src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-falha>`:'';
@@ -108,20 +108,20 @@ function prepMeta(j){
       titulo:tit(x.message)||'(sem texto)',legenda:x.message||'',img:x.full_picture,alc,views:null,curt,com,salv:0,comp,inter,eng:alc?inter/alc*100:null,cliques:m.post_clicks??null})});
   const ST=(j.ig.stories||[]).map(s=>{const m=s.metricas||{},ts=tsN(s.timestamp);return {id:s.id,ts,date:dia(ts),hora:hora(ts),tipo:s.media_type,drive:s.drive,driveTipo:s.drive_tipo,img:s.drive_capa?miniUrl(s.drive_capa,600):s.drive&&/^image\//.test(s.drive_tipo||'')?miniUrl(s.drive,600):s.thumbnail_url||(s.media_type!=='VIDEO'&&s.media_url)||(s.drive?miniUrl(s.drive,600):''),alc:m.reach??null,views:m.views??null,resp:m.replies||0,inter:m.total_interactions||0}});
   return {conectado:j.conectado,situacao:j.situacao||{},ig:{perfil:j.ig.perfil,dias:j.ig.dias||[]},fb:{perfil:j.fb.perfil,dias:j.fb.dias||[]},posts:P,stories:ST,
-    ads:{anuncios:new Map((j.ads.anuncios||[]).map(a=>[a.id,a])),dias:j.ads.dias||[]}}}
+    ads:{anuncios:new Map((j.ads.anuncios||[]).map(a=>[a.id,a])),dias:j.ads.dias||[]},ga4:Object.assign({dias:[],canais:[],paginas:[],eventos:[]},j.ga4||{})}}
 async function carregarMeta(){const antes=META;let m=null;try{m=prepMeta(await api('/api/metricas'))}catch(_){}META=m;
   if(!EU||S.drawer||S.pop)return;const ae=document.activeElement;if(antes!==undefined&&ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
   if(['redes','performance','acervo','hoje','plano'].includes(S.view))render()}
 function metaCarregando(t,sub){return `${head(t,sub)}<p class="muted">Carregando os dados do Meta…</p>`}
 // Aviso de integração parada: sem coleta boa há mais de 24 h (para todos) ou última tentativa com erro (só a Cancha).
-function metaRodape(fontes){if(!META||!fontes.length)return '';const sit=META.situacao,agora=Date.now();
+function metaRodape(fontes,origem='Meta'){if(!META||!fontes.length)return '';const sit=META.situacao,agora=Date.now();
   const velho=f=>{const s=sit[f];return !s||!s.ultimoOk||agora-Date.parse(s.ultimoOk)>864e5};
   const atencao=fontes.filter(f=>velho(f)||(isTeam()&&sit[f].erro));
   const btn=isTeam()?'<button class="linkbtn" data-act="meta-atualizar">Atualizar agora</button>':'';
   const oks=fontes.map(f=>sit[f]&&sit[f].ultimoOk).filter(Boolean).sort();
-  if(!atencao.length)return `<p class="muted metaok">Dados do Meta, atualizados ${fmtVisita(oks[0])}. ${btn}</p>`;
+  if(!atencao.length)return `<p class="muted metaok">Dados ${origem==='Meta'?'do Meta':'do '+origem}, atualizados ${fmtVisita(oks[0])}. ${btn}</p>`;
   const li=atencao.map(f=>{const s=sit[f]||{};return `<li><b>${FONTE_NOME[f]}</b>: ${!s.ultimoOk?'ainda sem dados':velho(f)?'sem dados novos desde '+fmtVisita(s.ultimoOk)+'. Os números abaixo podem estar desatualizados.':'a última coleta falhou; os números são de '+fmtVisita(s.ultimoOk)+'.'}${s.erro&&isTeam()?`<div class="muted" style="font-size:12px">${esc(s.erro)}</div>`:''}</li>`}).join('');
-  return `<section class="panel metaaviso" role="status"><b>Integração com o Meta precisa de atenção</b><ul>${li}</ul>${btn}</section>`}
+  return `<section class="panel metaaviso" role="status"><b>Integração com o ${origem==='Meta'?'Meta':origem} precisa de atenção</b><ul>${li}</ul>${btn}</section>`}
 
 // Redes sociais com os dados reais
 function redesIG(){const P=META.ig.perfil||{};const ps=META.posts.filter(x=>x.rede==='ig').sort((a,b)=>b.ts.localeCompare(a.ts));
@@ -244,7 +244,7 @@ function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(
 
 // ARQUIVOS NO GOOGLE DRIVE: enviados pelo portal, guardados no Drive da Spraytec e vistos aqui dentro.
 // Ninguém precisa abrir o Drive nem ter acesso a ele: o portal mostra o arquivo para quem pode ver o item.
-let DRIVE={conectado:false,configurado:false},materiais=[];
+let DRIVE={conectado:false,configurado:false},GA4={conectado:false,configurado:false},materiais=[];
 const PASTAS_M=['Fotos de campo','Produtos','Institucional','Eventos','Guia de marca'];
 const arqUrl=id=>'/api/arquivos/'+encodeURIComponent(id)+'/conteudo';
 const miniUrl=(id,t)=>'/api/arquivos/'+encodeURIComponent(id)+'/miniatura?t='+(t||400);
@@ -1032,8 +1032,7 @@ function perfTrafego(){
   const rs=v=>'R$ '+n(Math.round(v)),rs2=v=>'R$ '+v.toFixed(2).replace('.',',');
   const pl=base.map(x=>[x.k,rs(x.i),fk(x.im),fk(x.c),rs2(x.i/x.c),x.ct,x.ct?rs(x.i/x.ct):'—']);
   const tot=18200,exc=tot-15000;
-  return `<section class="panel"><div class="headrow" style="margin-bottom:6px"><h2 style="margin:0">Site ${EX}</h2><span class="muted" style="font-size:12px">Google Analytics 4</span></div>
-   ${(()=>{const f=perF(),ses=Math.round(14200*f),usu=Math.round(9800*f),con=Math.round(96*f);return kpis([['Sessões',fk(ses),'orgânico 41% · social 23% · mídia 28% · e-mail 8%'],['Usuários',fk(usu),''],['Contatos pelo site',con,'formulário e WhatsApp'],['Taxa de conversão',pct(con/ses*100),'contatos ÷ sessões']])})()}</section>
+  return `${siteSecao()}
   ${metaTem('ads')?midiaReal():`<h2 style="font-size:16px;margin:4px 0 0">Mídia paga ${EX}</h2>
   ${kpisC([{l:'Investimento',v:rs(T.i),s:'3 plataformas',cur:T.i,prev:C&&C.i,prevTxt:C&&rs(C.i)},{l:'Impressões',v:fk(T.im),cur:T.im,prev:C&&C.im,prevTxt:C&&fk(C.im)},{l:'Cliques',v:fk(T.c),s:'CTR '+pct(T.c/T.im*100),cur:T.c,prev:C&&C.c,prevTxt:C&&fk(C.c)},{l:'Contatos',v:T.ct,s:'formulário e WhatsApp',cur:T.ct,prev:C&&C.ct,prevTxt:C&&String(C.ct)},{l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:'meta: até R$ '+plano.dados.metas.cpl,cur:T.ct?T.i/T.ct:null,prev:C&&C.ct?C.i/C.ct:null,prevTxt:C&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>${pl.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
@@ -1043,9 +1042,47 @@ function perfTrafego(){
     <div class="row"><span class="mono muted" style="font-size:12px">${fmt(addDays(TODAY,-3))}</span><div class="grow">Pausados 3 termos com custo alto e sem clique</div></div>
     <div class="row"><span class="mono muted" style="font-size:12px">${fmt(addDays(TODAY,-3))}</span><div class="grow">Teste A/B no Meta: carrossel educativo × reel de campo</div></div>
     <div class="row"><span class="mono muted" style="font-size:12px">${fmt(addDays(TODAY,-10))}</span><div class="grow">Verba movida do Display para Pesquisa (+R$ 800)</div></div></div></section>
-   <section class="panel"><h2>Rastreamento ${EX}</h2><div class="list">${[['Pixel e API de Conversões da Meta',1],['GA4 e Tag Manager no site',1],['UTM padronizado nos links',1],['Cruzamento com vendas do comercial',0]].map(r=>`<div class="row">${tagPill(r[1]?'OK':'Pendente',r[1]?'--ok':'--warn')}<div class="grow">${r[0]}</div></div>`).join('')}</div></section>
+   <section class="panel"><h2>Rastreamento ${EX}</h2><div class="list">${[['Pixel e API de Conversões da Meta',1],[metaTem('ga4')?'GA4 no site (visitas nos últimos 7 dias)':'GA4 e Tag Manager no site',metaTem('ga4')?siteStats({de:addDays(TODAY,-6),ate:TODAY}).ses>0:1],['UTM padronizado nos links',1],['Cruzamento com vendas do comercial',0]].map(r=>`<div class="row">${tagPill(r[1]?'OK':'Pendente',r[1]?'--ok':'--warn')}<div class="grow">${r[0]}</div></div>`).join('')}</div></section>
   </div>`;
 }
+// SITE (Google Analytics 4)
+const CANAL_PT={'Organic Search':'Busca orgânica','Direct':'Direto','Organic Social':'Social orgânico','Paid Social':'Social pago','Paid Search':'Busca paga','Referral':'Outros sites','Email':'E-mail','Unassigned':'Não identificado','Display':'Display','Organic Video':'Vídeo orgânico','Paid Video':'Vídeo pago','Cross-network':'Várias redes do Google','Paid Other':'Outros pagos','Organic Shopping':'Shopping orgânico','Paid Shopping':'Shopping pago','Affiliates':'Afiliados','SMS':'SMS','Mobile Push Notifications':'Notificações','Audio':'Áudio'};
+const canalPt=c=>CANAL_PT[c]||c;
+function siteStats(r){const G=META.ga4,D=G.dias.filter(x=>inR(r,x.d));const sm=(L,k)=>L.reduce((a,x)=>a+(x[k]||0),0);
+  const agr=(L,k,v)=>{const m=new Map();L.filter(x=>inR(r,x.d)).forEach(x=>m.set(x[k],(m.get(x[k])||0)+(x[v]||0)));return [...m].sort((a,b)=>b[1]-a[1])};
+  const ses=sm(D,'sessoes');return {ses,nov:sm(D,'novos'),eng:sm(D,'engajadas'),vis:sm(D,'visualizacoes'),ev:sm(D,'eventosChave'),
+    canais:agr(G.canais,'canal','sessoes').map(([c,n])=>[c,n,G.canais.filter(x=>x.canal===c&&inR(r,x.d)).reduce((a,x)=>a+(x.eventosChave||0),0)]),
+    paginas:agr(G.paginas,'pagina','visualizacoes'),eventos:agr(G.eventos,'evento','eventosChave')}}
+function siteExemplo(){const f=perF(),ses=Math.round(14200*f),usu=Math.round(9800*f),con=Math.round(96*f);return kpis([['Sessões',fk(ses),'orgânico 41% · social 23% · mídia 28% · e-mail 8%'],['Usuários',fk(usu),''],['Contatos pelo site',con,'formulário e WhatsApp'],['Taxa de conversão',pct(con/ses*100),'contatos ÷ sessões']])}
+function siteConexao(){if(!isTeam())return '';
+  if(!GA4.configurado)return '<p class="muted" style="font-size:13px">As chaves do Google ainda não estão no servidor.</p>';
+  if(!GA4.conectado)return `<div class="drivep"><div><b>Conectar o Google Analytics</b><p class="muted" style="margin:4px 0 0;font-size:13px">Antes de clicar, entre neste navegador com a conta Google que tem acesso ao GA4 da Spraytec. O portal só lê os números.</p></div><a class="btn primary" href="/api/ga4/conectar">Conectar Google Analytics</a></div>`;
+  if(!GA4.propriedade)return `<div class="drivep"><div><b>Qual propriedade é a do site da Spraytec?</b><p class="muted" style="margin:4px 0 0;font-size:13px">A conta ${esc(GA4.conta||'')} enxerga mais de uma.</p></div><div class="perdates"><select id="ga4-prop" class="pe" aria-label="Propriedade do Google Analytics">${(GA4.opcoes||[]).map(p=>`<option value="${esc(p.id)}">${esc(p.nome)} · ${esc(p.conta)}</option>`).join('')}</select><button class="btn primary sm" data-act="ga4-escolher">Usar esta</button></div></div>`;
+  return `<p class="muted" style="font-size:12px;margin:8px 0 0">Conectado pela conta ${esc(GA4.conta||'')}. <button class="linkbtn" data-act="ga4-desconectar">Desconectar</button></p>`}
+function siteSecao(){
+  const tit=(ex)=>`<div class="headrow" style="margin-bottom:6px"><h2 style="margin:0">Site ${ex?EX:''}</h2><span class="muted" style="font-size:12px">Google Analytics 4${GA4.propriedade?' · '+esc(GA4.propriedade):''}</span></div>`;
+  if(!metaTem('ga4')){
+    const espera=GA4.conectado&&GA4.propriedade?`<p class="muted">Conectado. Buscando os primeiros números do Google Analytics…</p>${META&&META.situacao.ga4&&META.situacao.ga4.erro&&isTeam()?`<p class="badt" style="font-size:13px">${esc(META.situacao.ga4.erro)}</p>`:''}`:'';
+    return `<section class="panel">${tit(!espera)}${espera||siteExemplo()}${siteConexao()}</section>`}
+  const r={de:S.per.de,ate:S.per.ate},cr=cmpRange(),A=siteStats(r),C=cr?siteStats(cr):null;
+  const semVisitas=!META.ga4.dias.some(x=>x.sessoes>0);
+  const tx=(a,b)=>b?a/b*100:null,pc=v=>v==null?'—':pct(v);
+  const mix=A.canais.slice(0,4).map(([c,n])=>canalPt(c).toLowerCase()+' '+Math.round(n/A.ses*100)+'%').join(' · ');
+  const k=kpisC([{l:'Sessões',v:fk(A.ses),s:mix,cur:A.ses,prev:C&&C.ses,prevTxt:C&&fk(C.ses)},
+    {l:'Novos usuários',v:fk(A.nov),cur:A.nov,prev:C&&C.nov,prevTxt:C&&fk(C.nov)},
+    {l:'Páginas vistas',v:fk(A.vis),cur:A.vis,prev:C&&C.vis,prevTxt:C&&fk(C.vis)},
+    {l:'Taxa de engajamento',v:pc(tx(A.eng,A.ses)),s:'sessões engajadas ÷ sessões',cur:tx(A.eng,A.ses),prev:C&&tx(C.eng,C.ses),prevTxt:C&&pc(tx(C.eng,C.ses)),pp:true},
+    {l:'Eventos-chave',v:n(A.ev),s:'contatos marcados no GA4',cur:A.ev,prev:C&&C.ev,prevTxt:C&&n(C.ev)},
+    {l:'Taxa de conversão',v:pc(tx(A.ev,A.ses)),s:'eventos-chave ÷ sessões',cur:tx(A.ev,A.ses),prev:C&&tx(C.ev,C.ses),prevTxt:C&&pc(tx(C.ev,C.ses)),pp:true}],cr);
+  const aviso=semVisitas?`<p class="metaaviso" style="padding:10px 12px;border-radius:8px;font-size:13px;margin:0 0 10px"><b>O Google Analytics está conectado, mas ainda não registrou nenhuma visita.</b> A tag do GA4 (ou do Tag Manager) ainda não está instalada no site. Assim que entrar, os números aparecem aqui.</p>`:'';
+  const tab=(cab,linhas,vazio)=>linhas.length?`<div class="tablewrap" style="border:0"><table class="ap"><thead><tr>${cab.map((c,i)=>`<th${i?' class="mono"':''}>${c}</th>`).join('')}</tr></thead><tbody>${linhas.map(l=>`<tr>${l.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`:`<p class="muted" style="font-size:13px">${vazio}</p>`;
+  const det=semVisitas?'':`<div class="grid2" style="margin-top:12px"><div><h3 style="font-size:14px;margin:0 0 6px">De onde vêm as visitas</h3>${tab(['Canal','Sessões','%','Eventos-chave'],A.canais.map(([c,s,e])=>[esc(canalPt(c)),n(s),A.ses?Math.round(s/A.ses*100)+'%':'—',n(e)]),'Sem visitas no período.')}</div>
+    <div><h3 style="font-size:14px;margin:0 0 6px">Páginas mais vistas</h3>${tab(['Página','Visualizações'],A.paginas.slice(0,10).map(([p,v])=>[`<span class="mono" style="font-size:12px;word-break:break-all">${esc(p)}</span>`,n(v)]),'Sem visitas no período.')}</div></div>
+    ${A.eventos.length?`<div style="margin-top:12px"><h3 style="font-size:14px;margin:0 0 6px">Eventos-chave do período</h3>${tab(['Evento','Quantidade'],A.eventos.map(([e,v])=>[esc(e),n(v)]),'')}</div>`:''}`;
+  return `<section class="panel">${tit(false)}${metaRodape(['ga4'],'Google Analytics')}${aviso}${k}${det}${siteConexao()}</section>`}
+function avisoGA4Retorno(){const q=new URLSearchParams(location.search),r=q.get('ga4');if(!r)return;history.replaceState(null,'',location.pathname);
+  const M={ok:'Google Analytics conectado. Os números do site aparecem em alguns minutos.',escolher:'Google Analytics conectado. Escolha qual propriedade é a do site.',cancelado:'A conexão com o Google Analytics foi cancelada.',expirou:'O pedido de conexão venceu. Clique em Conectar de novo.','sem-config':'As chaves do Google ainda não estão no servidor.',erro:'Não foi possível conectar o Google Analytics: '+(q.get('msg')||'erro desconhecido')};
+  S.view='performance';S.psub='trafego';toast(M[r]||M.erro);if(r==='ok')[60e3,180e3].forEach(t=>setTimeout(carregarMeta,t))}
 // COMPARAÇÃO DE PERÍODOS
 const CMPS=[['none','Sem comparação'],['prev','Período anterior'],['yoy','Mesmo período do ano passado'],['custom','Outro período']];
 function daysOf(r){return Math.round((new Date(r.ate+'T12:00:00Z')-new Date(r.de+'T12:00:00Z'))/864e5)+1}
@@ -1578,7 +1615,7 @@ function aplicar(j){
   APRENDIZADOS=d.aprendizados||[];RELATORIOS=d.relatorios||[];plano=d.plano||null;GUIA=d.guia||GUIA;LANES=d.lanes||[];CONC_ACOES=d.concAcoes||[];LINKS=d.links||[];
   planoItem=posts.find(p=>p.formato==='plano')||null;
   S.role=EU.papel;
-  DRIVE=j.drive||{conectado:false,configurado:false};materiais=d.materiais||[];
+  DRIVE=j.drive||{conectado:false,configurado:false};GA4=j.ga4||{conectado:false,configurado:false};materiais=d.materiais||[];
   if(primeira){if(EU.papel==='produtora')META=null;else{META=undefined;carregarMeta()}}
   if(primeira||novoDia){carregarFonteExemplo();if(!S.month){S.month=(Number(TODAY.slice(8))>=15?addDays(TODAY.slice(0,8)+'01',40):TODAY).slice(0,7);S.dmonth=TODAY.slice(0,7)}setPreset(S.per.preset&&S.per.preset!=='custom'?S.per.preset:'30')}
 }
@@ -1595,7 +1632,7 @@ async function acao(nome,dados,depois){
   finally{ocupado=false;document.body.classList.remove('salvando')}}
 function acaoSilenciosa(nome,dados){api('/api/acao',Object.assign({acao:nome},dados||{})).then(j=>{VERSAO=j.versao}).catch(()=>{})}
 async function iniciar(){
-  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0);abrirDoLink();if(new URLSearchParams(location.search).get('drive')){avisoDriveRetorno();render()}}catch(_){}}
+  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0);abrirDoLink();const qs=new URLSearchParams(location.search);if(qs.get('drive')){avisoDriveRetorno();render()}else if(qs.get('ga4')){avisoGA4Retorno();render()}}catch(_){}}
 // Atualiza sozinho quando outra pessoa muda algo (ex.: a Spraytec aprova pelo celular), sem atrapalhar quem está editando.
 setInterval(async()=>{
   if(!EU||document.hidden||ocupado)return;
@@ -1698,6 +1735,8 @@ document.addEventListener('click',e=>{
     case 'trocar-pessoa':api('/api/sair',{}).catch(()=>{}).finally(()=>telaEntrar());break;
     case 'atividade-atualizar':ATIVIDADE=null;render();break;
     case 'drive-desconectar':if(confirm('Desconectar o Google Drive? Os arquivos continuam no Drive da Spraytec, mas o portal deixa de mostrar e de enviar até conectar de novo.'))api('/api/drive/desconectar',{}).then(()=>{toast('Drive desconectado.');S.driveSit=null;S.driveSitPedido=false;iniciar()}).catch(err=>toast(err.message));break;
+    case 'ga4-escolher':{const sel=$('#ga4-prop');if(!sel)break;api('/api/ga4/propriedade',{id:sel.value}).then(()=>{toast('Propriedade escolhida. Os números do site aparecem em alguns minutos.');[60e3,180e3].forEach(t=>setTimeout(carregarMeta,t));iniciar()}).catch(err=>toast(err.message));break}
+    case 'ga4-desconectar':if(confirm('Desconectar o Google Analytics? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/ga4/desconectar',{}).then(()=>{toast('Google Analytics desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'm-nova-pasta':{const n=(prompt('Nome da nova pasta de materiais:')||'').trim().slice(0,60);if(n){S.mpasta=n;render()}break}
     case 'meta-atualizar':api('/api/integracoes/atualizar',{}).then(j=>{toast(j.jaRodando?'A coleta já está rodando. Os números novos aparecem em alguns minutos.':'Coleta iniciada. Os números novos aparecem em alguns minutos.');[60e3,180e3,360e3].forEach(t=>setTimeout(carregarMeta,t))}).catch(err=>toast(err.message));break;
     case 'demo-restaurar':if(!confirm('Recarregar os dados? Os itens voltam ao estado inicial.'))break;

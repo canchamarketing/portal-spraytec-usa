@@ -14,6 +14,9 @@ import {
   ErroDrive, PARTE, abrirConteudo, carregarDrive, concluirAutorizacao, desconectarDrive, driveConectado, driveConfigurado, envioDe,
   enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao,
 } from './integracoes/drive.ts';
+import {
+  carregarGA4, coletaGA4Rodando, coletarGA4, concluirGA4, desconectarGA4, escolherPropriedade, ga4Conectado, ga4Configurado, urlAutorizacaoGA4,
+} from './integracoes/ga4.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
 import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
@@ -27,6 +30,7 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${PORTA}`;
 const b = await abrirBanco();
 const aplicadas = await migrar(b);
 await carregarDrive(b);
+await carregarGA4(b);
 
 // Pessoas de demonstração e dados fictícios (só em modo demonstração e com o banco vazio).
 async function garantirUsuariosDemo() {
@@ -104,6 +108,8 @@ async function estadoPara(u: Usuario) {
   // Quem pode ser mencionado com @ (quem lê comentários e conversas).
   const dc = driveConectado();
   r.drive = { configurado: driveConfigurado(), conectado: !!dc, ...(u.papel === 'cancha' && dc ? { conta: dc.conta } : {}) };
+  const ga = ga4Conectado();
+  r.ga4 = { configurado: ga4Configurado(), conectado: !!ga, propriedade: ga?.propriedade?.nome || null, ...(u.papel === 'cancha' && ga ? { conta: ga.conta, opcoes: ga.propriedade ? [] : ga.opcoes } : {}) };
   if (['operacao', 'cancha', 'leitor'].includes(u.papel)) r.mencionaveis = pessoas.filter((p: any) => ['operacao', 'cancha', 'leitor'].includes(p.papel) && p.id !== u.id);
   return r;
 }
@@ -335,12 +341,13 @@ app.post('/api/pessoas/convite', async (req, rep) => {
 });
 
 // ---------- integrações ----------
-// Números que chegam do Meta (coletados pelo servidor). A produtora não recebe.
+// Números que chegam do Meta e do Google Analytics (coletados pelo servidor). A produtora não recebe.
 app.get('/api/metricas', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel === 'produtora') return rep.code(403).send({ erro: 'Não permitido.' });
-  const r: any = { conectado: metaConfigurado(), ig: { perfil: null, dias: [], posts: [], stories: [] }, fb: { perfil: null, dias: [], posts: [] }, ads: { anuncios: [], dias: [] } };
-  const lista: Record<string, string> = { dia: 'dias', post: 'posts', story: 'stories', anuncio: 'anuncios', anuncio_dia: 'dias' };
+  const r: any = { conectado: metaConfigurado(), ig: { perfil: null, dias: [], posts: [], stories: [] }, fb: { perfil: null, dias: [], posts: [] }, ads: { anuncios: [], dias: [] },
+    ga4: { dias: [], canais: [], paginas: [], eventos: [] } };
+  const lista: Record<string, string> = { dia: 'dias', post: 'posts', story: 'stories', anuncio: 'anuncios', anuncio_dia: 'dias', canal_dia: 'canais', pagina_dia: 'paginas', evento_dia: 'eventos' };
   const { rows } = await b.query(`select fonte, tipo, id, dados from metricas order by fonte, tipo, id`);
   for (const x of rows) {
     if (!r[x.fonte]) continue;
@@ -355,15 +362,17 @@ app.get('/api/metricas', async (req, rep) => {
 app.post('/api/integracoes/atualizar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha atualiza as integrações.' });
-  if (!metaConfigurado()) return rep.code(503).send({ erro: 'A chave do Meta ainda não foi configurada no servidor.' });
-  if (coletaRodando()) return { ok: true, jaRodando: true };
-  coletarMeta(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));
+  const ga = !!ga4Conectado()?.propriedade;
+  if (!metaConfigurado() && !ga) return rep.code(503).send({ erro: 'Nenhuma integração está configurada no servidor.' });
+  if (coletaRodando() || coletaGA4Rodando()) return { ok: true, jaRodando: true };
+  if (metaConfigurado()) coletarMeta(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));
+  if (ga) coletarGA4(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Analytics'));
   return { ok: true };
 });
 
 // ---------- Google Drive: conexão (a Cancha conecta uma vez, logada na conta Google da Spraytec) ----------
 const RETORNO_DRIVE = BASE_URL + '/api/drive/retorno';
-const pedidosDrive = new Map<string, { uid: string; ate: number }>();
+const pedidosDrive = new Map<string, { uid: string; ate: number; tipo?: 'ga4' }>();
 app.get('/api/drive/conectar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha conecta o Drive.' });
@@ -377,8 +386,20 @@ app.get('/api/drive/retorno', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   const qy: any = req.query || {}, st = pedidosDrive.get(String(qy.state || ''));
   pedidosDrive.delete(String(qy.state || ''));
-  if (!st || st.ate < Date.now() || st.uid !== u.id) return rep.redirect('/?drive=expirou');
-  if (qy.error || !qy.code) return rep.redirect('/?drive=cancelado');
+  const aviso = st?.tipo === 'ga4' ? 'ga4' : 'drive';
+  if (!st || st.ate < Date.now() || st.uid !== u.id) return rep.redirect(`/?${aviso}=expirou`);
+  if (qy.error || !qy.code) return rep.redirect(`/?${aviso}=cancelado`);
+  if (st.tipo === 'ga4') {
+    try {
+      const r = await concluirGA4(b, String(qy.code), RETORNO_DRIVE);
+      await auditar(b, u, 'ga4-conectar', `Conectou o Google Analytics pela conta ${r.conta || '(sem e-mail)'}${r.propriedade ? ', propriedade ' + r.propriedade.nome : ''}`, { conta: r.conta, propriedade: r.propriedade }, null, req.ip);
+      if (r.propriedade) coletarGA4(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Analytics'));
+      return rep.redirect(r.propriedade ? '/?ga4=ok' : '/?ga4=escolher');
+    } catch (err) {
+      req.log.error({ err }, 'falha ao conectar o Google Analytics');
+      return rep.redirect('/?ga4=erro&msg=' + encodeURIComponent(String((err as Error).message).slice(0, 200)));
+    }
+  }
   try {
     const r = await concluirAutorizacao(b, String(qy.code), RETORNO_DRIVE);
     await auditar(b, u, 'drive-conectar', `Conectou o Google Drive da conta ${r.conta}`, { conta: r.conta }, null, req.ip);
@@ -394,6 +415,34 @@ app.post('/api/drive/desconectar', async (req, rep) => {
   const conta = driveConectado()?.conta;
   await desconectarDrive(b);
   await auditar(b, u, 'drive-desconectar', `Desconectou o Google Drive${conta ? ' da conta ' + conta : ''} (os arquivos continuam no Drive)`, null, null, req.ip);
+  return { ok: true };
+});
+// ---------- Google Analytics: conexão (a Cancha conecta uma vez, com uma conta que enxerga a propriedade) ----------
+app.get('/api/ga4/conectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha conecta o Google Analytics.' });
+  if (!ga4Configurado()) return rep.redirect('/?ga4=sem-config');
+  const s = randomBytes(18).toString('base64url');
+  for (const [k, v] of pedidosDrive) if (v.ate < Date.now()) pedidosDrive.delete(k);
+  pedidosDrive.set(s, { uid: u.id, ate: Date.now() + 15 * 60e3, tipo: 'ga4' });
+  return rep.redirect(urlAutorizacaoGA4(RETORNO_DRIVE, s));
+});
+app.post('/api/ga4/propriedade', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha escolhe a propriedade.' });
+  try {
+    const p = await escolherPropriedade(b, String((req.body as any)?.id || ''));
+    await auditar(b, u, 'ga4-propriedade', `Escolheu a propriedade ${p.nome} do Google Analytics`, { propriedade: p }, null, req.ip);
+    coletarGA4(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Analytics'));
+    return { ok: true };
+  } catch (err) { return rep.code((err as any).status || 400).send({ erro: (err as Error).message }); }
+});
+app.post('/api/ga4/desconectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha desconecta o Google Analytics.' });
+  const ga = ga4Conectado();
+  await desconectarGA4(b);
+  await auditar(b, u, 'ga4-desconectar', `Desconectou o Google Analytics${ga?.conta ? ' da conta ' + ga.conta : ''} (os números já coletados continuam no portal)`, null, null, req.ip);
   return { ok: true };
 });
 app.get('/api/drive/situacao', async (req, rep) => {
@@ -522,3 +571,7 @@ if (metaConfigurado()) {
   setTimeout(coletar, 30e3);
   setInterval(coletar, 3600e3);
 }
+// Coleta do Google Analytics: confere de hora em hora; busca de novo a cada 6 horas.
+const coletarSite = () => coletarGA4(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do Google Analytics'));
+setTimeout(coletarSite, 45e3);
+setInterval(coletarSite, 3600e3);
