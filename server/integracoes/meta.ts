@@ -144,7 +144,7 @@ async function coletarAds(q: Consulta) {
   const contas = await todas('me/adaccounts', { fields: 'id,name,account_status,currency', limit: 100 }, 200);
   const conta = escolher(contas, process.env.META_CONTA_ANUNCIOS, 'conta de anúncios', 'META_CONTA_ANUNCIOS');
   const ads = await todas(conta.id + '/ads', {
-    fields: 'id,name,effective_status,created_time,adset{id,name,targeting,optimization_goal,daily_budget,lifetime_budget},campaign{id,name,objective,daily_budget,lifetime_budget},creative{id,title,body,object_type,effective_object_story_id,instagram_permalink_url,image_url,thumbnail_url}',
+    fields: 'id,name,effective_status,created_time,adset{id,name,targeting,optimization_goal,daily_budget,lifetime_budget},campaign{id,name,objective,daily_budget,lifetime_budget},creative.thumbnail_width(600).thumbnail_height(600){id,title,body,object_type,effective_object_story_id,instagram_permalink_url,image_url,thumbnail_url}',
     limit: 100,
   }, 1000);
   for (const a of ads) await gravar(q, 'ads', 'anuncio', a.id, a);
