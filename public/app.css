@@ -994,3 +994,5 @@ a.igt{color:#15170E;text-decoration:none}
 .visnav.ant{left:8px}.visnav.prox{right:8px}
 .athumb .arqth{width:100%;height:100%;aspect-ratio:auto;border-radius:6px}
 .athumb:has(.arqth){padding:0}
+.ring[data-arq]{cursor:pointer}
+.ring[data-arq]:hover span{filter:brightness(1.08)}

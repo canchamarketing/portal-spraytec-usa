@@ -104,7 +104,7 @@ function prepMeta(j){
   (j.fb.posts||[]).forEach(x=>{const m=x.metricas||{},ts=tsN(x.created_time);const curt=x.reacoes||0,com=x.comentarios||0,comp=x.compartilhamentos||0,inter=curt+com+comp,alc=m.post_impressions_unique??null;
     P.push({rede:'fb',id:x.id,link:x.permalink_url,nl:normLink(x.permalink_url),ts,date:dia(ts),hora:hora(ts),formato:/video/.test(x.status_type||'')?'video':'post',
       titulo:tit(x.message)||'(sem texto)',legenda:x.message||'',img:x.full_picture,alc,views:null,curt,com,salv:0,comp,inter,eng:alc?inter/alc*100:null,cliques:m.post_clicks??null})});
-  const ST=(j.ig.stories||[]).map(s=>{const m=s.metricas||{},ts=tsN(s.timestamp);return {id:s.id,ts,date:dia(ts),hora:hora(ts),tipo:s.media_type,img:s.drive?miniUrl(s.drive,400):s.media_type==='VIDEO'?s.thumbnail_url:s.media_url,alc:m.reach??null,views:m.views??null,resp:m.replies||0,inter:m.total_interactions||0}});
+  const ST=(j.ig.stories||[]).map(s=>{const m=s.metricas||{},ts=tsN(s.timestamp);return {id:s.id,ts,date:dia(ts),hora:hora(ts),tipo:s.media_type,drive:s.drive,driveTipo:s.drive_tipo,img:s.drive?miniUrl(s.drive,400):s.media_type==='VIDEO'?s.thumbnail_url:s.media_url,alc:m.reach??null,views:m.views??null,resp:m.replies||0,inter:m.total_interactions||0}});
   return {conectado:j.conectado,situacao:j.situacao||{},ig:{perfil:j.ig.perfil,dias:j.ig.dias||[]},fb:{perfil:j.fb.perfil,dias:j.fb.dias||[]},posts:P,stories:ST,
     ads:{anuncios:new Map((j.ads.anuncios||[]).map(a=>[a.id,a])),dias:j.ads.dias||[]}}}
 async function carregarMeta(){const antes=META;let m=null;try{m=prepMeta(await api('/api/metricas'))}catch(_){}META=m;
@@ -127,7 +127,7 @@ function redesIG(){const P=META.ig.perfil||{};const ps=META.posts.filter(x=>x.re
   const desde=META.stories.reduce((a,s)=>s.date<a?s.date:a,'9999');const bio=(P.biography||'').split('\n')[0];
   return `<div class="prof"><span class="avbig">S</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">${esc(P.username||'')}</b><div class="cnts"><span><b>${n(P.media_count||0)}</b> publicações</span><span><b>${fk(P.followers_count||0)}</b> seguidores</span><span><b>${n(P.follows_count||0)}</b> seguindo</span></div><span class="muted" style="font-size:13px">${esc(P.name||'')}${bio?' · '+esc(bio):''}</span></div></div>
    <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${noAr.length}</h2><span class="muted" style="font-size:12px">Depois de 24 h, ficam guardados no Acervo › Stories.</span></div>
-    ${noAr.length?`<div class="rings">${noAr.map(s=>`<div class="ring"><span><i>${imgTag(s.img,'ringimg')}</i></span>${s.hora}${s.alc!=null?' · '+fk(s.alc)+' de alcance':''}</div>`).join('')}</div>`:'<p class="muted" style="margin:0">Nenhum story no ar.</p>'}
+    ${noAr.length?`<div class="rings">${noAr.map(s=>`<div class="ring" ${s.drive?`data-arq="${esc(s.drive)}" role="button" tabindex="0" title="Ver o story"`:''}><span><i>${imgTag(s.img,'ringimg')}</i></span>${s.hora}${s.alc!=null?' · '+fk(s.alc)+' de alcance':''}</div>`).join('')}</div>`:'<p class="muted" style="margin:0">Nenhum story no ar.</p>'}
     ${META.stories.length?`<p style="margin:8px 0 0;font-size:13px">${META.stories.length} stories guardados pelo portal desde ${fmt(desde)}.</p>`:''}</section>
    <div class="iggrid">${ps.slice(0,30).map(x=>{const c=calDe(x);const tag=c?'div':'a';const at=c?`data-open="${c.id}"`:`href="${esc(x.link)}" target="_blank" rel="noopener"`;
      return `<${tag} class="igt" style="background:${PILAR_HUE[c&&c.pilar]||'#E3E4D3'}" ${at} title="${esc(x.titulo)}">${imgTag(x.img,'igimg')}${x.formato==='carrossel'?'<small>Carrossel</small>':x.formato==='reel'?'<small>▶ Reel</small>':x.formato==='video'?'<small>▶ Vídeo</small>':''}<span class="igcap">${esc(x.titulo.slice(0,70))}</span></${tag}>`}).join('')}</div>
@@ -226,7 +226,7 @@ function acvStoriesReal(){const old=META.stories.filter(s=>Date.parse(s.ts)<=Dat
   const cats=[['img','Imagens',old.filter(s=>s.tipo!=='VIDEO').length],['vid','Vídeos',old.filter(s=>s.tipo==='VIDEO').length]];
   const vis=old.filter(s=>acvMatch('stories',s.tipo==='VIDEO'?'vid':'img','story '+s.hora+' '+fmt(s.date)));const dates=[...new Set(vis.map(s=>s.date))];
   const desde=META.stories.reduce((a,s)=>s.date<a?s.date:a,'9999');
-  return `${acvToolbar('stories',cats)}${dates.length?gridGroups(dates.map(d=>({t:fmtLong(d),items:vis.filter(s=>s.date===d).map(s=>acard(`<div class="pvwrap">${storyPreview({pilar:'',rotulo:s.tipo==='VIDEO'?'Story em vídeo':'Story',titulo:'Story das '+s.hora})}${imgTag(s.img,'pvimg')}</div>`,ktag(s.tipo==='VIDEO'?'VÍDEO':'IMAGEM','--k-post'),'Story das '+s.hora,`alcance ${s.alc!=null?n(s.alc):'—'} · ${s.resp} resp.`,s.hora))})),'stories')
+  return `${acvToolbar('stories',cats)}${dates.length?gridGroups(dates.map(d=>({t:fmtLong(d),items:vis.filter(s=>s.date===d).map(s=>acard(`<div class="pvwrap">${storyPreview({pilar:'',rotulo:s.tipo==='VIDEO'?'Story em vídeo':'Story',titulo:'Story das '+s.hora})}${imgTag(s.img,'pvimg')}</div>`,ktag(s.tipo==='VIDEO'?'VÍDEO':'IMAGEM','--k-post'),'Story das '+s.hora,`alcance ${s.alc!=null?n(s.alc):'—'} · ${s.resp} resp.`,s.hora,s.drive?`data-arq="${esc(s.drive)}" tabindex="0" role="button"`:''))})),'stories')
     :`<p class="muted">${old.length?'Nenhum story com esse filtro.':'Os stories aparecem aqui 24 h depois de publicados, quando saem do ar.'+(META.stories.length?' A captura começou em '+fmt(desde)+'.':'')}</p>`}
    <p class="muted" style="font-size:12px;margin:0">O portal guarda os números de cada story enquanto ele está no ar (o Instagram apaga depois de 24 h). As imagens ficam na pasta Stories do Drive.</p>`}
 function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(null);
@@ -251,7 +251,9 @@ const versaoAtual=x=>{const L=arqVivos(x);return L.length?Math.max(...L.map(a=>a
 // peças da versão mais recente (imagens e vídeos), na ordem em que foram enviadas
 function pecasAtuais(p){const v=versaoAtual(p);return arqVivos(p).filter(a=>(a.v||1)===v&&['img','video'].includes(tipoArq(a)))}
 function capaDe(p){const a=pecasAtuais(p)[0];return a?miniUrl(a.id,800):null}
-function acharArq(id){for(const l of [posts,videos,demandas])for(const x of l){const a=(x.arquivos||[]).find(y=>y.id===id);if(a)return a}return materiais.find(m=>m.id===id)||null}
+function acharArq(id){for(const l of [posts,videos,demandas])for(const x of l){const a=(x.arquivos||[]).find(y=>y.id===id);if(a)return a}
+  const st=META&&META.stories.find(x=>x.drive===id);if(st)return {id,nome:`Story de ${fmtLong(st.date)} às ${st.hora}`,tipo:st.driveTipo||'image/jpeg',por:'Instagram',q:st.alc!=null?'alcance '+n(st.alc):''};
+  return materiais.find(m=>m.id===id)||null}
 function arqThumb(a){const t=tipoArq(a);return `<span class="arqth ${t}">${t==='img'||t==='video'?`<img src="${miniUrl(a.id,400)}" alt="" loading="lazy" data-falha>`:''}<i>${t==='video'?'▶':t==='pdf'?'PDF':t==='img'?'':'ARQ'}</i></span>`}
 function arqTile(a,ref){return `<button type="button" class="arq" data-arq="${esc(a.id)}" data-ref="${esc(ref)}" title="${esc(a.nome)}">${arqThumb(a)}<span class="arqn">${esc(a.nome)}</span><span class="arqm">${tamTxt(a.tam||0)} · ${esc((a.por||'').split(' ')[0])}${a.q?' · '+esc(a.q):''}</span></button>`}
 // Bloco de arquivos de um item: o que já foi enviado (por versão, nos posts) e a área para enviar mais.
@@ -309,7 +311,7 @@ function renderVisor(){let L=document.getElementById('visor');
   const corpo=t==='img'?`<img src="${src}" alt="${esc(a.nome)}">`:t==='video'?`<video src="${src}" controls playsinline preload="metadata"></video>`
     :`<div class="visdoc"><b>${esc(a.nome)}</b>${t==='pdf'?`<a class="btn primary" href="${src}" target="_blank" rel="noopener">Abrir o PDF</a>`:'<span class="muted">Este tipo de arquivo não abre no navegador. Use Baixar.</span>'}</div>`;
   L.innerHTML=`<div class="visfundo" data-vis="fechar"></div><div class="viscaixa" role="dialog" aria-modal="true" aria-label="${esc(a.nome)}">
-   <div class="vistopo"><div style="min-width:0"><b class="visn">${esc(a.nome)}</b><div class="muted" style="font-size:12px">${a.v?'Versão '+a.v+' · ':''}${esc(a.por||'')}${a.q?' · '+esc(a.q):''} · ${tamTxt(a.tam||0)}</div></div>
+   <div class="vistopo"><div style="min-width:0"><b class="visn">${esc(a.nome)}</b><div class="muted" style="font-size:12px">${a.v?'Versão '+a.v+' · ':''}${esc(a.por||'')}${a.q?' · '+esc(a.q):''}${a.tam?' · '+tamTxt(a.tam):''}</div></div>
     <div class="actions"><a class="btn sm" href="${src}?baixar=1">Baixar</a>${pode?`<button class="btn sm" data-vis="remover">Tirar do portal</button>`:''}<button class="btn sm" data-vis="fechar">Fechar</button></div></div>
    <div class="viscorpo">${ids.length>1?'<button class="visnav ant" data-vis="ant" aria-label="Anterior">‹</button>':''}${corpo}${ids.length>1?'<button class="visnav prox" data-vis="prox" aria-label="Próximo">›</button>':''}</div>
    ${ids.length>1?`<div class="muted" style="text-align:center;font-size:12px">${i+1} de ${ids.length}</div>`:''}</div>`}
@@ -320,9 +322,9 @@ document.addEventListener('click',e=>{
     else if(k==='remover'&&confirm('Tirar este arquivo do portal? Ele continua guardado no Drive da Spraytec.')){const id=V.ids[V.i];S.visor=null;renderVisor();acao('arquivo-remover',{ref:V.ref,id});return}
     renderVisor();return}
   const t=e.target.closest&&e.target.closest('[data-arq]');
-  if(t){e.stopPropagation();e.preventDefault();const box=t.closest('.arqgrid,.rgroup')||document;const ids=[...box.querySelectorAll('[data-arq]')].map(x=>x.dataset.arq);
+  if(t){e.stopPropagation();e.preventDefault();const box=t.closest('.arqgrid,.rgroup,.rings')||document;const ids=[...box.querySelectorAll('[data-arq]')].map(x=>x.dataset.arq);
     S.visor={ids,i:Math.max(0,ids.indexOf(t.dataset.arq)),ref:t.dataset.ref};renderVisor()}},true);
-document.addEventListener('keydown',e=>{if(!S.visor)return;if(e.key==='Escape'){S.visor=null;renderVisor()}else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const V=S.visor;V.i=(V.i+(e.key==='ArrowRight'?1:-1)+V.ids.length)%V.ids.length;renderVisor()}});
+document.addEventListener('keydown',e=>{if(!S.visor&&(e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('[data-arq]:not(button)')){e.preventDefault();e.target.click();return}if(!S.visor)return;if(e.key==='Escape'){S.visor=null;renderVisor()}else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const V=S.visor;V.i=(V.i+(e.key==='ArrowRight'?1:-1)+V.ids.length)%V.ids.length;renderVisor()}});
 
 // ---------- conexão do Drive (Cancha) e materiais do Acervo ----------
 function drivePainel(){if(!isTeam())return '';
