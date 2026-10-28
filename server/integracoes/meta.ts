@@ -76,14 +76,14 @@ function escolher(lista: any[], id: string | undefined, nome: string, variavel: 
   throw new ErroMeta(`A chave enxerga mais de uma ${nome} (${lista.map((l) => l.name).join(', ')}). Diga qual em ${variavel}.`);
 }
 
-// A Página do Facebook e o Instagram são escolhidos à parte: o Instagram pode estar ligado a uma Página
-// pequena e a Página oficial ser outra. Sem META_PAGINA_ID, vale a Página "Spraytec" com mais seguidores.
+// Sem META_PAGINA_ID, vale a Página "Spraytec" ligada ao Instagram (a Spraytec Brasil; existe também a
+// Spraytec dos EUA, que não é nossa). Se nenhuma tiver Instagram, a com mais seguidores.
 async function descobrirPagina() {
   const paginas = await todas('me/accounts', { fields: 'id,name,followers_count,fan_count,access_token,instagram_business_account{id,username}', limit: 100 }, 200);
   const seg = (p: any) => p.followers_count ?? p.fan_count ?? 0;
   let p: any;
   if (process.env.META_PAGINA_ID || paginas.length <= 1) p = escolher(paginas, process.env.META_PAGINA_ID, 'página do Facebook', 'META_PAGINA_ID');
-  else p = [...(paginas.filter((x) => /spraytec/i.test(x.name || '')).length ? paginas.filter((x) => /spraytec/i.test(x.name || '')) : paginas)].sort((a, b) => seg(b) - seg(a))[0];
+  else p = [...(paginas.filter((x) => /spraytec/i.test(x.name || '')).length ? paginas.filter((x) => /spraytec/i.test(x.name || '')) : paginas)].sort((a, b) => Number(!!b.instagram_business_account) - Number(!!a.instagram_business_account) || seg(b) - seg(a))[0];
   const comIG = paginas.filter((x) => x.instagram_business_account);
   const ig = p.instagram_business_account || (comIG.length === 1 ? comIG[0].instagram_business_account : undefined);
   return { id: p.id as string, nome: p.name as string, token: p.access_token as string | undefined, ig: ig as { id: string; username: string } | undefined };

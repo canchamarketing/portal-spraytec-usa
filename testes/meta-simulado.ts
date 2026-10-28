@@ -22,7 +22,7 @@ const servidor = createServer((req, res) => {
     return json(400, { error: { message: 'Invalid OAuth access token.', code: 190 } });
   if (quebrado) return json(400, { error: { message: 'Error validating access token: Session has expired', code: 190 } });
   const m = u.searchParams.get('metric') || '';
-  if (p === 'me/accounts') return json(200, { data: [{ id: 'pg9', name: 'Spraytec', followers_count: 11, access_token: 'chave-da-pagina', instagram_business_account: { id: 'ig1', username: 'spraytec.brasil' } }, { id: 'pg1', name: 'Spraytec Brasil', followers_count: 25010, access_token: 'chave-da-pagina' }] });
+  if (p === 'me/accounts') return json(200, { data: [{ id: 'pg9', name: 'Spraytec', followers_count: 90000, access_token: 'chave-da-pagina' }, { id: 'pg1', name: 'Spraytec Brasil', followers_count: 11, access_token: 'chave-da-pagina', instagram_business_account: { id: 'ig1', username: 'spraytec.brasil' } }] });
   if (p === 'ig1') return json(200, { id: 'ig1', username: 'spraytec.brasil', followers_count: 18640, media_count: 413 });
   if (p === 'ig1/stories') return json(200, { data: [{ id: 'st1', media_type: 'IMAGE', permalink: 'https://instagram.com/stories/x/1', timestamp: iso(agora - 3600e3) }] });
   if (p === 'ig1/media') {
@@ -72,7 +72,7 @@ checa((await linhas('ig', 'story')).length === 1, 'guarda o story que está no a
 checa((await linhas('ig', 'perfil'))[0].dados.followers_count === 18640, 'guarda o perfil do Instagram');
 checa((await linhas('ig', 'dia')).length === 1, 'guarda os seguidores do dia');
 const fb = (await linhas('fb', 'post'))[0]?.dados;
-checa(!pedidos.some((x) => x.startsWith('pg9')), 'Página oficial é a Spraytec com mais seguidores, mesmo com o Instagram ligado a outra');
+checa(!pedidos.some((x) => x.startsWith('pg9')), 'Página oficial é a ligada ao Instagram, não a Spraytec dos EUA com mais seguidores');
 checa(fb && fb.reacoes === 41 && fb.metricas.post_impressions_unique === 900, 'Página: reações e alcance do post (com a chave da página)');
 const ads = await linhas('ads', 'anuncio_dia');
 checa(ads.length === 2 && ads[0].dados.investido === 120.5 && ads[0].dados.acoes.lead === 4, 'anúncios: investimento e contatos por dia');
