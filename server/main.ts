@@ -4,11 +4,16 @@ import cookie from '@fastify/cookie';
 import fstatic from '@fastify/static';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import { abrirBanco, migrar } from './db.ts';
 import { carregar, salvar, gravarTudo } from './estado.ts';
-import { ACOES, type Aviso } from './acoes.ts';
+import { ACOES, destinoArquivo, type Aviso } from './acoes.ts';
 import { visaoPara } from './visao.ts';
 import { coletaRodando, coletarMeta, metaConfigurado } from './integracoes/meta.ts';
+import {
+  ErroDrive, PARTE, abrirConteudo, carregarDrive, concluirAutorizacao, desconectarDrive, driveConectado, driveConfigurado, envioDe,
+  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao,
+} from './integracoes/drive.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
 import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
@@ -21,6 +26,7 @@ const PORTA = Number(process.env.PORT || 3000);
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORTA}`;
 const b = await abrirBanco();
 const aplicadas = await migrar(b);
+await carregarDrive(b);
 
 // Pessoas de demonstração e dados fictícios (só em modo demonstração e com o banco vazio).
 async function garantirUsuariosDemo() {
@@ -61,7 +67,8 @@ await app.register(cookie, { secret: process.env.COOKIE_SEGREDO || randomBytes(3
 
 app.addHook('onSend', async (req, rep, payload) => {
   // O navegador sempre confere se há versão nova da tela (e nunca guarda respostas da API).
-  rep.header('Cache-Control', req.url.startsWith('/api/') ? 'no-store' : 'no-cache');
+  // Arquivos do Drive podem ficar uma hora no navegador de quem já os abriu (cada rota decide).
+  if (!(req.url.startsWith('/api/arquivos/') && rep.getHeader('Cache-Control'))) rep.header('Cache-Control', req.url.startsWith('/api/') ? 'no-store' : 'no-cache');
   rep.header('X-Content-Type-Options', 'nosniff');
   rep.header('X-Frame-Options', 'DENY');
   rep.header('Referrer-Policy', 'same-origin');
@@ -71,7 +78,7 @@ app.addHook('onSend', async (req, rep, payload) => {
 });
 // Pedidos que alteram dados precisam vir do próprio portal.
 app.addHook('preHandler', async (req, rep) => {
-  if (req.method !== 'POST') return;
+  if (req.method === 'GET' || req.method === 'HEAD') return;
   const o = req.headers.origin;
   if (o && new URL(o).host !== req.headers.host) return rep.code(403).send({ erro: 'Origem não permitida.' });
 });
@@ -95,6 +102,8 @@ async function estadoPara(u: Usuario) {
   const pessoas = await pessoasAtivas();
   if (u.papel === 'cancha') r.aprovadores = pessoas.filter((p: any) => p.papel === 'operacao');
   // Quem pode ser mencionado com @ (quem lê comentários e conversas).
+  const dc = driveConectado();
+  r.drive = { configurado: driveConfigurado(), conectado: !!dc, ...(u.papel === 'cancha' && dc ? { conta: dc.conta } : {}) };
   if (['operacao', 'cancha', 'leitor'].includes(u.papel)) r.mencionaveis = pessoas.filter((p: any) => ['operacao', 'cancha', 'leitor'].includes(p.papel) && p.id !== u.id);
   return r;
 }
@@ -215,6 +224,21 @@ async function avisar(avisos: Aviso[], autor: Usuario) {
   }
 }
 
+// Aplica uma ação: carrega, confere a regra, grava só o que mudou e registra na auditoria, numa transação.
+async function executarAcao(u: Usuario, acao: string, d: any, ip?: string) {
+  const def = ACOES[acao];
+  const res = await emFila(() => b.tx(async (q) => {
+    const e = await carregar(q);
+    const antes = clone(e);
+    const r = def.fn({ e, u, d, hoje: hojeBR(), agora: agoraBR(), pessoas: await pessoasAtivas(q) });
+    const mud = await salvar(q, antes, e, u.nome);
+    if (!def.semAuditoria) await auditar(q, u, acao, r.resumo, d, mud, ip);
+    return r;
+  }));
+  if (res.avisos?.length) avisar(res.avisos, u).catch((err) => app.log.error({ err }, 'falha ao enviar aviso'));
+  return res;
+}
+
 app.post('/api/acao', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   const { acao, ...d } = (req.body as any) || {};
@@ -222,15 +246,7 @@ app.post('/api/acao', async (req, rep) => {
   if (!def) return rep.code(400).send({ erro: 'Ação desconhecida.' });
   if (!def.papeis.includes(u.papel)) return rep.code(403).send({ erro: 'Seu papel não permite esta ação.' });
   try {
-    const res = await emFila(() => b.tx(async (q) => {
-      const e = await carregar(q);
-      const antes = clone(e);
-      const r = def.fn({ e, u, d, hoje: hojeBR(), agora: agoraBR(), pessoas: await pessoasAtivas(q) });
-      const mud = await salvar(q, antes, e, u.nome);
-      if (!def.semAuditoria) await auditar(q, u, acao, r.resumo, d, mud, req.ip);
-      return r;
-    }));
-    if (res.avisos?.length) avisar(res.avisos, u).catch((err) => req.log.error({ err }, 'falha ao enviar aviso'));
+    const res = await executarAcao(u, acao, d, req.ip);
     return { ok: true, criado: res.criado, ...(await estadoPara(u)) };
   } catch (err) {
     if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message, codigo: err.codigo });
@@ -345,6 +361,143 @@ app.post('/api/integracoes/atualizar', async (req, rep) => {
   return { ok: true };
 });
 
+// ---------- Google Drive: conexão (a Cancha conecta uma vez, logada na conta Google da Spraytec) ----------
+const RETORNO_DRIVE = BASE_URL + '/api/drive/retorno';
+const pedidosDrive = new Map<string, { uid: string; ate: number }>();
+app.get('/api/drive/conectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha conecta o Drive.' });
+  if (!driveConfigurado()) return rep.redirect('/?drive=sem-config');
+  const s = randomBytes(18).toString('base64url');
+  for (const [k, v] of pedidosDrive) if (v.ate < Date.now()) pedidosDrive.delete(k);
+  pedidosDrive.set(s, { uid: u.id, ate: Date.now() + 15 * 60e3 });
+  return rep.redirect(urlAutorizacao(RETORNO_DRIVE, s));
+});
+app.get('/api/drive/retorno', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  const qy: any = req.query || {}, st = pedidosDrive.get(String(qy.state || ''));
+  pedidosDrive.delete(String(qy.state || ''));
+  if (!st || st.ate < Date.now() || st.uid !== u.id) return rep.redirect('/?drive=expirou');
+  if (qy.error || !qy.code) return rep.redirect('/?drive=cancelado');
+  try {
+    const r = await concluirAutorizacao(b, String(qy.code), RETORNO_DRIVE);
+    await auditar(b, u, 'drive-conectar', `Conectou o Google Drive da conta ${r.conta}`, { conta: r.conta }, null, req.ip);
+    return rep.redirect('/?drive=ok');
+  } catch (err) {
+    req.log.error({ err }, 'falha ao conectar o Drive');
+    return rep.redirect('/?drive=erro&msg=' + encodeURIComponent(String((err as Error).message).slice(0, 200)));
+  }
+});
+app.post('/api/drive/desconectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha desconecta o Drive.' });
+  const conta = driveConectado()?.conta;
+  await desconectarDrive(b);
+  await auditar(b, u, 'drive-desconectar', `Desconectou o Google Drive${conta ? ' da conta ' + conta : ''} (os arquivos continuam no Drive)`, null, null, req.ip);
+  return { ok: true };
+});
+app.get('/api/drive/situacao', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Não permitido.' });
+  if (!driveConectado()) return { conectado: false, configurado: driveConfigurado() };
+  try { return { conectado: true, configurado: true, ...(await situacaoDrive()) }; }
+  catch (err) { return { conectado: true, configurado: true, conta: driveConectado()?.conta, erro: (err as Error).message }; }
+});
+
+// ---------- arquivos: envio em partes pelo portal e leitura para quem pode ver o item ----------
+const MAX_ARQUIVO = 5 * 1024 ** 3;
+app.post('/api/arquivos/iniciar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (!driveConectado()) return rep.code(503).send({ erro: 'O Google Drive da Spraytec ainda não está conectado ao portal. Fale com a Cancha.' });
+  const d = (req.body as any) || {};
+  const ref = String(d.ref || ''), nome = String(d.nome || '').trim().slice(0, 200), tam = Number(d.tam);
+  const tipo = /^[\w.+-]+\/[\w.+-]+$/.test(String(d.tipo || '')) ? String(d.tipo) : 'application/octet-stream';
+  if (!nome) return rep.code(400).send({ erro: 'Arquivo sem nome.' });
+  if (!Number.isInteger(tam) || tam < 1) return rep.code(400).send({ erro: `"${nome}" está vazio.` });
+  if (tam > MAX_ARQUIVO) return rep.code(400).send({ erro: `"${nome}" passa de 5 GB. Comprima o arquivo antes de enviar.` });
+  try {
+    const caminho = destinoArquivo(await carregar(b), u, ref);
+    const ev = await iniciarEnvio(b, u.id, ref, caminho, nome, tipo, tam);
+    return { envio: ev.token, parte: PARTE };
+  } catch (err) {
+    if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message });
+    req.log.error({ err }, 'falha ao iniciar envio ao Drive');
+    return rep.code(err instanceof ErroDrive && err.status === 503 ? 503 : 502).send({ erro: err instanceof ErroDrive ? err.message : 'Não foi possível falar com o Google Drive. Tente de novo.' });
+  }
+});
+app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: PARTE + 1024 }, (_req, body, done) => done(null, body));
+app.put('/api/arquivos/enviar/:token', { bodyLimit: PARTE + 1024 }, async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  const ev = envioDe(String((req.params as any).token), u.id);
+  if (!ev || ev.usado) return rep.code(404).send({ erro: 'Envio não encontrado. Mande o arquivo de novo.' });
+  const pedaco = req.body as Buffer;
+  if (!Buffer.isBuffer(pedaco) || !pedaco.length) return rep.code(400).send({ erro: 'Parte vazia.' });
+  try { await enviarParte(ev, Number(req.headers['x-inicio']), pedaco); }
+  catch (err) {
+    if (err instanceof ErroDrive && err.status === 409) return rep.code(409).send({ erro: err.message, recebido: ev.recebido });
+    req.log.error({ err }, 'falha no envio ao Drive');
+    return rep.code(502).send({ erro: err instanceof ErroDrive ? err.message : 'O envio ao Google Drive falhou. Tente de novo.', recebido: ev.recebido });
+  }
+  if (!ev.arquivo) return { feito: false, recebido: ev.recebido };
+  try { await executarAcao(u, 'arquivo-anexar', { envio: ev.token }, req.ip); }
+  catch (err) {
+    if (err instanceof ErroAcao) return rep.code(400).send({ erro: `O arquivo chegou ao Drive, mas não foi registrado: ${err.message}` });
+    throw err;
+  }
+  return { feito: true, recebido: ev.tam, ...(await estadoPara(u)) };
+});
+
+// Só abre arquivo que a pessoa vê no portal (a mesma regra das telas). O estado é relido só quando algo muda.
+let memoEstado: { v: number; e: any } = { v: -1, e: null };
+async function arquivoVisivel(u: Usuario, id: string): Promise<any> {
+  const v = await versao();
+  if (memoEstado.v !== v) memoEstado = { v, e: await carregar(b) };
+  const e: any = visaoPara(memoEstado.e, u);
+  for (const l of ['posts', 'videos', 'demandas']) for (const x of e[l] || []) { const a = (x.arquivos || []).find((y: any) => y.id === id); if (a) return a; }
+  const m = (e.materiais || []).find((x: any) => x.id === id);
+  if (m) return m;
+  if (u.papel !== 'produtora') {
+    const s = (await b.query(`select dados from metricas where fonte='ig' and tipo='story' and dados->>'drive'=$1`, [id])).rows[0];
+    if (s) return { nome: 'story', tipo: s.dados.drive_tipo };
+  }
+  return null;
+}
+// Imagem, vídeo, áudio e PDF abrem no navegador; o resto só baixa (um HTML ou script enviado nunca roda no portal).
+const ABRE_NA_TELA = /^(image\/(png|jpeg|gif|webp|heic|heif)|video\/[\w.+-]+|audio\/[\w.+-]+|application\/pdf)$/;
+app.get('/api/arquivos/:id/conteudo', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  const id = String((req.params as any).id), a = await arquivoVisivel(u, id);
+  if (!a) return rep.code(404).send({ erro: 'Arquivo não encontrado.' });
+  try {
+    const r = await abrirConteudo(id, typeof req.headers.range === 'string' ? req.headers.range : undefined);
+    const tipo = (r.headers.get('content-type') || a.tipo || '').split(';')[0], tela = ABRE_NA_TELA.test(tipo) && !(req.query as any)?.baixar;
+    rep.code(r.status);
+    rep.header('content-type', tela ? tipo : 'application/octet-stream');
+    for (const h of ['content-length', 'content-range']) { const v = r.headers.get(h); if (v) rep.header(h, v); }
+    rep.header('accept-ranges', 'bytes');
+    rep.header('content-disposition', `${tela ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(a.nome || 'arquivo')}`);
+    rep.header('Cache-Control', 'private, max-age=3600');
+    return rep.send(Readable.fromWeb(r.body as any));
+  } catch (err) {
+    req.log.warn({ err: (err as Error).message, id }, 'falha ao abrir arquivo do Drive');
+    return rep.code(err instanceof ErroDrive && err.status === 404 ? 404 : 502).send({ erro: err instanceof ErroDrive ? err.message : 'Não foi possível abrir o arquivo.' });
+  }
+});
+app.get('/api/arquivos/:id/miniatura', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  const id = String((req.params as any).id), a = await arquivoVisivel(u, id);
+  if (!a) return rep.code(404).send({ erro: 'Arquivo não encontrado.' });
+  const t = Math.min(1600, Math.max(100, Number((req.query as any)?.t) || 400));
+  const m = await miniatura(id, t).catch(() => null);
+  if (!m) {
+    // Logo depois do envio o Google ainda não gerou a miniatura: imagem vai inteira.
+    if (/^image\/(png|jpeg|gif|webp)$/.test(a.tipo || '')) return rep.redirect(`/api/arquivos/${encodeURIComponent(id)}/conteudo`);
+    return rep.code(404).send({ erro: 'Sem miniatura.' });
+  }
+  rep.header('content-type', m.tipo).header('Cache-Control', 'private, max-age=3600');
+  return rep.send(m.dados);
+});
+
 // Recarregar os dados fictícios (só em demonstração, só a Cancha).
 app.post('/api/demo/restaurar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
@@ -361,7 +514,7 @@ app.setNotFoundHandler((req, rep) => {
 });
 
 await app.listen({ port: PORTA, host: '0.0.0.0' });
-app.log.info({ banco: b.tipo, migracoes: aplicadas, demo: modoDemo(), meta: metaConfigurado() }, 'Portal Spraytec no ar');
+app.log.info({ banco: b.tipo, migracoes: aplicadas, demo: modoDemo(), meta: metaConfigurado(), drive: driveConectado() ? 'conectado' : driveConfigurado() ? 'configurado' : 'sem chave' }, 'Portal Spraytec no ar');
 // Coleta do Meta: a primeira meio minuto depois de subir, depois de hora em hora.
 if (metaConfigurado()) {
   const coletar = () => coletarMeta(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));

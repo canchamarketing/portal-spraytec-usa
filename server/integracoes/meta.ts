@@ -6,6 +6,7 @@
 // a cada coleta. A cópia permanente de fotos e vídeos fica no Drive.
 import type { Consulta } from '../db.ts';
 import { hojeBR } from '../dominio.ts';
+import { driveConectado, salvarArquivo } from './drive.ts';
 
 const BASE = () => (process.env.META_GRAPH_URL || 'https://graph.facebook.com') + '/' + (process.env.META_VERSAO || 'v23.0');
 export const metaConfigurado = () => !!process.env.META_TOKEN;
@@ -102,7 +103,8 @@ async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
   // Stories somem em 24 h: são lidos a cada coleta, enquanto estão no ar, e ficam guardados aqui.
   const stories = await todas(ig.id + '/stories', { fields: 'id,media_type,permalink,timestamp,media_url,thumbnail_url', limit: 50 }, 100);
   for (const s of stories) await gravar(q, 'ig', 'story', s.id, { ...s, metricas: await insights(s.id, 'story', IG_STORY), metricas_em: new Date().toISOString() });
-  if (!completa) return { stories: stories.length };
+  const guardados = await guardarStories(q, stories);
+  if (!completa) return { stories: stories.length, ...guardados };
   const media = await todas(ig.id + '/media', { fields: 'id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count,media_url,thumbnail_url', limit: 50 }, 400);
   const { rows } = await q.query<{ id: string }>(`select id from metricas where fonte='ig' and tipo='post' and dados ? 'metricas'`);
   const jaTem = new Set(rows.map((r) => r.id));
@@ -115,7 +117,32 @@ async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
     if (ler) lidos++;
     await gravar(q, 'ig', 'post', m.id, { ...m, ...extra });
   }
-  return { stories: stories.length, posts: media.length, metricasLidas: lidos };
+  return { stories: stories.length, ...guardados, posts: media.length, metricasLidas: lidos };
+}
+
+// Cópia de cada story no Drive (pasta Stories/AAAA-MM), feita uma vez enquanto ele está no ar: o link do
+// Instagram vence dias depois. Falha aqui não atrapalha a coleta; tenta de novo na próxima hora.
+const partesBR = (d: Date) => Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map((p) => [p.type, p.value]));
+async function guardarStories(q: Consulta, stories: any[]) {
+  if (!driveConectado() || !stories.length) return {};
+  const { rows } = await q.query<{ id: string }>(`select id from metricas where fonte='ig' and tipo='story' and dados ? 'drive'`);
+  const ja = new Set(rows.map((r) => r.id));
+  let salvos = 0, falhas = 0;
+  for (const s of stories) {
+    const url = s.media_url || s.thumbnail_url;
+    if (ja.has(s.id) || !url) continue;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(60e3) });
+      if (!r.ok) { falhas++; continue; }
+      const tipo = (r.headers.get('content-type') || (s.media_type === 'VIDEO' && s.media_url ? 'video/mp4' : 'image/jpeg')).split(';')[0];
+      const p = partesBR(new Date(String(s.timestamp).replace(/([+-]dd)(dd)$/, '$1:$2')));
+      const ext = tipo.includes('mp4') ? 'mp4' : tipo.includes('png') ? 'png' : 'jpg';
+      const arq = await salvarArquivo(q, ['Stories', `${p.year}-${p.month}`], `${p.year}-${p.month}-${p.day} ${p.hour}h${p.minute} story ${String(s.id).slice(-6)}.${ext}`, tipo, Buffer.from(await r.arrayBuffer()));
+      await gravar(q, 'ig', 'story', s.id, { drive: arq.id, drive_tipo: arq.tipo });
+      salvos++;
+    } catch { falhas++; }
+  }
+  return salvos || falhas ? { storiesNoDrive: salvos, ...(falhas ? { storiesSemCopia: falhas } : {}) } : {};
 }
 
 // ---------- Página do Facebook ----------

@@ -5,6 +5,7 @@ import {
   type Papel, type Usuario,
 } from './dominio.ts';
 import type { Estado } from './estado.ts';
+import { envioDe } from './integracoes/drive.ts';
 
 export type Pessoa = { id: string; nome: string; papel: string };
 export type Ctx = { e: Estado; u: Usuario; d: any; hoje: string; agora: string; pessoas: Pessoa[] };
@@ -168,16 +169,57 @@ function enviarPauta(c: Ctx, p: any) {
 function enviarPeca(c: Ctx, p: any) {
   if (p.status !== 'producao' || ehProducao(p)) throw new ErroAcao('Só posts e e-mails em produção vão para aprovação.');
   p.status = 'aprovacao'; p.prazo = addBiz(c.hoje, 2); hist(c, p, 'Enviado para aprovação');
+  marcarVersaoEnviada(p);
 }
 function reenviar(c: Ctx, p: any) {
   if (p.status !== 'ajuste') throw new ErroAcao('Só itens com ajuste pedido recebem nova versão.');
   if (p.formato === 'plano') throw new ErroAcao('Para o plano, edite o quadro e envie de novo.');
   const pauta = p.etapaAjuste === 'pauta';
   p.status = pauta ? 'pauta_aprovacao' : 'aprovacao'; p.prazo = addBiz(c.hoje, 2); delete p.etapaAjuste;
-  if (!pauta) p.rodada = Math.min(3, (p.rodada || 1) + 1);
+  if (!pauta) { p.rodada = Math.min(3, (p.rodada || 1) + 1); marcarVersaoEnviada(p); }
   hist(c, p, pauta ? 'Pauta ajustada e reenviada para aprovação' : `Nova versão (rodada ${p.rodada}) enviada para aprovação`);
   return pauta;
 }
+// Peças no Drive: a versão que foi para aprovação fica marcada; o próximo envio abre a versão seguinte.
+const vivos = (l: any[] | undefined) => (l || []).filter((a) => !a.removido);
+function marcarVersaoEnviada(p: any) { if (vivos(p.arquivos).length) p.vEnviada = p.vPeca || 1; }
+
+// Onde cada arquivo fica no Drive e quem pode anexar. É conferido antes de o envio começar e de novo ao registrar.
+export function destinoArquivo(e: Estado, u: Usuario, ref: string): string[] {
+  const i = ref.indexOf(':'), k = ref.slice(0, i), id = ref.slice(i + 1);
+  const papel = (ok: string[], msg: string) => { if (!ok.includes(u.papel)) throw new ErroAcao(msg); };
+  if (k === 'p') {
+    const p = e.posts.find((x) => x.id === id); if (!p) throw new ErroAcao('Item não encontrado. Atualize a página.');
+    papel(['cancha'], 'Só a Cancha anexa peças aos posts.');
+    if (p.formato === 'plano') throw new ErroAcao('O plano de mídia não recebe arquivos.');
+    if (EM_APROVACAO.includes(p.status)) throw new ErroAcao('Este item está em aprovação. Espere a resposta da Spraytec ou registre o ajuste antes de enviar outra versão.');
+    return p.pastaDrive || ['Posts', p.date ? p.date.slice(0, 7) : 'Sem data', `${p.date || 'sem data'} ${p.titulo} (${p.id})`];
+  }
+  if (k === 'v') {
+    const v = e.videos.find((x) => x.id === id); if (!v) throw new ErroAcao('Vídeo não encontrado. Atualize a página.');
+    papel(['cancha', 'produtora'], 'Só a Cancha e a produtora anexam arquivos aos vídeos.');
+    return v.pastaDrive || ['Vídeos', `${v.titulo} (${v.id})`];
+  }
+  if (k === 'd') {
+    const d = e.demandas.find((x) => x.id === id); if (!d) throw new ErroAcao('Demanda não encontrada. Atualize a página.');
+    papel(['cancha', 'operacao'], 'Só a Cancha e a Operação Spraytec anexam arquivos às demandas.');
+    return d.pastaDrive || ['Demandas', String(d.data || '').slice(0, 7) || 'Sem data', `${d.t} (${d.id})`];
+  }
+  if (k === 'm') {
+    papel(['cancha', 'operacao'], 'Só a Cancha e a Operação Spraytec enviam materiais.');
+    const pasta = id.trim().slice(0, 60); if (!pasta) throw new ErroAcao('Escolha a pasta do material.');
+    return ['Materiais', pasta];
+  }
+  throw new ErroAcao('Destino do arquivo inválido.');
+}
+function alvoArquivo(c: Ctx, ref: string): { x: any; nome: string } {
+  const i = ref.indexOf(':'), k = ref.slice(0, i), id = ref.slice(i + 1);
+  if (k === 'p') { const p = post(c, id); return { x: p, nome: `"${p.titulo}"` }; }
+  if (k === 'v') { const v = video(c, id); return { x: v, nome: `o vídeo "${v.titulo}"` }; }
+  if (k === 'd') { const d = demanda(c, id); return { x: d, nome: `a demanda "${d.t}"` }; }
+  return { x: null, nome: `Materiais › ${id}` };
+}
+
 const etapaDaPauta = (p: any) => temPauta(p) && (p.status === 'pauta' || p.status === 'espera' || (p.status === 'ajuste' && p.etapaAjuste === 'pauta'));
 const EDITAVEL = ['pauta', 'producao', 'ajuste', 'espera'];
 const igual = (a: unknown, b: unknown) => String(a ?? '').replace(/\r\n?/g, '\n').trim() === String(b ?? '').replace(/\r\n?/g, '\n').trim();
@@ -550,6 +592,43 @@ export const ACOES: Record<string, Def> = {
   'demanda-data': {
     papeis: MC,
     fn: (c) => { const dm = demanda(c, c.d.id); if (!isoValida(c.d.data)) throw new ErroAcao('Data inválida.'); const was = dm.data; dm.data = c.d.data; return { resumo: `Mudou a data de "${dm.t}" de ${fmt(was)} para ${fmt(dm.data)}` }; },
+  },
+// Arquivos (Google Drive). O arquivo já está no Drive quando esta ação roda: ela registra no item.
+  'arquivo-anexar': {
+    papeis: ['cancha', 'operacao', 'produtora'],
+    fn: (c) => {
+      const ev = envioDe(String(c.d.envio || ''), c.u.id);
+      if (!ev || !ev.arquivo || ev.usado) throw new ErroAcao('Envio não encontrado. Mande o arquivo de novo.');
+      const caminho = destinoArquivo(c.e, c.u, ev.ref);
+      const a: any = { ...ev.arquivo, por: c.u.nome, porId: c.u.id, q: c.agora, em: new Date().toISOString() };
+      const { x, nome } = alvoArquivo(c, ev.ref);
+      ev.usado = true;
+      if (!x) { c.e.materiais.push({ ...a, pasta: caminho[1] }); return { resumo: `Enviou "${a.nome}" para ${nome}` }; }
+      x.pastaDrive = x.pastaDrive || caminho;
+      if (ev.ref.startsWith('p:')) {
+        const v = x.vPeca || 1, nova = (x.vEnviada || 0) >= v && vivos(x.arquivos).length > 0;
+        x.vPeca = nova ? v + 1 : v; a.v = x.vPeca;
+      }
+      if (ev.ref.startsWith('v:')) a.etapa = x.stage;
+      x.arquivos = [...(x.arquivos || []), a];
+      hist(c, x, `Arquivo enviado: ${a.nome}${a.v ? ` (versão ${a.v})` : ''}`);
+      return { resumo: `Enviou "${a.nome}" para ${nome}` };
+    },
+  },
+  'arquivo-remover': {
+    papeis: ['cancha', 'operacao', 'produtora'],
+    fn: (c) => {
+      const ref = String(c.d.ref || ''), id = String(c.d.id || '');
+      const { x, nome } = ref.startsWith('m:') ? { x: null, nome: 'os materiais' } : alvoArquivo(c, ref);
+      const lista = x ? x.arquivos || [] : c.e.materiais;
+      const a = lista.find((y: any) => y.id === id && !y.removido);
+      if (!a) throw new ErroAcao('Arquivo não encontrado. Atualize a página.');
+      if (c.u.papel !== 'cancha' && a.porId !== c.u.id) throw new ErroAcao('Só quem enviou o arquivo ou a Cancha pode tirá-lo do portal.');
+      if (ref.startsWith('p:') && (a.v || 1) <= (x.vEnviada || 0)) throw new ErroAcao('Esta versão já foi para aprovação e fica guardada no histórico.');
+      a.removido = true; a.removidoPor = c.u.nome; a.removidoEm = c.agora;
+      if (x) hist(c, x, `Arquivo tirado do portal: ${a.nome} (continua no Drive)`);
+      return { resumo: `Tirou "${a.nome}" de ${nome} (o arquivo continua no Drive)` };
+    },
   },
   'demanda-feito': {
     papeis: MC,

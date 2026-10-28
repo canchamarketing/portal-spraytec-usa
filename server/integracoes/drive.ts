@@ -1,0 +1,211 @@
+// Integração com o Google Drive da Spraytec. Fotos, vídeos e peças ficam no Drive; o portal guarda só a
+// identificação de cada arquivo (nas ações, com quem enviou e quando) e mostra o arquivo para quem pode vê-lo.
+// Permissão drive.file: o portal só enxerga o que ele mesmo criou, dentro da pasta "Portal Spraytec".
+// A autorização (refresh token) fica cifrada no banco com DRIVE_CHAVE, que só existe no .env do servidor.
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import type { Consulta } from '../db.ts';
+
+const G = () => process.env.GOOGLE_API_URL; // só nos testes (Drive simulado)
+const TOKEN_URL = () => (G() || 'https://oauth2.googleapis.com') + '/token';
+const REVOKE_URL = () => (G() || 'https://oauth2.googleapis.com') + '/revoke';
+const DRIVE = () => (G() || 'https://www.googleapis.com') + '/drive/v3';
+const UPLOAD = () => (G() || 'https://www.googleapis.com') + '/upload/drive/v3';
+const AUTH_URL = process.env.GOOGLE_AUTH_URL || 'https://accounts.google.com/o/oauth2/v2/auth'; // simulado nos testes
+export const ESCOPO = 'https://www.googleapis.com/auth/drive.file';
+const RAIZ = 'Portal Spraytec';
+const PASTA = 'application/vnd.google-apps.folder';
+export const PARTE = 8 * 1024 * 1024; // pedaço de cada envio (múltiplo de 256 KB, exigência do Google)
+
+export class ErroDrive extends Error {
+  status: number;
+  constructor(msg: string, status = 0) { super(msg); this.status = status; }
+}
+
+export const driveConfigurado = () => !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && /^[0-9a-f]{64}$/i.test(process.env.DRIVE_CHAVE || ''));
+
+// ---------- autorização guardada cifrada ----------
+const chave = () => Buffer.from(process.env.DRIVE_CHAVE!, 'hex');
+function cifrar(t: string) {
+  const iv = randomBytes(12), c = createCipheriv('aes-256-gcm', chave(), iv);
+  const x = Buffer.concat([c.update(t, 'utf8'), c.final()]);
+  return [iv, c.getAuthTag(), x].map((b) => b.toString('base64')).join('.');
+}
+function decifrar(s: string) {
+  const [iv, tag, x] = s.split('.').map((v) => Buffer.from(v, 'base64'));
+  const d = createDecipheriv('aes-256-gcm', chave(), iv); d.setAuthTag(tag);
+  return Buffer.concat([d.update(x), d.final()]).toString('utf8');
+}
+
+type Conexao = { refresh: string; conta: string; nome: string };
+let conexao: Conexao | null = null;
+let acesso: { token: string; ate: number } | null = null;
+export const driveConectado = () => (conexao ? { conta: conexao.conta, nome: conexao.nome } : null);
+
+export async function carregarDrive(q: Consulta) {
+  conexao = null; acesso = null;
+  if (!driveConfigurado()) return;
+  const r = (await q.query<{ valor: string }>(`select valor from segredos where nome='drive'`)).rows[0];
+  if (r) try { conexao = JSON.parse(decifrar(r.valor)); } catch { conexao = null; }
+}
+
+// ---------- conexão (OAuth) ----------
+export function urlAutorizacao(retorno: string, estado: string) {
+  const u = new URL(AUTH_URL);
+  u.search = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID!, redirect_uri: retorno, response_type: 'code', scope: ESCOPO,
+    access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'false', state: estado,
+  }).toString();
+  return u.toString();
+}
+
+async function pedirToken(params: Record<string, string>) {
+  const r = await fetch(TOKEN_URL(), {
+    method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID!, client_secret: process.env.GOOGLE_CLIENT_SECRET!, ...params }),
+    signal: AbortSignal.timeout(30e3),
+  });
+  const j: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ErroDrive(j.error_description || j.error || 'O Google recusou a autorização.', r.status);
+  return j;
+}
+
+export async function concluirAutorizacao(q: Consulta, codigo: string, retorno: string) {
+  const t = await pedirToken({ code: codigo, redirect_uri: retorno, grant_type: 'authorization_code' });
+  if (!t.refresh_token) throw new ErroDrive('O Google não devolveu a autorização permanente. Tente conectar de novo.');
+  if (!String(t.scope || '').split(' ').includes(ESCOPO)) throw new ErroDrive('A permissão de acesso ao Drive não foi marcada. Tente de novo e marque a caixa do Drive.');
+  acesso = { token: t.access_token, ate: Date.now() + (t.expires_in - 60) * 1000 };
+  const sobre = await api('GET', `${DRIVE()}/about?fields=user(emailAddress,displayName)`, {}, t.access_token);
+  const nova: Conexao = { refresh: t.refresh_token, conta: sobre.user?.emailAddress || '', nome: sobre.user?.displayName || '' };
+  // Outra conta: as pastas criadas na conta anterior não valem nesta.
+  if (conexao && conexao.conta !== nova.conta) await q.query('delete from drive_pastas');
+  await q.query(`insert into segredos (nome, valor) values ('drive', $1) on conflict (nome) do update set valor=excluded.valor, atualizado_em=now()`, [cifrar(JSON.stringify(nova))]);
+  conexao = nova;
+  await pasta(q, []);
+  return { conta: nova.conta, nome: nova.nome };
+}
+
+export async function desconectarDrive(q: Consulta) {
+  const r = conexao?.refresh;
+  await q.query(`delete from segredos where nome='drive'`);
+  conexao = null; acesso = null;
+  if (r) await fetch(REVOKE_URL() + '?token=' + encodeURIComponent(r), { method: 'POST', signal: AbortSignal.timeout(15e3) }).catch(() => {});
+}
+
+async function token(): Promise<string> {
+  if (!conexao) throw new ErroDrive('O Google Drive não está conectado.', 503);
+  if (acesso && acesso.ate > Date.now()) return acesso.token;
+  try {
+    const t = await pedirToken({ refresh_token: conexao.refresh, grant_type: 'refresh_token' });
+    acesso = { token: t.access_token, ate: Date.now() + (t.expires_in - 60) * 1000 };
+    return acesso.token;
+  } catch (e) {
+    if (e instanceof ErroDrive && e.status === 400) throw new ErroDrive('A autorização do Drive foi retirada ou venceu. Conecte o Drive de novo.', 503);
+    throw e;
+  }
+}
+
+async function chamar(metodo: string, url: string, o: { json?: any; headers?: Record<string, string>; body?: any } = {}, tk?: string) {
+  const h: Record<string, string> = { authorization: 'Bearer ' + (tk || (await token())), ...(o.headers || {}) };
+  let body = o.body;
+  if (o.json !== undefined) { h['content-type'] = 'application/json; charset=UTF-8'; body = JSON.stringify(o.json); }
+  return fetch(url, { method: metodo, headers: h, body, signal: AbortSignal.timeout(120e3), redirect: 'manual' });
+}
+async function api(metodo: string, url: string, o: { json?: any; headers?: Record<string, string> } = {}, tk?: string) {
+  const r = await chamar(metodo, url, o, tk);
+  const j: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ErroDrive(j.error?.message || `O Google Drive respondeu ${r.status}.`, r.status);
+  return j;
+}
+
+// ---------- pastas ----------
+const limpo = (s: string) => s.replace(/[\\/\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'sem nome';
+// Garante a pasta "Portal Spraytec/<caminho...>" e devolve o id. Os ids ficam guardados no banco.
+export async function pasta(q: Consulta, caminho: string[]): Promise<string> {
+  const partes = caminho.map(limpo);
+  const chaveDe = (n: number) => '/' + partes.slice(0, n).join('/');
+  let pai = '';
+  for (let n = 0; n <= partes.length; n++) {
+    const k = chaveDe(n);
+    const r = (await q.query<{ id: string }>('select id from drive_pastas where caminho=$1', [k])).rows[0];
+    if (r) { pai = r.id; continue; }
+    const f = await api('POST', `${DRIVE()}/files?fields=id`, { json: { name: n === 0 ? RAIZ : partes[n - 1], mimeType: PASTA, parents: [n === 0 ? 'root' : pai] } });
+    await q.query('insert into drive_pastas (caminho, id) values ($1,$2) on conflict (caminho) do update set id=excluded.id', [k, f.id]);
+    pai = f.id;
+  }
+  return pai;
+}
+
+// ---------- envio em partes (o navegador manda pedaços de 8 MB; o servidor repassa ao Google) ----------
+export type Envio = {
+  token: string; usuario: string; ref: string; nome: string; tipo: string; tam: number; url: string;
+  recebido: number; criado: number; arquivo?: { id: string; nome: string; tipo: string; tam: number }; usado?: boolean;
+};
+const envios = new Map<string, Envio>();
+setInterval(() => { const lim = Date.now() - 24 * 3600e3; for (const [k, v] of envios) if (v.criado < lim) envios.delete(k); }, 3600e3).unref();
+
+export async function iniciarEnvio(q: Consulta, usuario: string, ref: string, caminho: string[], nome: string, tipo: string, tam: number) {
+  const abrir = async () => {
+    const pai = await pasta(q, caminho);
+    const r = await chamar('POST', `${UPLOAD()}/files?uploadType=resumable&fields=id,name,mimeType,size`, {
+      json: { name: limpo(nome), parents: [pai], mimeType: tipo }, headers: { 'x-upload-content-type': tipo, 'x-upload-content-length': String(tam) },
+    });
+    if (r.status === 404) return null;
+    if (!r.ok) { const j: any = await r.json().catch(() => ({})); throw new ErroDrive(j.error?.message || `O Google Drive respondeu ${r.status}.`, r.status); }
+    return r.headers.get('location');
+  };
+  let url = await abrir();
+  // A pasta guardada sumiu do Drive (apagada à mão): esquece o caminho e cria de novo.
+  if (url === null) { await q.query(`delete from drive_pastas where caminho like '/%'`); url = await abrir(); }
+  if (!url) throw new ErroDrive('O Google Drive não abriu o envio. Tente de novo.');
+  const e: Envio = { token: randomBytes(18).toString('base64url'), usuario, ref, nome: limpo(nome), tipo, tam, url, recebido: 0, criado: Date.now() };
+  envios.set(e.token, e);
+  return e;
+}
+export const envioDe = (token: string, usuario: string) => { const e = envios.get(token); return e && e.usuario === usuario ? e : null; };
+
+export async function enviarParte(e: Envio, inicio: number, pedaco: Buffer) {
+  if (inicio !== e.recebido) throw new ErroDrive('Parte fora de ordem.', 409);
+  const fim = inicio + pedaco.length - 1;
+  if (fim >= e.tam) throw new ErroDrive('O arquivo é maior do que o informado.', 400);
+  const r = await fetch(e.url, {
+    method: 'PUT', headers: { 'content-range': `bytes ${inicio}-${fim}/${e.tam}` }, body: new Uint8Array(pedaco), signal: AbortSignal.timeout(300e3), redirect: 'manual',
+  });
+  if (r.status === 308) { const rg = r.headers.get('range'); e.recebido = rg ? Number(rg.split('-')[1]) + 1 : 0; return e; }
+  const j: any = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ErroDrive(j.error?.message || `O Google Drive respondeu ${r.status} no envio.`, r.status);
+  e.recebido = e.tam;
+  e.arquivo = { id: j.id, nome: j.name || e.nome, tipo: j.mimeType || e.tipo, tam: Number(j.size || e.tam) };
+  return e;
+}
+
+// Arquivo pequeno de uma vez (stories que o portal guarda sozinho).
+export async function salvarArquivo(q: Consulta, caminho: string[], nome: string, tipo: string, dados: Buffer) {
+  const e = await iniciarEnvio(q, 'sistema', 'stories', caminho, nome, tipo, dados.length);
+  for (let i = 0; i < dados.length; i += PARTE) await enviarParte(e, i, dados.subarray(i, i + PARTE));
+  envios.delete(e.token);
+  return e.arquivo!;
+}
+
+// ---------- leitura (o portal mostra o arquivo; ninguém precisa de acesso ao Drive) ----------
+export async function abrirConteudo(id: string, range?: string) {
+  const r = await chamar('GET', `${DRIVE()}/files/${encodeURIComponent(id)}?alt=media`, { headers: range ? { range } : {} });
+  if (!r.ok && r.status !== 206) throw new ErroDrive(r.status === 404 ? 'Arquivo não encontrado no Drive.' : `O Google Drive respondeu ${r.status}.`, r.status);
+  return r;
+}
+const miniaturas = new Map<string, { tipo: string; dados: Buffer; ate: number }>();
+export async function miniatura(id: string, tam: number) {
+  const k = id + ':' + tam, c = miniaturas.get(k);
+  if (c && c.ate > Date.now()) return c;
+  const m = await api('GET', `${DRIVE()}/files/${encodeURIComponent(id)}?fields=thumbnailLink,mimeType`);
+  if (!m.thumbnailLink) return null;
+  const r = await chamar('GET', String(m.thumbnailLink).replace(/=s\d+$/, '=s' + tam));
+  if (!r.ok) return null;
+  const v = { tipo: r.headers.get('content-type') || 'image/jpeg', dados: Buffer.from(await r.arrayBuffer()), ate: Date.now() + 3600e3 };
+  if (miniaturas.size > 400) miniaturas.delete(miniaturas.keys().next().value!);
+  miniaturas.set(k, v);
+  return v;
+}
+export async function situacaoDrive() {
+  const s = await api('GET', `${DRIVE()}/about?fields=user(emailAddress),storageQuota(limit,usage)`);
+  return { conta: s.user?.emailAddress, usado: Number(s.storageQuota?.usage || 0), limite: s.storageQuota?.limit ? Number(s.storageQuota.limit) : null };
+}
