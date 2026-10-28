@@ -123,10 +123,13 @@ async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
 // Cópia de cada story no Drive (pasta Stories/AAAA-MM), feita uma vez enquanto ele está no ar: o link do
 // Instagram vence dias depois. Falha aqui não atrapalha a coleta; tenta de novo na próxima hora.
 const partesBR = (d: Date) => Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map((p) => [p.type, p.value]));
-async function guardarStories(q: Consulta, stories: any[]) {
-  if (!driveConectado() || !stories.length) return {};
+// Também tenta os stories dos últimos 7 dias que ficaram sem cópia (já fora do ar, mas o link ainda vale alguns dias).
+async function guardarStories(q: Consulta, noAr: any[]) {
+  if (!driveConectado()) return {};
   const { rows } = await q.query<{ id: string }>(`select id from metricas where fonte='ig' and tipo='story' and dados ? 'drive'`);
   const ja = new Set(rows.map((r) => r.id));
+  const antigos = (await q.query<{ dados: any }>(`select dados from metricas where fonte='ig' and tipo='story' and not dados ? 'drive' and atualizado_em > now() - interval '7 days'`)).rows.map((r) => r.dados);
+  const stories = [...noAr, ...antigos.filter((x) => !noAr.some((s) => s.id === x.id))];
   let salvos = 0, falhas = 0;
   for (const s of stories) {
     const url = s.media_url || s.thumbnail_url;
