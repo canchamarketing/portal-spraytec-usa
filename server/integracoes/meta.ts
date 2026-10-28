@@ -97,7 +97,7 @@ const IG_POST = ['reach', 'views', 'likes', 'comments', 'saved', 'shares', 'tota
 const IG_STORY = ['reach', 'views', 'replies', 'shares', 'total_interactions', 'follows', 'profile_visits'];
 
 async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
-  const perfil = await graph(ig.id, { fields: 'username,name,followers_count,follows_count,media_count,biography' });
+  const perfil = await graph(ig.id, { fields: 'username,name,followers_count,follows_count,media_count,biography,profile_picture_url' });
   await gravar(q, 'ig', 'perfil', 'atual', perfil);
   await gravar(q, 'ig', 'dia', hojeBR(), { seguidores: perfil.followers_count, publicacoes: perfil.media_count });
   // Stories somem em 24 h: são lidos a cada coleta, enquanto estão no ar, e ficam guardados aqui.
@@ -126,33 +126,50 @@ const partesBR = (d: Date) => Object.fromEntries(new Intl.DateTimeFormat('en-CA'
 // Também tenta os stories dos últimos 7 dias que ficaram sem cópia (já fora do ar, mas o link ainda vale alguns dias).
 async function guardarStories(q: Consulta, noAr: any[]) {
   if (!driveConectado()) return {};
-  const { rows } = await q.query<{ id: string }>(`select id from metricas where fonte='ig' and tipo='story' and dados ? 'drive'`);
-  const ja = new Set(rows.map((r) => r.id));
-  const antigos = (await q.query<{ dados: any }>(`select dados from metricas where fonte='ig' and tipo='story' and not dados ? 'drive' and atualizado_em > now() - interval '7 days'`)).rows.map((r) => r.dados);
-  const stories = [...noAr, ...antigos.filter((x) => !noAr.some((s) => s.id === x.id))];
+  // Story em vídeo guarda também a capa (imagem), para a miniatura no portal não depender do Google gerar uma.
+  const { rows } = await q.query<{ id: string; tipo: string; capa: boolean }>(
+    `select id, dados->>'drive_tipo' as tipo, dados ? 'drive_capa' as capa from metricas where fonte='ig' and tipo='story' and dados ? 'drive'`);
+  const feito = new Map(rows.map((r) => [r.id, r]));
+  const pendentes = (await q.query<{ dados: any }>(
+    `select dados from metricas where fonte='ig' and tipo='story' and atualizado_em > now() - interval '7 days'
+       and (not dados ? 'drive' or (dados->>'drive_tipo' like 'video/%' and not dados ? 'drive_capa'))`)).rows.map((r) => r.dados);
+  const stories = [...noAr, ...pendentes.filter((x) => !noAr.some((s) => s.id === x.id))];
   let salvos = 0, falhas = 0;
   for (const s of stories) {
-    const url = s.media_url || s.thumbnail_url;
-    if (ja.has(s.id) || !url) continue;
+    const f = feito.get(s.id);
+    const p = partesBR(new Date(String(s.timestamp).replace(/([+-]\d\d)(\d\d)$/, '$1:$2')));
+    const pasta = ['Stories', `${p.year}-${p.month}`], base = `${p.year}-${p.month}-${p.day} ${p.hour}h${p.minute} story ${String(s.id).slice(-6)}`;
     try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(60e3) });
-      if (!r.ok) { falhas++; continue; }
-      const tipo = (r.headers.get('content-type') || (s.media_type === 'VIDEO' && s.media_url ? 'video/mp4' : 'image/jpeg')).split(';')[0];
-      const p = partesBR(new Date(String(s.timestamp).replace(/([+-]dd)(dd)$/, '$1:$2')));
-      const ext = tipo.includes('mp4') ? 'mp4' : tipo.includes('png') ? 'png' : 'jpg';
-      const arq = await salvarArquivo(q, ['Stories', `${p.year}-${p.month}`], `${p.year}-${p.month}-${p.day} ${p.hour}h${p.minute} story ${String(s.id).slice(-6)}.${ext}`, tipo, Buffer.from(await r.arrayBuffer()));
-      await gravar(q, 'ig', 'story', s.id, { drive: arq.id, drive_tipo: arq.tipo });
-      salvos++;
+      if (!f) {
+        const url = s.media_url || s.thumbnail_url;
+        if (!url) continue;
+        const arq = await copiar(q, url, pasta, base, s.media_type === 'VIDEO' && s.media_url ? 'video/mp4' : 'image/jpeg');
+        if (!arq) { falhas++; continue; }
+        const extra: any = {};
+        if (arq.tipo.startsWith('video/') && s.thumbnail_url) { const c = await copiar(q, s.thumbnail_url, pasta, base + ' capa', 'image/jpeg'); if (c) extra.drive_capa = c.id; }
+        await gravar(q, 'ig', 'story', s.id, { drive: arq.id, drive_tipo: arq.tipo, ...extra });
+        salvos++;
+      } else if (f.tipo?.startsWith('video/') && !f.capa && s.thumbnail_url) {
+        const c = await copiar(q, s.thumbnail_url, pasta, base + ' capa', 'image/jpeg');
+        if (c) await gravar(q, 'ig', 'story', s.id, { drive_capa: c.id });
+      }
     } catch { falhas++; }
   }
   return salvos || falhas ? { storiesNoDrive: salvos, ...(falhas ? { storiesSemCopia: falhas } : {}) } : {};
+}
+async function copiar(q: Consulta, url: string, pasta: string[], base: string, padrao: string) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(60e3) });
+  if (!r.ok) return null;
+  const tipo = (r.headers.get('content-type') || padrao).split(';')[0];
+  const ext = tipo.includes('mp4') ? 'mp4' : tipo.includes('png') ? 'png' : 'jpg';
+  return salvarArquivo(q, pasta, `${base}.${ext}`, tipo, Buffer.from(await r.arrayBuffer()));
 }
 
 // ---------- Página do Facebook ----------
 const FB_POST = ['post_impressions_unique', 'post_clicks'];
 async function coletarFB(q: Consulta, pg: { id: string; nome?: string; token?: string }, completa: boolean) {
   const t = pg.token || process.env.META_TOKEN || '';
-  const perfil = await graph(pg.id, { fields: 'name,followers_count,fan_count,link' }, t);
+  const perfil = await graph(pg.id, { fields: 'name,followers_count,fan_count,link,picture.width(320).height(320){url},cover{source}' }, t);
   await gravar(q, 'fb', 'perfil', 'atual', perfil);
   await gravar(q, 'fb', 'dia', hojeBR(), { seguidores: perfil.followers_count ?? perfil.fan_count });
   if (!completa) return { pagina: pg.nome };
