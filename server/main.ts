@@ -457,8 +457,9 @@ async function arquivoVisivel(u: Usuario, id: string): Promise<any> {
   const m = (e.materiais || []).find((x: any) => x.id === id);
   if (m) return m;
   if (u.papel !== 'produtora') {
-    const s = (await b.query(`select dados from metricas where fonte='ig' and tipo='story' and dados->>'drive'=$1`, [id])).rows[0];
-    if (s) return { nome: 'story', tipo: s.dados.drive_tipo };
+    // Cópia do story (vídeo ou imagem) e, nos vídeos, a capa guardada à parte.
+    const s = (await b.query(`select dados from metricas where fonte='ig' and tipo='story' and (dados->>'drive'=$1 or dados->>'drive_capa'=$1)`, [id])).rows[0];
+    if (s) return s.dados.drive === id ? { nome: 'story', tipo: s.dados.drive_tipo } : { nome: 'capa do story', tipo: 'image/jpeg' };
   }
   return null;
 }
