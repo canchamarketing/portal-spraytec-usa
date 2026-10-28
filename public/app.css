@@ -942,3 +942,14 @@ button.hnum:hover{box-shadow:0 0 0 1px var(--accent-ink)}
 .metaaviso{border-left:4px solid var(--warn)}
 .metaaviso ul{margin:6px 0 8px;padding-left:18px;font-size:13px}
 a.igt{color:#15170E;text-decoration:none}
+.exlinha{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--muted);margin:0 0 10px}
+.igt .igimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.igt .igimg~.igcap{display:none}
+.igt small{z-index:1}
+.ring i{overflow:hidden}
+.ringimg{width:100%;height:100%;object-fit:cover;display:block}
+.fbimg img{width:100%;display:block;max-height:420px;object-fit:cover}
+.pvwrap{position:relative}
+.pvwrap .pvimg,.adimg .pvimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;z-index:1}
+.adimg{position:relative;overflow:hidden}
+.adimg .cnt{z-index:2}

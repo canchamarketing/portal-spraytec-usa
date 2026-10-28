@@ -66,7 +66,7 @@ app.addHook('onSend', async (req, rep, payload) => {
   rep.header('X-Frame-Options', 'DENY');
   rep.header('Referrer-Policy', 'same-origin');
   rep.header('Content-Security-Policy',
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.cdninstagram.com https://*.fbcdn.net; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   return payload;
 });
 // Pedidos que alteram dados precisam vir do próprio portal.

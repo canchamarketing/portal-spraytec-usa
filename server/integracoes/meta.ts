@@ -2,6 +2,8 @@
 // A chave (META_TOKEN no .env) é de um usuário do sistema do portfólio da Cancha: não expira e não
 // depende do login de ninguém. Página, Instagram e conta de anúncios são achados pela própria chave;
 // se houver mais de um, META_PAGINA_ID e META_CONTA_ANUNCIOS dizem qual usar.
+// Imagens: só os links do Meta (media_url, full_picture...), que vencem em alguns dias e são renovados
+// a cada coleta. A cópia permanente de fotos e vídeos fica no Drive.
 import type { Consulta } from '../db.ts';
 import { hojeBR } from '../dominio.ts';
 
@@ -98,10 +100,10 @@ async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
   await gravar(q, 'ig', 'perfil', 'atual', perfil);
   await gravar(q, 'ig', 'dia', hojeBR(), { seguidores: perfil.followers_count, publicacoes: perfil.media_count });
   // Stories somem em 24 h: são lidos a cada coleta, enquanto estão no ar, e ficam guardados aqui.
-  const stories = await todas(ig.id + '/stories', { fields: 'id,media_type,permalink,timestamp', limit: 50 }, 100);
+  const stories = await todas(ig.id + '/stories', { fields: 'id,media_type,permalink,timestamp,media_url,thumbnail_url', limit: 50 }, 100);
   for (const s of stories) await gravar(q, 'ig', 'story', s.id, { ...s, metricas: await insights(s.id, 'story', IG_STORY), metricas_em: new Date().toISOString() });
   if (!completa) return { stories: stories.length };
-  const media = await todas(ig.id + '/media', { fields: 'id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count', limit: 50 }, 400);
+  const media = await todas(ig.id + '/media', { fields: 'id,caption,media_type,media_product_type,permalink,timestamp,like_count,comments_count,media_url,thumbnail_url', limit: 50 }, 400);
   const { rows } = await q.query<{ id: string }>(`select id from metricas where fonte='ig' and tipo='post' and dados ? 'metricas'`);
   const jaTem = new Set(rows.map((r) => r.id));
   const recente = Date.now() - 60 * 864e5;
@@ -125,11 +127,11 @@ async function coletarFB(q: Consulta, pg: { id: string; nome?: string; token?: s
   await gravar(q, 'fb', 'dia', hojeBR(), { seguidores: perfil.followers_count ?? perfil.fan_count });
   if (!completa) return { pagina: pg.nome };
   const posts = await todas(pg.id + '/posts', {
-    fields: 'id,message,created_time,permalink_url,status_type,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)', limit: 50,
+    fields: 'id,message,created_time,permalink_url,status_type,full_picture,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)', limit: 50,
   }, 300, t);
   const recente = Date.now() - 60 * 864e5;
   for (const p of posts) {
-    const base = { id: p.id, message: p.message, created_time: p.created_time, permalink_url: p.permalink_url, status_type: p.status_type,
+    const base = { id: p.id, message: p.message, created_time: p.created_time, permalink_url: p.permalink_url, status_type: p.status_type, full_picture: p.full_picture,
       reacoes: p.reactions?.summary?.total_count ?? 0, comentarios: p.comments?.summary?.total_count ?? 0, compartilhamentos: p.shares?.count ?? 0 };
     const extra = Date.parse(p.created_time) > recente ? { metricas: await insights(p.id, 'fbpost', FB_POST, t), metricas_em: new Date().toISOString() } : {};
     await gravar(q, 'fb', 'post', p.id, { ...base, ...extra });
@@ -142,7 +144,7 @@ async function coletarAds(q: Consulta) {
   const contas = await todas('me/adaccounts', { fields: 'id,name,account_status,currency', limit: 100 }, 200);
   const conta = escolher(contas, process.env.META_CONTA_ANUNCIOS, 'conta de anúncios', 'META_CONTA_ANUNCIOS');
   const ads = await todas(conta.id + '/ads', {
-    fields: 'id,name,effective_status,created_time,adset{id,name,targeting,optimization_goal,daily_budget,lifetime_budget},campaign{id,name,objective,daily_budget,lifetime_budget},creative{id,title,body,object_type,effective_object_story_id,instagram_permalink_url}',
+    fields: 'id,name,effective_status,created_time,adset{id,name,targeting,optimization_goal,daily_budget,lifetime_budget},campaign{id,name,objective,daily_budget,lifetime_budget},creative{id,title,body,object_type,effective_object_story_id,instagram_permalink_url,image_url,thumbnail_url}',
     limit: 100,
   }, 1000);
   for (const a of ads) await gravar(q, 'ads', 'anuncio', a.id, a);
