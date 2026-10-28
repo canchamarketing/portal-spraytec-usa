@@ -936,3 +936,9 @@ button.hnum:hover{box-shadow:0 0 0 1px var(--accent-ink)}
 .entrarform label{font-size:13px;color:var(--muted)}
 .entrarform .btn{align-self:flex-start;margin-top:4px}
 .entrarform input[readonly]{opacity:.75}
+
+/* dados do Meta */
+.metaok{font-size:12px;margin:0 0 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.metaaviso{border-left:4px solid var(--warn)}
+.metaaviso ul{margin:6px 0 8px;padding-left:18px;font-size:13px}
+a.igt{color:#15170E;text-decoration:none}

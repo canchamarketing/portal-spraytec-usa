@@ -75,6 +75,166 @@ function carregarFonteExemplo(){
 
 
 // LIGAÇÕES entre itens: tudo conversa (post, design, vídeo, e-mail, demanda)
+// DADOS DO META (Instagram, Página e anúncios), coletados pelo servidor. Enquanto uma fonte não tem
+// coleta boa, as telas dela continuam com o exemplo. undefined = carregando; null = indisponível.
+let META;
+const FONTE_NOME={ig:'Instagram',fb:'Facebook',ads:'Anúncios do Meta'};
+const metaTem=f=>!!(META&&META.situacao[f]&&META.situacao[f].ultimoOk);
+const igUser=()=>esc((META&&META.ig.perfil&&META.ig.perfil.username)||'spraytecbr');
+const metaSocial=()=>metaTem('ig')||metaTem('fb');
+function normLink(u){u=String(u||'').trim();if(!u)return '';const ig=u.match(/instagram\.com\/(?:[^/]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/);if(ig)return 'ig:'+ig[1];
+  return u.replace(/[?#].*$/,'').replace(/\/+$/,'').replace(/^https?:\/\/(www\.|m\.)?/,'').toLowerCase()}
+// post do calendário publicado com este link (o "link do post" que a Cancha cola ao publicar)
+let _pubMap=null,_pubRef=null;
+function calDe(x){if(_pubRef!==posts){_pubRef=posts;_pubMap=new Map(posts.filter(p=>p.pubLink).map(p=>[normLink(p.pubLink),p]))}return x.nl?_pubMap.get(x.nl)||null:null}
+function prepMeta(j){
+  const dia=ts=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo'}).format(new Date(ts));
+  const hora=ts=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'}).format(new Date(ts));
+  const tsN=t=>String(t||'').replace(/([+-]\d\d)(\d\d)$/,'$1:$2');
+  const tit=t=>{const l=String(t||'').split('\n').map(x=>x.trim()).find(Boolean)||'';return l.length>90?l.slice(0,88)+'…':l};
+  const P=[];
+  (j.ig.posts||[]).forEach(x=>{const m=x.metricas||{},ts=tsN(x.timestamp);const curt=m.likes??x.like_count??0,com=m.comments??x.comments_count??0,salv=m.saved||0,comp=m.shares||0;
+    const inter=m.total_interactions??(curt+com+salv+comp),alc=m.reach??null;
+    P.push({rede:'ig',id:x.id,link:x.permalink,nl:normLink(x.permalink),ts,date:dia(ts),hora:hora(ts),
+      formato:x.media_product_type==='REELS'?'reel':x.media_type==='CAROUSEL_ALBUM'?'carrossel':x.media_type==='VIDEO'?'video':'post',
+      titulo:tit(x.caption)||'(sem legenda)',legenda:x.caption||'',alc,views:m.views??null,curt,com,salv,comp,inter,eng:alc?inter/alc*100:null})});
+  (j.fb.posts||[]).forEach(x=>{const m=x.metricas||{},ts=tsN(x.created_time);const curt=x.reacoes||0,com=x.comentarios||0,comp=x.compartilhamentos||0,inter=curt+com+comp,alc=m.post_impressions_unique??null;
+    P.push({rede:'fb',id:x.id,link:x.permalink_url,nl:normLink(x.permalink_url),ts,date:dia(ts),hora:hora(ts),formato:/video/.test(x.status_type||'')?'video':'post',
+      titulo:tit(x.message)||'(sem texto)',legenda:x.message||'',alc,views:null,curt,com,salv:0,comp,inter,eng:alc?inter/alc*100:null,cliques:m.post_clicks??null})});
+  const ST=(j.ig.stories||[]).map(s=>{const m=s.metricas||{},ts=tsN(s.timestamp);return {id:s.id,ts,date:dia(ts),hora:hora(ts),tipo:s.media_type,alc:m.reach??null,views:m.views??null,resp:m.replies||0,inter:m.total_interactions||0}});
+  return {conectado:j.conectado,situacao:j.situacao||{},ig:{perfil:j.ig.perfil,dias:j.ig.dias||[]},fb:{perfil:j.fb.perfil,dias:j.fb.dias||[]},posts:P,stories:ST,
+    ads:{anuncios:new Map((j.ads.anuncios||[]).map(a=>[a.id,a])),dias:j.ads.dias||[]}}}
+async function carregarMeta(){const antes=META;let m=null;try{m=prepMeta(await api('/api/metricas'))}catch(_){}META=m;
+  if(!EU||S.drawer||S.pop)return;const ae=document.activeElement;if(antes!==undefined&&ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
+  if(['redes','performance','acervo','hoje','plano'].includes(S.view))render()}
+function metaCarregando(t,sub){return `${head(t,sub)}<p class="muted">Carregando os dados do Meta…</p>`}
+// Aviso de integração parada: sem coleta boa há mais de 24 h (para todos) ou última tentativa com erro (só a Cancha).
+function metaRodape(fontes){if(!META||!fontes.length)return '';const sit=META.situacao,agora=Date.now();
+  const velho=f=>{const s=sit[f];return !s||!s.ultimoOk||agora-Date.parse(s.ultimoOk)>864e5};
+  const atencao=fontes.filter(f=>velho(f)||(isTeam()&&sit[f].erro));
+  const btn=isTeam()?'<button class="linkbtn" data-act="meta-atualizar">Atualizar agora</button>':'';
+  const oks=fontes.map(f=>sit[f]&&sit[f].ultimoOk).filter(Boolean).sort();
+  if(!atencao.length)return `<p class="muted metaok">Dados do Meta, atualizados ${fmtVisita(oks[0])}. ${btn}</p>`;
+  const li=atencao.map(f=>{const s=sit[f]||{};return `<li><b>${FONTE_NOME[f]}</b>: ${!s.ultimoOk?'ainda sem dados':velho(f)?'sem dados novos desde '+fmtVisita(s.ultimoOk)+'. Os números abaixo podem estar desatualizados.':'a última coleta falhou; os números são de '+fmtVisita(s.ultimoOk)+'.'}${s.erro&&isTeam()?`<div class="muted" style="font-size:12px">${esc(s.erro)}</div>`:''}</li>`}).join('');
+  return `<section class="panel metaaviso" role="status"><b>Integração com o Meta precisa de atenção</b><ul>${li}</ul>${btn}</section>`}
+
+// Redes sociais com os dados reais
+function redesIG(){const P=META.ig.perfil||{};const ps=META.posts.filter(x=>x.rede==='ig').sort((a,b)=>b.ts.localeCompare(a.ts));
+  const noAr=META.stories.filter(s=>Date.parse(s.ts)>Date.now()-864e5).sort((a,b)=>a.ts.localeCompare(b.ts));
+  const desde=META.stories.reduce((a,s)=>s.date<a?s.date:a,'9999');const bio=(P.biography||'').split('\n')[0];
+  return `<div class="prof"><span class="avbig">S</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">${esc(P.username||'')}</b><div class="cnts"><span><b>${n(P.media_count||0)}</b> publicações</span><span><b>${fk(P.followers_count||0)}</b> seguidores</span><span><b>${n(P.follows_count||0)}</b> seguindo</span></div><span class="muted" style="font-size:13px">${esc(P.name||'')}${bio?' · '+esc(bio):''}</span></div></div>
+   <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${noAr.length}</h2><span class="muted" style="font-size:12px">Depois de 24 h, ficam guardados no Acervo › Stories.</span></div>
+    ${noAr.length?`<div class="rings">${noAr.map(s=>`<div class="ring"><span><i></i></span>${s.hora}${s.alc!=null?' · '+fk(s.alc)+' de alcance':''}</div>`).join('')}</div>`:'<p class="muted" style="margin:0">Nenhum story no ar.</p>'}
+    ${META.stories.length?`<p style="margin:8px 0 0;font-size:13px">${META.stories.length} stories guardados pelo portal desde ${fmt(desde)}.</p>`:''}</section>
+   <div class="iggrid">${ps.slice(0,30).map(x=>{const c=calDe(x);const tag=c?'div':'a';const at=c?`data-open="${c.id}"`:`href="${esc(x.link)}" target="_blank" rel="noopener"`;
+     return `<${tag} class="igt" style="background:${PILAR_HUE[c&&c.pilar]||'#E3E4D3'}" ${at} title="${esc(x.titulo)}">${x.formato==='carrossel'?'<small>Carrossel</small>':x.formato==='reel'?'<small>▶ Reel</small>':x.formato==='video'?'<small>▶ Vídeo</small>':''}${esc(x.titulo.slice(0,70))}</${tag}>`}).join('')}</div>
+   ${ps.length>30?'<p class="muted" style="font-size:12px">Os 30 posts mais recentes. O histórico completo, com os números, está em Performance › Social.</p>':''}`}
+function redesFB(){const P=META.fb.perfil||{};const ps=META.posts.filter(x=>x.rede==='fb').sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,20);
+  const ag=posts.filter(p=>p.rede==='fb'&&p.status==='agendado'&&p.date).sort((a,b)=>a.date.localeCompare(b.date));const nome=esc(P.name||'Spraytec Brasil');
+  return `<div class="cover"></div><div class="prof" style="margin-top:-40px;padding:0 16px"><span class="avbig" style="box-shadow:0 0 0 4px var(--surface)">S</span><div><b style="font-size:18px">${nome}</b><div class="muted" style="font-size:13px">${n(P.fan_count||0)} curtidas · ${n(P.followers_count||0)} seguidores</div></div></div>
+   <div class="fbfeed">${ag.map(p=>`<div data-open="${p.id}"><div class="muted" style="font-size:12px;margin-bottom:4px">Agendado para ${fmtLong(p.date)}</div>${preview(p)}</div>`).join('')}
+    ${ps.map(x=>{const c=calDe(x);const txt=x.legenda.split('\n').filter(l=>l.trim()).slice(0,4).map(l=>esc(l.slice(0,200))).join('<br>')||'<span class="muted">(sem texto)</span>';
+      return `<div ${c?`data-open="${c.id}"`:''}><div class="pv"><div class="hd"><span class="av">S</span><span style="min-width:0"><b>${nome}</b><br><span class="sm">${fmtLong(x.date)} · ${x.hora}</span></span></div><div class="txt">${txt}</div><div class="ft row3"><span>${n(x.curt)} reações</span><span>${n(x.com)} comentários</span><span>${n(x.comp)} compart.</span></div></div>${c?'':`<a class="linkbtn" href="${esc(x.link)}" target="_blank" rel="noopener">Ver no Facebook ›</a>`}</div>`}).join('')||'<p class="muted">Nenhum post na Página.</p>'}</div>`}
+
+// Performance › Social com os dados reais
+function segEm(f,d){const L=META[f].dias.filter(x=>x.d<=d);return L.length?L[L.length-1].seguidores:null}
+function novosSeg(fs,r){let t=null;fs.forEach(f=>{const fim=segEm(f,r.ate),ini=segEm(f,addDays(r.de,-1));if(fim==null||ini==null)return;t=(t||0)+fim-ini});return t}
+function socialStatsReal(r){const pub=META.posts.filter(x=>inR(r,x.date)&&prodOk(calDe(x)?calDe(x).produto:''));const st=META.stories.filter(s=>inR(r,s.date)&&prodOk(''));
+  const ce=pub.filter(x=>x.eng!=null);
+  return {pub,st,alc:pub.reduce((a,x)=>a+(x.alc||0),0),inter:pub.reduce((a,x)=>a+x.inter,0),eng:ce.length?ce.reduce((a,x)=>a+x.eng,0)/ce.length:null,
+    stAlc:st.length?st.reduce((a,s)=>a+(s.alc||0),0)/st.length:null,seg:novosSeg(['ig','fb'],r)}}
+function cardReal(x,flag){const c=calDe(x);
+  const pv=preview(c||{rede:x.rede,formato:x.formato==='video'?(x.rede==='ig'?'reel':'post'):x.formato,titulo:x.titulo,legenda:x.legenda.split('\n').filter(l=>l.trim()).slice(1).join(' '),pilar:''});
+  const c3=x.views!=null?['Visualizações',fk(x.views)]:[x.rede==='fb'?'Reações':'Curtidas',fk(x.curt)],c5=x.rede==='fb'?['Cliques',x.cliques!=null?n(x.cliques):'—']:['Salvamentos',n(x.salv)];
+  return `<article class="crcard${c?' clickable':''}" ${c?`data-open="${c.id}"`:''}><div class="crprev">${pv}</div><div class="crbody"><div><b>${esc(c?c.titulo:x.titulo)}</b><div class="muted" style="font-size:12px">${NETNAME[x.rede]} · ${FORMATO[x.formato]||'Post'} · ${fmtLong(x.date)}${c&&!semProd(c.produto)?' · '+esc(c.produto):''}</div></div>${flag?`<div>${flag}</div>`:''}
+    <div class="crm"><div><span>Alcance</span><b>${x.alc!=null?fk(x.alc):'—'}</b></div><div><span>Engajamento</span><b>${x.eng!=null?pct(x.eng):'—'}</b></div><div><span>${c3[0]}</span><b>${c3[1]}</b></div><div><span>Comentários</span><b>${n(x.com)}</b></div><div><span>${c5[0]}</span><b>${c5[1]}</b></div><div><span>Compartilh.</span><b>${n(x.comp)}</b></div></div>
+    ${c?'':`<a class="linkbtn" href="${esc(x.link)}" target="_blank" rel="noopener">Ver no ${x.rede==='ig'?'Instagram':'Facebook'} ›</a>`}</div></article>`}
+function perfSocialReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();const SC=socialStatsReal(r),SP=cr?socialStatsReal(cr):null;const pub=SC.pub,st=SC.st;
+  const has=SP&&(SP.pub.length||SP.st.length);const capt=META.stories.reduce((a,s)=>s.date<a?s.date:a,'9999');const stOk=has&&cr.de>=capt;
+  const segTxt=v=>v==null?'—':(v>=0?'+':'')+n(v);const desdeSeg=[...META.ig.dias,...META.fb.dias].map(x=>x.d).sort()[0];
+  const linha=(f,l)=>{const ps=pub.filter(x=>x.rede===f),P=META[f].perfil||{},a=ps.reduce((s,x)=>s+(x.alc||0),0),ce=ps.filter(x=>x.eng!=null),e=ce.length?ce.reduce((s,x)=>s+x.eng,0)/ce.length:null;
+    return [l,P.followers_count!=null?fk(P.followers_count):'—',segTxt(novosSeg([f],r)),a?fk(a):'—',e!=null?pct(e):'—',ps.length+(f==='ig'?' · '+st.length+' stories':'')]};
+  const redes=[linha('ig','Instagram'),linha('fb','Facebook'),['YouTube','—','—','—','—','integração pendente']];
+  const eg=x=>x.eng??-1;const ord={alc:(a,b)=>(b.alc||0)-(a.alc||0),eng:(a,b)=>eg(b)-eg(a),recent:(a,b)=>b.ts.localeCompare(a.ts)}[S.psort||'alc'];
+  const list=pub.slice().sort(ord),MAX=60;const topA=pub.filter(x=>x.alc).sort((a,b)=>b.alc-a.alc)[0],topE=pub.filter(x=>x.eng!=null&&x.alc>=100).sort((a,b)=>b.eng-a.eng)[0];
+  return `<div class="actions" style="align-items:center"><span class="eyebrow">Produto</span>${prodFiltro()}</div>${kpisC([
+    {l:'Alcance',v:fk(SC.alc),s:pub.length+' publicações (soma por post)',cur:SC.alc,prev:has?SP.alc:null,prevTxt:has?fk(SP.alc):null},
+    {l:'Interações',v:fk(SC.inter),s:'curtidas, comentários, salvos e compartilhamentos',cur:SC.inter,prev:has?SP.inter:null,prevTxt:has?fk(SP.inter):null},
+    {l:'Engajamento médio',v:SC.eng!=null?pct(SC.eng):'—',s:'interações ÷ alcance, por post',cur:SC.eng,prev:has?SP.eng:null,prevTxt:has&&SP.eng!=null?pct(SP.eng):null,pp:true},
+    {l:'Publicações',v:pub.length,s:'Instagram e Facebook',cur:pub.length,prev:SP?SP.pub.length:null,prevTxt:SP?String(SP.pub.length):null},
+    {l:'Stories',v:st.length,s:'alcance médio '+(SC.stAlc?fk(SC.stAlc):'—')+(capt>r.de?' · guardados desde '+fmt(capt):''),cur:st.length,prev:stOk?SP.st.length:null,prevTxt:stOk?String(SP.st.length):'sem dados'},
+    {l:'Novos seguidores',v:segTxt(SC.seg),s:SC.seg==null?'histórico começa em '+(desdeSeg?fmt(desdeSeg):fmt(TODAY)):'Instagram e Facebook',cur:SC.seg,prev:SP&&SP.seg,prevTxt:SP&&SP.seg!=null?segTxt(SP.seg):null}],cr)}
+  <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Rede</th><th>Seguidores</th><th>Novos</th><th>Alcance</th><th>Engajamento</th><th>Publicações</th></tr></thead><tbody>${redes.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${pub.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Instagram e Facebook${S.prod?' · '+(S.prod==='—'?'sem produto':esc(S.prod)):''}. O produto vem do calendário, quando o post publicado tem o link colado lá.</p></div>
+   <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['alc','Alcance'],['eng','Engajamento'],['recent','Mais recentes']].map(([k,l])=>`<button class="chip" data-psort="${k}" aria-pressed="${(S.psort||'alc')===k}">${l}</button>`).join('')}</div></div>
+   ${pub.length?`<div class="crgrid">${list.slice(0,MAX).map(x=>cardReal(x,x===topA?tagPill('Maior alcance do período','--ok'):x===topE?tagPill('Maior engajamento do período','--ok'):'')).join('')}</div>${list.length>MAX?`<p class="muted" style="font-size:12px">Mostrando ${MAX} de ${list.length}. Encurte o período para ver os demais.</p>`:''}`:'<p class="muted">Nenhum post publicado nesse período.</p>'}</section>`}
+
+// Performance › Tráfego com os anúncios reais do Meta
+const OBJ={OUTCOME_LEADS:'Contatos',LEAD_GENERATION:'Contatos',OUTCOME_TRAFFIC:'Tráfego',LINK_CLICKS:'Tráfego',OUTCOME_ENGAGEMENT:'Engajamento',POST_ENGAGEMENT:'Engajamento',OUTCOME_AWARENESS:'Alcance',REACH:'Alcance',BRAND_AWARENESS:'Reconhecimento',MESSAGES:'Mensagens',VIDEO_VIEWS:'Visualizações de vídeo',OUTCOME_SALES:'Vendas',CONVERSIONS:'Conversões',OUTCOME_APP_PROMOTION:'App'};
+const OTIM={LINK_CLICKS:'Cliques no link',LANDING_PAGE_VIEWS:'Visualizações da página',REACH:'Alcance',IMPRESSIONS:'Impressões',POST_ENGAGEMENT:'Engajamento',THRUPLAY:'Reproduções de vídeo',LEAD_GENERATION:'Contatos (formulário)',QUALITY_LEAD:'Contatos de qualidade',CONVERSATIONS:'Conversas',OFFSITE_CONVERSIONS:'Conversões no site',PROFILE_VISIT:'Visitas ao perfil',ENGAGED_USERS:'Pessoas engajadas',VALUE:'Valor das conversões'};
+// contato = formulário (lead) + conversa iniciada no WhatsApp, Direct ou Messenger
+const contatosDe=a=>(a.lead||0)+(a['onsite_conversion.messaging_conversation_started_7d']||0);
+function adsTotais(r){const o={};META.ads.dias.forEach(l=>{if(r&&!inR(r,l.d))return;const t=o[l.ad]||(o[l.ad]={inv:0,im:0,c:0,ct:0,de:l.d,ate:l.d});
+  t.inv+=l.investido;t.im+=l.impressoes;t.c+=l.cliques;t.ct+=contatosDe(l.acoes||{});if(l.d<t.de)t.de=l.d;if(l.d>t.ate)t.ate=l.d});return o}
+const somaAds=o=>Object.values(o).reduce((a,x)=>({i:a.i+x.inv,im:a.im+x.im,c:a.c+x.c,ct:a.ct+x.ct}),{i:0,im:0,c:0,ct:0});
+const centavos=c=>Number(c)>0?'R$ '+n(Math.round(Number(c)/100)):'';
+function orcDe(a){const s=a.adset||{},c=a.campaign||{};return centavos(s.daily_budget)?centavos(s.daily_budget)+'/dia':centavos(s.lifetime_budget)?centavos(s.lifetime_budget)+' no total':centavos(c.daily_budget)?centavos(c.daily_budget)+'/dia (campanha)':centavos(c.lifetime_budget)?centavos(c.lifetime_budget)+' no total (campanha)':'—'}
+function publicoDe(t){t=t||{};const g=t.geo_locations||{};const cut=(s,k)=>s.length>k?s.slice(0,k-1)+'…':s;
+  const loc=[...(g.cities||[]).map(c=>c.name+(c.radius?` (+${c.radius} km)`:'')),...(g.regions||[]).map(x=>x.name),...(g.countries||[]).map(c=>c==='BR'?'Brasil':c)];
+  const cust=(g.custom_locations||[]).length;if(cust)loc.push(cust+(cust>1?' pontos':' ponto')+' no mapa');
+  const ida=t.age_min?`${t.age_min} a ${t.age_max>=65?'65+':t.age_max}`:'—';const gen=(t.genders||[]).length===1?(t.genders[0]===1?'Homens':'Mulheres'):'Todos';
+  const int=[];(t.flexible_spec||[]).forEach(f=>['interests','behaviors','work_positions','industries'].forEach(k=>(f[k]||[]).forEach(x=>int.push(x.name))));(t.interests||[]).forEach(x=>int.push(x.name));
+  const aud=(t.custom_audiences||[]).map(x=>x.name),exc=(t.excluded_custom_audiences||[]).map(x=>x.name);
+  const adv=t.targeting_automation&&t.targeting_automation.advantage_audience;
+  const quem=[...(aud.length?['Públicos: '+aud.join(', ')]:[]),...(int.length?['Interesses: '+int.slice(0,8).join(', ')+(int.length>8?` e mais ${int.length-8}`:'')]:[])].join(' · ')||'Aberto';
+  return {loc:cut(loc.join(', ')||'—',140),ida,gen,quem:quem+(adv?' (Advantage+ pode ampliar)':''),excl:exc.join(', ')||'—',
+    pos:(t.publisher_platforms||[]).map(x=>({facebook:'Facebook',instagram:'Instagram',audience_network:'Audience Network',messenger:'Messenger'}[x]||x)).join(', ')||'Automático (Advantage+)'}}
+function adRealPreview(a){const cr=a.creative||{};const b=(cr.body||'').split('\n').find(l=>l.trim())||'';
+  return `<div class="pv"><div class="hd"><span class="av">S</span><span><b>Spraytec Brasil</b><br><span class="sm">Patrocinado</span></span></div>${b?`<div class="txt">${esc(b.slice(0,160))}</div>`:''}<div class="img" style="--bg:#E3E4D3">${cr.object_type==='VIDEO'?'<span class="cnt">▶ vídeo</span>':''}<span>${esc(cr.title||a.name||'')}</span></div><div class="ctabar"><span class="sm">${esc(OBJ[(a.campaign||{}).objective]||'')}</span><b>Saiba mais ›</b></div></div>`}
+function midiaReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();const A=adsTotais(r),T=somaAds(A),C=cr?somaAds(adsTotais(cr)):null,cOk=C&&(C.i||C.im);
+  const meta=plano&&plano.dados&&plano.dados.metas?plano.dados.metas.cpl:null;const rs=v=>'R$ '+n(Math.round(v)),rs2=v=>'R$ '+v.toFixed(2).replace('.',',');
+  const ads=Object.keys(A).filter(id=>A[id].inv||A[id].im).map(id=>{const t=A[id];return {a:META.ads.anuncios.get(id)||{id,name:'Anúncio '+id},...t,ctr:t.im?t.c/t.im*100:0,cpl:t.ct?t.inv/t.ct:null}});
+  const ord={cont:(x,y)=>y.ct-x.ct||y.inv-x.inv,cpl:(x,y)=>(x.cpl??1e9)-(y.cpl??1e9),ctr:(x,y)=>y.ctr-x.ctr,inv:(x,y)=>y.inv-x.inv}[S.cord||'cont'];
+  const list=ads.slice().sort(ord),best=ads.filter(x=>x.cpl).sort((x,y)=>x.cpl-y.cpl)[0];
+  const conj=[...new Map(ads.map(x=>[(x.a.adset||{}).id||x.a.id,x.a])).values()];
+  return `<h2 style="font-size:16px;margin:4px 0 0">Mídia paga · Meta Ads</h2>
+  ${kpisC([{l:'Investimento',v:rs(T.i),s:'Meta Ads',cur:T.i,prev:cOk?C.i:null,prevTxt:cOk?rs(C.i):null},{l:'Impressões',v:fk(T.im),cur:T.im,prev:cOk?C.im:null,prevTxt:cOk?fk(C.im):null},
+    {l:'Cliques no link',v:fk(T.c),s:'CTR '+(T.im?pct(T.c/T.im*100):'—'),cur:T.c,prev:cOk?C.c:null,prevTxt:cOk?fk(C.c):null},{l:'Contatos',v:n(T.ct),s:'formulários e conversas iniciadas',cur:T.ct,prev:cOk?C.ct:null,prevTxt:cOk?n(C.ct):null},
+    {l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:meta?'meta: até R$ '+meta:'',cur:T.ct?T.i/T.ct:null,prev:cOk&&C.ct?C.i/C.ct:null,prevTxt:cOk&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
+  <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>
+   <tr><td>Meta Ads</td><td class="mono">${rs(T.i)}</td><td class="mono">${fk(T.im)}</td><td class="mono">${fk(T.c)}</td><td class="mono">${T.c?rs2(T.i/T.c):'—'}</td><td class="mono">${n(T.ct)}</td><td class="mono">${T.ct?rs(T.i/T.ct):'—'}</td></tr>
+   <tr><td>Google Ads e YouTube Ads</td><td colspan="6" class="muted">Integração pendente: entram quando o acesso for liberado.</td></tr></tbody></table></div>
+  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Anúncios que veicularam · ${ads.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Gerenciador de Anúncios da Meta · ${perLabel()}.</p></div>
+   <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['cont','Contatos'],['cpl','Custo por contato'],['ctr','Taxa de cliques'],['inv','Investimento']].map(([k,l])=>`<button class="chip" data-cord="${k}" aria-pressed="${(S.cord||'cont')===k}">${l}</button>`).join('')}</div></div>
+   ${list.length?`<div class="crgrid">${list.map(x=>{const a=x.a,pb=publicoDe((a.adset||{}).targeting),lk=(a.creative||{}).instagram_permalink_url;
+     const flag=x===best?tagPill('Melhor custo por contato','--ok'):meta&&x.cpl>meta?tagPill('Acima da meta de R$ '+meta,'--bad'):'';
+     return `<article class="crcard"><div class="crprev">${adRealPreview(a)}</div><div class="crbody">
+      <div><b>${esc(a.name)}</b><div class="muted" style="font-size:12px">${esc((a.campaign||{}).name||'')}${OBJ[(a.campaign||{}).objective]?' · '+OBJ[a.campaign.objective]:''} · ${fmt(x.de)} a ${fmt(x.ate)}</div></div>
+      <div>${a.effective_status==='ACTIVE'?tagPill('Ativo','--ok'):tagPill('Pausado','--muted')} ${flag}</div>
+      <div class="crm"><div><span>Investido</span><b>${rs(x.inv)}</b></div><div><span>Impressões</span><b>${n(x.im)}</b></div><div><span>Cliques</span><b>${n(x.c)}</b></div><div><span>Taxa de cliques</span><b>${pct(x.ctr)}</b></div><div><span>Contatos</span><b>${n(x.ct)}</b></div><div><span>Custo por contato</span><b class="${meta&&x.cpl>meta?'bad':''}">${x.cpl?rs(x.cpl):'—'}</b></div></div>
+      <div class="aud"><span class="eyebrow">Público</span><div>${esc(pb.quem)}</div><div class="muted" style="font-size:12px">${esc(pb.loc)} · ${pb.ida} anos · ${pb.gen} · ${esc(pb.pos)}</div></div>
+      ${lk?`<a class="linkbtn" href="${esc(lk)}" target="_blank" rel="noopener">Ver o post ›</a>`:''}</div></article>`}).join('')}</div>`:'<p class="muted">Nenhum anúncio veiculou nesse período.</p>'}</section>
+  ${conj.length?`<section class="panel"><h2>Públicos dos conjuntos de anúncios</h2><div class="tablewrap" style="border:0"><table class="ap" style="min-width:900px"><thead><tr><th>Conjunto</th><th>Onde</th><th>Idade</th><th>Quem</th><th>Fora do público</th><th>Posicionamento</th><th>Otimizado para</th><th>Orçamento</th></tr></thead><tbody>
+   ${conj.map(a=>{const s=a.adset||{},pb=publicoDe(s.targeting);return `<tr><td><b>${esc(s.name||a.name)}</b><div class="muted" style="font-size:12px">${esc((a.campaign||{}).name||'')}</div></td><td style="max-width:220px">${esc(pb.loc)}</td><td>${pb.ida} · ${pb.gen}</td><td style="max-width:260px">${esc(pb.quem)}</td><td style="max-width:200px">${esc(pb.excl)}</td><td>${esc(pb.pos)}</td><td>${OTIM[s.optimization_goal]||'—'}</td><td class="mono">${orcDe(a)}</td></tr>`}).join('')}
+  </tbody></table></div></section>`:''}`}
+
+// Acervo com os dados reais: stories que já saíram do ar e anúncios que não são post do perfil (dark posts)
+function acvStoriesReal(){const old=META.stories.filter(s=>Date.parse(s.ts)<=Date.now()-864e5).sort((a,b)=>b.ts.localeCompare(a.ts));
+  const cats=[['img','Imagens',old.filter(s=>s.tipo!=='VIDEO').length],['vid','Vídeos',old.filter(s=>s.tipo==='VIDEO').length]];
+  const vis=old.filter(s=>acvMatch('stories',s.tipo==='VIDEO'?'vid':'img','story '+s.hora+' '+fmt(s.date)));const dates=[...new Set(vis.map(s=>s.date))];
+  const desde=META.stories.reduce((a,s)=>s.date<a?s.date:a,'9999');
+  return `${acvToolbar('stories',cats)}${dates.length?gridGroups(dates.map(d=>({t:fmtLong(d),items:vis.filter(s=>s.date===d).map(s=>acard(storyPreview({pilar:'',rotulo:s.tipo==='VIDEO'?'Story em vídeo':'Story',titulo:'Story das '+s.hora}),ktag(s.tipo==='VIDEO'?'VÍDEO':'IMAGEM','--k-post'),'Story das '+s.hora,`alcance ${s.alc!=null?n(s.alc):'—'} · ${s.resp} resp.`,s.hora))})),'stories')
+    :`<p class="muted">${old.length?'Nenhum story com esse filtro.':'Os stories aparecem aqui 24 h depois de publicados, quando saem do ar.'+(META.stories.length?' A captura começou em '+fmt(desde)+'.':'')}</p>`}
+   <p class="muted" style="font-size:12px;margin:0">O portal guarda os números de cada story enquanto ele está no ar (o Instagram apaga depois de 24 h). As imagens ficam na pasta Stories do Drive.</p>`}
+function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(null);
+  const L=[...META.ads.anuncios.values()].filter(a=>tot[a.id]||a.effective_status==='ACTIVE').filter(a=>{const u=(a.creative||{}).instagram_permalink_url;return !(u&&org.has(normLink(u)))&&!/^(post|publica[cç][aã]o) do (instagram|facebook)/i.test(a.name||'')});
+  const st=a=>a.effective_status==='ACTIVE'?'Ativo':'Encerrado';
+  const cats=[['Ativo','Ativos',L.filter(a=>st(a)==='Ativo').length],['Encerrado','Encerrados',L.filter(a=>st(a)!=='Ativo').length]];
+  const vis=L.filter(a=>acvMatch('dark',st(a),(a.name||'')+' '+((a.campaign||{}).name||'')+' '+((a.creative||{}).body||'')));const camps=[...new Set(vis.map(a=>(a.campaign||{}).name||'Sem campanha'))];
+  return `${acvToolbar('dark',cats)}${vis.length?gridGroups(camps.map(c=>({t:c,items:vis.filter(a=>((a.campaign||{}).name||'Sem campanha')===c).map(a=>{const t=tot[a.id];
+    return acard(adRealPreview(a),ktag(st(a).toUpperCase(),st(a)==='Ativo'?'--ok':'--muted'),esc(a.name),t?`${fk(t.im)} impressões · ${n(t.c)} cliques`:'sem veiculação registrada',t?fmt(t.de)+' a '+fmt(t.ate):'')})}))):`<p class="muted">${L.length?'Nenhum anúncio com esse filtro.':'Nenhum dark post nos últimos 6 meses: os anúncios foram posts do perfil impulsionados.'}</p>`}
+   <p class="muted" style="font-size:12px;margin:0">Anúncios que rodam só como mídia paga, do Gerenciador de Anúncios da Meta (últimos 6 meses).</p>`}
+
 let LINKS=[];
 function related(ref){return LINKS.filter(l=>l[0]===ref||l[1]===ref).map(l=>l[0]===ref?l[1]:l[0]).filter((x,i,a)=>a.indexOf(x)===i)}
 function resolve(ref){const [k,id]=ref.split(':');
@@ -336,12 +496,12 @@ function preview(p){
   if(hiddenForClient(p))return `<div class="pv"><div class="ph">Em preparação</div></div>`;
   const T=esc(p.titulo),first=esc((p.legenda||'').split('\n')[0]);
   if(p.rede==='video'||(p.rede==='design'&&p.formato==='producao'))return `<div class="pv prod" style="--kc:var(--k-${p.rede})"><span class="ptp">${p.rede==='video'?'Produção de vídeo':'Produção de design'}</span><b>${T}</b><span class="sm">${p.rede==='video'?(p.formato==='gravacao'?'Gravação com a produtora':'Entrega do vídeo final'):'Entrega das peças para aprovação'}</span></div>`;
-  const hd=sub=>`<div class="hd"><span class="av">S</span><span style="min-width:0"><b>${p.rede==='ig'?'spraytec.brasil':'Spraytec Brasil'}</b>${sub?`<br><span class="sm">${sub}</span>`:''}</span></div>`;
+  const hd=sub=>`<div class="hd"><span class="av">S</span><span style="min-width:0"><b>${p.rede==='ig'?igUser():'Spraytec Brasil'}</b>${sub?`<br><span class="sm">${sub}</span>`:''}</span></div>`;
   const vert=(top,bottom,extra)=>`<div class="pv vert" style="--bg:${bg}"><div class="full">${top}<div class="big">${T}</div>${bottom}</div>${extra||''}</div>`;
   if(p.rede==='ig'){
-    if(p.formato==='story')return vert('<div class="bars3"><i></i><i></i><i></i></div><div class="hd lite"><span class="av">S</span><b>spraytec.brasil</b></div>','<div class="sm">Enviar mensagem</div>');
-    if(p.formato==='reel')return vert('<div class="sm">Reels</div>','<div class="sm">spraytec.brasil · ♪ áudio original</div>','<div class="play">▶</div>');
-    return `<div class="pv">${hd('')}<div class="img" style="--bg:${bg}">${p.formato==='carrossel'?'<span class="cnt">1/6</span>':''}<span>${T}</span></div><div class="ft"><div class="icons">♡ ○ ▷</div>${p.formato==='carrossel'?'<div class="dots"><i class="on"></i><i></i><i></i><i></i></div>':''}<div class="cap"><b>spraytec.brasil</b> ${first}</div></div></div>`;
+    if(p.formato==='story')return vert('<div class="bars3"><i></i><i></i><i></i></div><div class="hd lite"><span class="av">S</span><b>'+igUser()+'</b></div>','<div class="sm">Enviar mensagem</div>');
+    if(p.formato==='reel')return vert('<div class="sm">Reels</div>','<div class="sm">'+igUser()+' · ♪ áudio original</div>','<div class="play">▶</div>');
+    return `<div class="pv">${hd('')}<div class="img" style="--bg:${bg}">${p.formato==='carrossel'?'<span class="cnt">1/6</span>':''}<span>${T}</span></div><div class="ft"><div class="icons">♡ ○ ▷</div>${p.formato==='carrossel'?'<div class="dots"><i class="on"></i><i></i><i></i><i></i></div>':''}<div class="cap"><b>${igUser()}</b> ${first}</div></div></div>`;
   }
   if(p.rede==='fb')return `<div class="pv">${hd('2 h · Público')}<div class="txt">${first}</div><div class="img wide" style="--bg:${bg}"><span>${T}</span></div><div class="ft row3"><span>Curtir</span><span>Comentar</span><span>Compartilhar</span></div></div>`;
   if(p.rede==='yt'){
@@ -353,7 +513,7 @@ function preview(p){
   return `<div class="pv art3"><div class="f sq" style="--bg:${bg}"></div><div class="f vt" style="--bg:${bg}"></div><div class="f wd" style="--bg:${bg}"></div><div class="cap3">${T}</div></div>`;
 }
 function adPreview(d){const bg=PILAR_HUE[d.pilar];return `<div class="pv"><div class="hd"><span class="av">S</span><span><b>Spraytec Brasil</b><br><span class="sm">Patrocinado</span></span></div><div class="img" style="--bg:${bg}"><span>${esc(d.titulo)}</span></div><div class="ctabar"><span class="sm">spraytec.com.br</span><b>Saiba mais ›</b></div></div>`}
-function storyPreview(s){return `<div class="pv vert" style="--bg:${PILAR_HUE[s.pilar]}"><div class="full"><div class="bars3"><i></i><i></i><i></i></div><div class="sm">${s.tipo==='repost'?'Repost':'Story agendado'}</div><div class="big">${esc(s.titulo)}</div></div></div>`}
+function storyPreview(s){return `<div class="pv vert" style="--bg:${PILAR_HUE[s.pilar]}"><div class="full"><div class="bars3"><i></i><i></i><i></i></div><div class="sm">${s.rotulo||(s.tipo==='repost'?'Repost':'Story agendado')}</div><div class="big">${esc(s.titulo)}</div></div></div>`}
 
 // navegação
 const VIEWS=[
@@ -673,13 +833,16 @@ function viewCalendario(){
 const IG_EXTRA=[['Dia do agrônomo','Institucional'],['Colheita do trigo no PR','Campo'],['Como ler a bula foliar','Educação'],['Bastidores do laboratório','Institucional']];
 function viewRedes(){
   const tabs=[['instagram','Instagram'],['facebook','Facebook'],['youtube','YouTube']];
-  const conn='';
+  if(META===undefined&&S.rede!=='youtube')return metaCarregando('Redes sociais','Instagram, Facebook e YouTube da Spraytec dentro do portal.')+subtabs(tabs,'rede','Redes');
+  const conn=S.rede==='youtube'?'':metaRodape([S.rede==='instagram'?'ig':'fb'].filter(f=>META&&META.conectado||metaTem(f)));
   let body='';
-  if(S.rede==='instagram'){
+  if(S.rede==='instagram'&&metaTem('ig'))body=redesIG();
+  else if(S.rede==='facebook'&&metaTem('fb'))body=redesFB();
+  else if(S.rede==='instagram'){
     const ig=posts.filter(p=>p.rede==='ig'&&['publicado'].includes(p.status)).sort((a,b)=>b.date.localeCompare(a.date));
     const hoje=stories.filter(s=>s.date===TODAY);
     const tiles=[...ig.map(p=>({t:p.titulo,c:PILAR_HUE[p.pilar],f:p.formato,id:p.id})),...IG_EXTRA.map(x=>({t:x[0],c:PILAR_HUE[x[1]]}))];
-    body=`<div class="prof"><span class="avbig">S</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">spraytec.brasil</b><div class="cnts"><span><b>412</b> publicações</span><span><b>18,6 mil</b> seguidores</span><span><b>210</b> seguindo</span></div><span class="muted" style="font-size:13px">Spraytec Brasil · Nutrição vegetal · Maringá/PR</span></div></div>
+    body=`<div class="prof"><span class="avbig">S</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">${igUser()}</b><div class="cnts"><span><b>412</b> publicações</span><span><b>18,6 mil</b> seguidores</span><span><b>210</b> seguindo</span></div><span class="muted" style="font-size:13px">Spraytec Brasil · Nutrição vegetal · Maringá/PR</span></div></div>
      <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${hoje.length}</h2><span class="muted" style="font-size:12px">Depois de 24 h, ficam guardados no Acervo › Stories.</span></div>
       <div class="rings">${hoje.map(s=>`<div class="ring"><span style="--bg-ring:${PILAR_HUE[s.pilar]}"><i></i></span>${s.hora} · ${s.tipo==='repost'?'repost':'agendado'}</div>`).join('')}${['Produtos','Campo','Eventos','Fábrica'].map(h=>`<div class="ring hl"><span><i style="background:var(--surface-2)"></i></span>${h}</div>`).join('')}</div>
       <p style="margin:8px 0 0;font-size:13px">Repost diário: <b>${hoje.filter(s=>s.tipo==='repost').length} hoje</b>. Todos os dias úteis desde ${fmt(STORIES_DESDE)} com repost.</p></section>
@@ -702,8 +865,10 @@ function viewRedes(){
 function kpis(arr){return `<div class="kpis">${arr.map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div><div class="l">${k[2]||''}</div></div>`).join('')}</div>`}
 function viewPerformance(){
   const tabs=[['funil','Funil e vendas'],['trafego','Tráfego'],['social','Social'],['email','E-mail']];
+  const fontes=({social:['ig','fb'],trafego:['ads']}[S.psub]||[]);
+  if(META===undefined&&fontes.length)return metaCarregando('Performance','Mídia paga, redes sociais e e-mail num lugar só, com comparação entre períodos.')+subtabs(tabs,'psub','Performance');
   const body={funil:perfFunil,trafego:perfTrafego,social:perfSocial,email:perfEmail}[S.psub]();
-  return `${head('Performance','Mídia paga, redes sociais e e-mail num lugar só, com comparação entre períodos.')}${periodBar()}${subtabs(tabs,'psub','Performance')}${body}`;
+  return `${head('Performance','Mídia paga, redes sociais e e-mail num lugar só, com comparação entre períodos.')}${periodBar()}${subtabs(tabs,'psub','Performance')}${metaRodape(fontes.filter(f=>META&&META.conectado||metaTem(f)))}${body}`;
 }
 // CRIATIVOS ATIVOS E PÚBLICOS (Meta Marketing API e Google Ads API)
 const ADSETS=[
@@ -752,10 +917,10 @@ function perfTrafego(){
   const tot=18200,exc=tot-15000;
   return `<section class="panel"><div class="headrow" style="margin-bottom:6px"><h2 style="margin:0">Site</h2><span class="muted" style="font-size:12px">Google Analytics 4</span></div>
    ${(()=>{const f=perF(),ses=Math.round(14200*f),usu=Math.round(9800*f),con=Math.round(96*f);return kpis([['Sessões',fk(ses),'orgânico 41% · social 23% · mídia 28% · e-mail 8%'],['Usuários',fk(usu),''],['Contatos pelo site',con,'formulário e WhatsApp'],['Taxa de conversão',pct(con/ses*100),'contatos ÷ sessões']])})()}</section>
-  <h2 style="font-size:16px;margin:4px 0 0">Mídia paga</h2>
+  ${metaTem('ads')?midiaReal():`<h2 style="font-size:16px;margin:4px 0 0">Mídia paga</h2>
   ${kpisC([{l:'Investimento',v:rs(T.i),s:'3 plataformas',cur:T.i,prev:C&&C.i,prevTxt:C&&rs(C.i)},{l:'Impressões',v:fk(T.im),cur:T.im,prev:C&&C.im,prevTxt:C&&fk(C.im)},{l:'Cliques',v:fk(T.c),s:'CTR '+pct(T.c/T.im*100),cur:T.c,prev:C&&C.c,prevTxt:C&&fk(C.c)},{l:'Contatos',v:T.ct,s:'formulário e WhatsApp',cur:T.ct,prev:C&&C.ct,prevTxt:C&&String(C.ct)},{l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:'meta: até R$ '+plano.dados.metas.cpl,cur:T.ct?T.i/T.ct:null,prev:C&&C.ct?C.i/C.ct:null,prevTxt:C&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>${pl.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-  ${secCriativos()}
+  ${secCriativos()}`}
   <div class="grid2">
    <section class="panel"><h2>Otimizações da semana</h2><div class="list">
     <div class="row"><span class="mono muted" style="font-size:12px">${fmt(addDays(TODAY,-3))}</span><div class="grow">Pausados 3 termos com custo alto e sem clique</div></div>
@@ -775,7 +940,7 @@ function inR(r,d){return d&&d>=r.de&&d<=r.ate}
 function trafStats(r,isCur){const f=daysOf(r)/30;const adj=isCur?{i:1,im:1,c:1,ct:1}:r.ate<addDays(TODAY,-300)?{i:.55,im:.6,c:.5,ct:.4}:{i:.95,im:.9,c:.86,ct:.8};
   const base=[['Meta Ads',9800,214000,4980,128],['Google Ads',6900,58000,3960,74],['YouTube Ads',1500,120000,480,12]].map(([k,i,im,c,ct])=>({k,i:i*f*adj.i,im:im*f*adj.im,c:c*f*adj.c,ct:Math.max(0,Math.round(ct*f*adj.ct))}));
   const T=base.reduce((a,x)=>({i:a.i+x.i,im:a.im+x.im,c:a.c+x.c,ct:a.ct+x.ct}),{i:0,im:0,c:0,ct:0});return {base,T}}
-function socialStats(r){const pub=posts.filter(p=>['ig','fb','yt'].includes(p.rede)&&p.status==='publicado'&&inR(r,p.date)&&prodOk(p.produto));const st=stories.filter(s=>inR(r,s.date)&&prodOk(s.produto));
+function socialStats(r){if(metaSocial())return socialStatsReal(r);const pub=posts.filter(p=>['ig','fb','yt'].includes(p.rede)&&p.status==='publicado'&&inR(r,p.date)&&prodOk(p.produto));const st=stories.filter(s=>inR(r,s.date)&&prodOk(s.produto));
   const sum=k=>pub.reduce((a,p)=>a+metricsOf(p)[k],0);return {pub,st,alc:sum('alc'),inter:sum('curt')+sum('com')+sum('salv')+sum('comp'),eng:pub.length?pub.reduce((a,p)=>a+metricsOf(p).eng,0)/pub.length:null,stAlc:st.length?st.reduce((a,s)=>a+s.alcance,0)/st.length:null,seg:r.de>=addDays(TODAY,-120)?Math.round(612*daysOf(r)/30*(r.ate===S.per.ate?1:.8)):null}}
 // exemplo: os e-mails publicados no calendário recebem números fictícios; antes deles, 3 envios de exemplo
 function campsEmail(){const pub=posts.filter(p=>p.rede==='email'&&p.status==='publicado'&&p.date).sort((a,b)=>b.date.localeCompare(a.date)).map((p,i)=>[p.titulo,p.date,12410-i*230,33.4-i*1.5,4.6-i*.2,0.2]);
@@ -802,9 +967,10 @@ function periodBar(){return `<div class="perbar"><span class="eyebrow">Período<
    ${cmpRange()?`<span class="muted mono" style="font-size:12px">${rLabel(cmpRange())}</span>`:''}</div></div>`}
 const fk=v=>v>=10000?(Math.round(v/100)/10).toLocaleString('pt-BR')+' mil':n(Math.round(v));
 const pct=v=>v.toFixed(1).replace('.',',')+'%';
-function metricsOf(p){if(p._m)return p._m;let h=0;for(const ch of p.id+p.titulo)h=(h*31+ch.charCodeAt(0))>>>0;const b=p.metrics||{};const alc=b.alcance||(p.rede==='fb'?1200:2400)+h%7000;const eng=b.eng||(p.rede==='fb'?1.5:3)+(h%45)/10;const it=Math.round(alc*eng/100);
+function metricsOf(p){const rl=META&&p.pubLink?META.posts.find(x=>x.nl===normLink(p.pubLink)):null;if(rl)return {alc:rl.alc||0,eng:rl.eng||0,curt:rl.curt,com:rl.com,salv:rl.salv,comp:rl.comp,views:rl.views};if(p._m)return p._m;let h=0;for(const ch of p.id+p.titulo)h=(h*31+ch.charCodeAt(0))>>>0;const b=p.metrics||{};const alc=b.alcance||(p.rede==='fb'?1200:2400)+h%7000;const eng=b.eng||(p.rede==='fb'?1.5:3)+(h%45)/10;const it=Math.round(alc*eng/100);
   p._m={alc,eng,curt:Math.round(it*.72),com:Math.round(it*.08),salv:Math.round(it*.12),comp:Math.round(it*.08),views:['reel','video','short'].includes(p.formato)?Math.round(alc*1.7):null};return p._m}
 function perfSocial(){
+  if(metaSocial())return perfSocialReal();
   const SC=socialStats({de:S.per.de,ate:S.per.ate}),cr=cmpRange(),SP=cr?socialStats(cr):null;const pub=SC.pub,st=SC.st;
   const sum=k=>pub.reduce((a,p)=>a+metricsOf(p)[k],0);const alc=sum('alc'),inter=sum('curt')+sum('com')+sum('salv')+sum('comp');
   const engM=pub.length?pub.reduce((a,p)=>a+metricsOf(p).eng,0)/pub.length:0;
@@ -883,11 +1049,13 @@ function acvPosts(){
   return `${acvToolbar('posts',cats,prodFiltro())}${gridGroups(RD.map(([k,l])=>({t:l,items:vis.filter(p=>p.rede===k).map(p=>{const m=k!=='email'?metricsOf(p):null;
     return acard(preview(p),ktag(FORMATO[p.formato].toUpperCase(),'--k-'+(k==='email'?'email':'post')),esc(p.titulo),(semProd(p.produto)?'':esc(p.produto)+' · ')+(m?`alcance ${fk(m.alc)} · ${pct(m.eng)}`:esc(p.pilar)),fmt(p.date),`data-open="${p.id}" tabindex="0" role="button"`)})})))}`}
 function acvStories(){
+  if(metaTem('ig'))return acvStoriesReal();
   const old=stories.filter(s=>s.date<TODAY);const cats=[['repost','Reposts',old.filter(s=>s.tipo==='repost').length],['agendado','Agendados',old.filter(s=>s.tipo!=='repost').length]];
   const vis=old.filter(s=>prodOk(s.produto)&&acvMatch('stories',s.tipo==='repost'?'repost':'agendado',s.titulo+' '+s.pilar+' '+(s.produto||'')));const dates=[...new Set(vis.map(s=>s.date))];
   return `${acvToolbar('stories',cats,prodFiltro())}${gridGroups(dates.map(d=>({t:fmtLong(d),items:vis.filter(s=>s.date===d).map(s=>acard(storyPreview(s),ktag(s.tipo==='repost'?'REPOST':'AGENDADO',s.tipo==='repost'?'--k-post':'--k-email'),esc(s.titulo),'alcance '+n(s.alcance)+' · '+s.respostas+' resp.',s.hora))})),'stories')}
    <p class="muted" style="font-size:12px;margin:0">Os stories são guardados aqui enquanto estão no ar; as miniaturas ficam na pasta Stories do Drive.</p>`}
 function acvDark(){
+  if(metaTem('ads'))return acvDarkReal();
   const cats=[['Ativo','Ativos',darkposts.filter(d=>d.status==='Ativo').length],['Encerrado','Encerrados',darkposts.filter(d=>d.status!=='Ativo').length]];
   const vis=darkposts.filter(d=>acvMatch('dark',d.status,d.titulo+' '+d.campanha));const camps=[...new Set(vis.map(d=>d.campanha))];
   return `${acvToolbar('dark',cats)}${gridGroups(camps.map(c=>({t:c,items:vis.filter(d=>d.campanha===c).map(d=>acard(adPreview(d),ktag(d.status.toUpperCase(),d.status==='Ativo'?'--ok':'--muted'),esc(d.titulo),d.impr+' impressões · '+d.cliques+' cliques',d.periodo))})))}
@@ -1288,6 +1456,7 @@ function aplicar(j){
   APRENDIZADOS=d.aprendizados||[];RELATORIOS=d.relatorios||[];plano=d.plano||null;GUIA=d.guia||GUIA;LANES=d.lanes||[];CONC_ACOES=d.concAcoes||[];LINKS=d.links||[];
   planoItem=posts.find(p=>p.formato==='plano')||null;
   S.role=EU.papel;
+  if(primeira){if(EU.papel==='produtora')META=null;else{META=undefined;carregarMeta()}}
   if(primeira||novoDia){carregarFonteExemplo();if(!S.month){S.month=(Number(TODAY.slice(8))>=15?addDays(TODAY.slice(0,8)+'01',40):TODAY).slice(0,7);S.dmonth=TODAY.slice(0,7)}setPreset(S.per.preset&&S.per.preset!=='custom'?S.per.preset:'30')}
 }
 async function api(url,corpo){
@@ -1310,6 +1479,9 @@ setInterval(async()=>{
   try{const j=await api('/api/versao');if(j.versao===VERSAO)return;
     const ae=document.activeElement;if(S.drawer||S.pdraft||S.pop||(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)))return;
     const e=await api('/api/estado');if(S.view==='atividade')ATIVIDADE=null;aplicar(e);render()}catch(_){}},15000);
+
+// Dados do Meta: o servidor coleta a cada hora; a tela relê a cada 10 minutos.
+setInterval(()=>{if(EU&&EU.papel!=='produtora'&&!document.hidden)carregarMeta()},10*60e3);
 
 // ---------- entrada ----------
 const DESC_PAPEL={operacao:'Aprova pautas, peças, roteiros e o plano de mídia.',diretoria:'Acompanha estratégia, resultados e relatórios.',cancha:'Produz, envia para aprovação e publica.',produtora:'Vê só as pautas de vídeo: viabilidade e entrega.'};
@@ -1399,6 +1571,7 @@ document.addEventListener('click',e=>{
     case 'sair':api(DEMO?'/api/sair-demo':'/api/sair',{}).catch(()=>{}).finally(()=>telaEntrar());break;
     case 'trocar-pessoa':api('/api/sair',{}).catch(()=>{}).finally(()=>telaEntrar());break;
     case 'atividade-atualizar':ATIVIDADE=null;render();break;
+    case 'meta-atualizar':api('/api/integracoes/atualizar',{}).then(j=>{toast(j.jaRodando?'A coleta já está rodando. Os números novos aparecem em alguns minutos.':'Coleta iniciada. Os números novos aparecem em alguns minutos.');[60e3,180e3,360e3].forEach(t=>setTimeout(carregarMeta,t))}).catch(err=>toast(err.message));break;
     case 'demo-restaurar':if(!confirm('Recarregar os dados? Os itens voltam ao estado inicial.'))break;
       api('/api/demo/restaurar',{}).then(()=>api('/api/estado')).then(j=>{ATIVIDADE=null;S.pdraft=null;aplicar(j);render();toast('Dados recarregados.')}).catch(err=>toast(err.message));break;
     case 'ligar-abrir':S.linkPick=true;render();break;
