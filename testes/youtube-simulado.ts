@@ -14,8 +14,9 @@ const ESC = 'openid https://www.googleapis.com/auth/youtube.readonly https://www
 const idToken = (email: string) => 'x.' + Buffer.from(JSON.stringify({ email })).toString('base64url') + '.y';
 let semCanal = false, consultasShorts = 0;
 const pedidosDia: any[] = [];
-// 60 vídeos (duas páginas da playlist): v1 é Short, v2 é curto mas não é Short, v3 é privado
-const VIDEOS = [...Array(60)].map((_, i) => ({ id: 'v' + (i + 1), dur: i === 0 ? 'PT45S' : i === 1 ? 'PT2M10S' : 'PT8M42S', priv: i === 2 ? 'private' : 'public' }));
+// 60 vídeos (duas páginas da playlist): v1 é Short, v2 é curto mas não é Short, v3 é privado,
+// v5 é curto e o YouTube responde com a tela de consentimento (sem resposta clara)
+const VIDEOS = [...Array(60)].map((_, i) => ({ id: 'v' + (i + 1), dur: i === 0 ? 'PT45S' : i === 1 ? 'PT2M10S' : i === 4 ? 'PT50S' : 'PT8M42S', priv: i === 2 ? 'private' : 'public' }));
 const servidor = createServer(async (req, res) => {
   const u = new URL(req.url!, 'http://x');
   const corpo: Buffer = await new Promise((r) => { const b: Buffer[] = []; req.on('data', (c) => b.push(c)); req.on('end', () => r(Buffer.concat(b))); });
@@ -28,7 +29,7 @@ const servidor = createServer(async (req, res) => {
     }
     return json(200, { access_token: 'acesso-2', expires_in: 3600 });
   }
-  if (u.pathname.startsWith('/shorts/')) { consultasShorts++; res.writeHead(u.pathname === '/shorts/v1' ? 200 : 303, { location: '/watch' }); return res.end(); }
+  if (u.pathname.startsWith('/shorts/')) { consultasShorts++; res.writeHead(u.pathname === '/shorts/v1' ? 200 : u.pathname === '/shorts/v2' ? 303 : 302, { location: u.pathname === '/shorts/v2' ? '/watch?v=v2' : 'https://consent.youtube.com/m' }); return res.end(); }
   if (u.pathname === '/revoke') return json(200, {});
   if (!/^Bearer acesso-\d$/.test(String(req.headers.authorization || ''))) return json(401, { error: { message: 'sem token' } });
   if (u.pathname === '/youtube/v3/channels') return json(200, { items: semCanal ? [] : [{
@@ -97,7 +98,8 @@ const vids = await linhas('video');
 checa(vids.length === 60, 'pega os 60 vídeos (duas páginas da lista, em lotes de 50)');
 const v = (id: string) => vids.find((x: any) => x.id === id)!.dados;
 checa(v('v1').formato === 'short' && v('v2').formato === 'video' && v('v4').formato === 'video', 'separa Shorts de vídeos comuns');
-checa(consultasShorts === 2, 'só confere como Short o que tem até 3 minutos');
+checa(consultasShorts === 3, 'só confere como Short o que tem até 3 minutos');
+checa(v('v5').formato === 'short' && v('v5').formatoOk === false, 'sem resposta clara do YouTube, usa a duração e marca para conferir de novo');
 checa(v('v4').duracao === 522 && v('v4').views === 120 && v('v4').pctVisto === 38.5, 'duração, visualizações e retenção do vídeo');
 checa(v('v3').privacidade === 'private', 'guarda a privacidade (a tela mostra só os públicos)');
 const dias = await linhas('dia');
@@ -110,7 +112,7 @@ await Y.coletarYT(b, log);
 checa(pedidosDia.length === 1, 'sem forçar, não coleta de novo antes de 6 horas');
 consultasShorts = 0;
 await Y.coletarYT(b, log, true);
-checa(span(pedidosDia[1]) === 10 && consultasShorts === 0 && (await linhas('video')).length === 60, 'coletas seguintes: 10 dias, sem reconferir Shorts nem duplicar');
+checa(span(pedidosDia[1]) === 10 && consultasShorts === 1 && (await linhas('video')).length === 60, 'coletas seguintes: 10 dias, só reconfere o que ficou em dúvida, sem duplicar');
 
 console.log('Desconexão');
 await Y.desconectarYT(b);

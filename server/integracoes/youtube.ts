@@ -89,11 +89,16 @@ const relatorio = async (p: Record<string, string>) => {
 
 // "PT1H2M3S" -> segundos
 const segundos = (d: string) => { const m = String(d || '').match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/); return m ? ((+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0)) : 0; };
-// Short: o endereço /shorts/ do vídeo abre (200) em vez de redirecionar para o player comum.
-async function ehShort(id: string, dur: number) {
+// Short: o endereço /shorts/ do vídeo abre (200) em vez de redirecionar para o player comum (/watch).
+// O cookie pula a tela de consentimento que o YouTube mostra a servidores fora do Brasil (o IP do nosso
+// aparece como europeu). Sem resposta clara, devolve null e o vídeo é conferido de novo na próxima coleta.
+async function ehShort(id: string, dur: number): Promise<boolean | null> {
   if (dur > 180) return false;
-  try { return (await fetch(SHORTS() + id, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(15e3) })).status === 200; }
-  catch { return dur <= 60; }
+  try {
+    const r = await fetch(SHORTS() + id, { method: 'HEAD', redirect: 'manual', headers: { cookie: 'SOCS=CAI; CONSENT=YES+1' }, signal: AbortSignal.timeout(15e3) });
+    if (r.status === 200) return true;
+    return /\/watch/.test(r.headers.get('location') || '') ? false : null;
+  } catch { return null; }
 }
 const thumb = (t: any) => (t?.maxres || t?.standard || t?.high || t?.medium || t?.default)?.url || '';
 
@@ -120,15 +125,17 @@ export async function coletarYT(q: Consulta, log: Log, forcar = false) {
       ids.push(...(j.items || []).map((x: any) => x.contentDetails.videoId));
       pg = j.nextPageToken || '';
     } while (pg && ids.length < 1000);
-    const conhecidos = new Map((await q.query<{ id: string; formato: string }>(`select id, dados->>'formato' as formato from metricas where fonte='yt' and tipo='video'`)).rows.map((r) => [r.id, r.formato]));
+    const conhecidos = new Map((await q.query<{ id: string; formato: string }>(`select id, dados->>'formato' as formato from metricas where fonte='yt' and tipo='video' and dados->>'formatoOk' = 'true'`)).rows.map((r) => [r.id, r.formato]));
     for (let i = 0; i < ids.length; i += 50) {
       const j = await api(`${DADOS()}/videos?part=snippet,statistics,contentDetails,status&id=${ids.slice(i, i + 50).join(',')}`);
       for (const v of j.items || []) {
         const dur = segundos(v.contentDetails?.duration);
         const live = v.snippet?.liveBroadcastContent && v.snippet.liveBroadcastContent !== 'none';
-        const formato = conhecidos.get(v.id) || (live ? 'live' : (await ehShort(v.id, dur)) ? 'short' : 'video');
+        const sabido = live ? null : conhecidos.get(v.id);
+        const short = live || sabido ? null : await ehShort(v.id, dur);
+        const formato = live ? 'live' : sabido || (short ?? dur <= 60 ? 'short' : 'video');
         await gravar(q, 'yt', 'video', v.id, {
-          id: v.id, titulo: v.snippet?.title, publicado: v.snippet?.publishedAt, thumb: thumb(v.snippet?.thumbnails), duracao: dur, formato,
+          id: v.id, titulo: v.snippet?.title, publicado: v.snippet?.publishedAt, thumb: thumb(v.snippet?.thumbnails), duracao: dur, formato, formatoOk: !!sabido || short !== null,
           privacidade: v.status?.privacyStatus, views: Number(v.statistics?.viewCount || 0), curtidas: Number(v.statistics?.likeCount || 0), comentarios: Number(v.statistics?.commentCount || 0),
         });
       }
