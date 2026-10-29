@@ -7,6 +7,7 @@
 //   node ferramentas/gtm.mjs entrar     abre o navegador para autorizar (conta analytics@canchamarketing.com.br)
 //   node ferramentas/gtm.mjs listar     contas e contêineres do GTM, e os IDs de medição do GA4
 //   node ferramentas/gtm.mjs montar <accountId> <containerId> <G-XXXX>
+//   node ferramentas/gtm.mjs pixel <accountId> <containerId> <pixelId>   pixel da Meta (PageView e Lead)
 //   node ferramentas/gtm.mjs ver <accountId> <containerId>      o que está no espaço de trabalho
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -116,11 +117,11 @@ const OUVINTE = `<script>
 })();
 </script>`;
 
-async function montar(conta, conteiner, ga4) {
-  if (!/^G-[A-Z0-9]+$/.test(ga4 || '')) throw new Error('Informe o ID de medição do GA4 (G-XXXX).');
+// Espaço de trabalho separado para cada leva de mudanças (o "Default Workspace" fica intocado).
+async function abrirEspaco(conta, conteiner, nome) {
   const base = `${GTM}/accounts/${conta}/containers/${conteiner}`;
   const espacos = (await api('GET', `${base}/workspaces`)).workspace || [];
-  const ws = espacos.find((w) => w.name === ESPACO) || await api('POST', `${base}/workspaces`, { name: ESPACO, description: 'Criado pela Cancha Marketing por script (ferramentas/gtm.mjs). Conferir no Visualizar antes de publicar.' });
+  const ws = espacos.find((w) => w.name === nome) || await api('POST', `${base}/workspaces`, { name: nome, description: 'Criado pela Cancha Marketing por script (ferramentas/gtm.mjs). Conferir no Visualizar antes de publicar.' });
   const W = `${base}/workspaces/${ws.workspaceId}`;
   console.log(`Espaço de trabalho: ${ws.name} (${ws.workspaceId})`);
   // Rodar de novo não duplica: o que já existe com o mesmo nome é atualizado.
@@ -131,6 +132,12 @@ async function montar(conta, conteiner, ga4) {
     console.log(`  ${atual ? 'atualizado' : 'criado'}: ${obj.name}`);
     return r;
   };
+  return { W, existentes, salvar };
+}
+
+async function montar(conta, conteiner, ga4) {
+  if (!/^G-[A-Z0-9]+$/.test(ga4 || '')) throw new Error('Informe o ID de medição do GA4 (G-XXXX).');
+  const { W, existentes, salvar } = await abrirEspaco(conta, conteiner, ESPACO);
 
   // variáveis nativas de clique
   const nativas = new Set(((await api('GET', `${W}/built_in_variables`)).builtInVariable || []).map((v) => v.type));
@@ -168,6 +175,34 @@ async function montar(conta, conteiner, ga4) {
   console.log('\nPronto. Nada foi publicado. Confira no GTM: espaço de trabalho "' + ESPACO + '" → Visualizar.');
 }
 
+// Pixel da Meta: visualização de página em todas as páginas e "Lead" nos envios dos dois formulários
+// (usa os gatilhos de envio criados pelo "montar", que já estão publicados).
+const PIXEL_BASE = `<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '{{Meta - ID do pixel}}');
+fbq('track', 'PageView');
+</script>`;
+async function pixel(conta, conteiner, id) {
+  if (!/^\d{10,20}$/.test(id || '')) throw new Error('Informe o ID do pixel da Meta (só números).');
+  const { existentes, salvar } = await abrirEspaco(conta, conteiner, 'Cancha - Pixel da Meta');
+  await salvar('variables', await existentes('variables', 'variable'), 'variableId', { name: 'Meta - ID do pixel', type: 'c', parameter: [tpl('value', id)] });
+  const T = await existentes('triggers', 'trigger');
+  const envio = (form) => { const t = T.get(`Envio - ${form}`); if (!t) throw new Error(`Falta o gatilho "Envio - ${form}". Rode antes o "montar".`); return t.triggerId; };
+  const G = await existentes('tags', 'tag');
+  const TODAS = '2147479553'; // gatilho nativo "All Pages"
+  await salvar('tags', G, 'tagId', { name: 'Meta Pixel - base (PageView)', type: 'html', tagFiringOption: 'oncePerLoad', firingTriggerId: [TODAS],
+    parameter: [tpl('html', PIXEL_BASE), { type: 'boolean', key: 'supportDocumentWrite', value: 'false' }] });
+  for (const form of ['Form Footer', 'Form Whatsapp'])
+    await salvar('tags', G, 'tagId', { name: `Meta Pixel - Lead (${form})`, type: 'html', firingTriggerId: [envio(form)],
+      setupTag: [{ tagName: 'Meta Pixel - base (PageView)', stopOnSetupFailure: true }],
+      parameter: [tpl('html', `<script>fbq('track', 'Lead', { content_name: '${form}' });</script>`), { type: 'boolean', key: 'supportDocumentWrite', value: 'false' }] });
+  console.log('\nPronto. Nada foi publicado. Confira no GTM: espaço de trabalho "Cancha - Pixel da Meta" → Visualizar.');
+}
+
 async function ver(conta, conteiner) {
   const base = `${GTM}/accounts/${conta}/containers/${conteiner}`;
   const ws = ((await api('GET', `${base}/workspaces`)).workspace || []).find((w) => w.name === ESPACO);
@@ -180,6 +215,6 @@ async function ver(conta, conteiner) {
 }
 
 const [cmd, ...args] = process.argv.slice(2);
-const cmds = { entrar, listar, montar, ver };
-if (!cmds[cmd]) { console.log('Comandos: entrar | listar | montar <accountId> <containerId> <G-XXXX> | ver <accountId> <containerId>'); process.exit(1); }
+const cmds = { entrar, listar, montar, pixel, ver };
+if (!cmds[cmd]) { console.log('Comandos: entrar | listar | montar <accountId> <containerId> <G-XXXX> | pixel <accountId> <containerId> <pixelId> | ver <accountId> <containerId>'); process.exit(1); }
 cmds[cmd](...args).catch((e) => { console.error('Erro:', e.message); process.exit(1); });
