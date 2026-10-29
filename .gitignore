@@ -5,3 +5,6 @@ node_modules/
 .dados-dev/
 ACESSO-DEMO.txt
 *.log
+
+# credenciais locais (scripts do GTM etc.), nunca no git
+.segredos/
