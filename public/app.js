@@ -79,7 +79,7 @@ function carregarFonteExemplo(){
 // DADOS DO META (Instagram, Página e anúncios), coletados pelo servidor. Enquanto uma fonte não tem
 // coleta boa, as telas dela continuam com o exemplo. undefined = carregando; null = indisponível.
 let META;
-const FONTE_NOME={ig:'Instagram',fb:'Facebook',ads:'Anúncios do Meta',ga4:'Google Analytics'};
+const FONTE_NOME={ig:'Instagram',fb:'Facebook',ads:'Anúncios do Meta',ga4:'Google Analytics',yt:'YouTube'};
 const metaTem=f=>!!(META&&META.situacao[f]&&META.situacao[f].ultimoOk);
 const igUser=()=>esc((META&&META.ig.perfil&&META.ig.perfil.username)||'spraytecbr');
 const imgTag=(u,cls)=>u?`<img class="${cls||''}" src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-falha>`:'';
@@ -108,7 +108,8 @@ function prepMeta(j){
       titulo:tit(x.message)||'(sem texto)',legenda:x.message||'',img:x.full_picture,alc,views:null,curt,com,salv:0,comp,inter,eng:alc?inter/alc*100:null,cliques:m.post_clicks??null})});
   const ST=(j.ig.stories||[]).map(s=>{const m=s.metricas||{},ts=tsN(s.timestamp);return {id:s.id,ts,date:dia(ts),hora:hora(ts),tipo:s.media_type,drive:s.drive,driveTipo:s.drive_tipo,img:s.drive_capa?miniUrl(s.drive_capa,600):s.drive&&/^image\//.test(s.drive_tipo||'')?miniUrl(s.drive,600):s.thumbnail_url||(s.media_type!=='VIDEO'&&s.media_url)||(s.drive?miniUrl(s.drive,600):''),alc:m.reach??null,views:m.views??null,resp:m.replies||0,inter:m.total_interactions||0}});
   return {conectado:j.conectado,situacao:j.situacao||{},ig:{perfil:j.ig.perfil,dias:j.ig.dias||[]},fb:{perfil:j.fb.perfil,dias:j.fb.dias||[]},posts:P,stories:ST,
-    ads:{anuncios:new Map((j.ads.anuncios||[]).map(a=>[a.id,a])),dias:j.ads.dias||[]},ga4:Object.assign({dias:[],canais:[],paginas:[],eventos:[]},j.ga4||{})}}
+    ads:{anuncios:new Map((j.ads.anuncios||[]).map(a=>[a.id,a])),dias:j.ads.dias||[]},ga4:Object.assign({dias:[],canais:[],paginas:[],eventos:[]},j.ga4||{}),
+    yt:{perfil:j.yt&&j.yt.perfil||null,dias:j.yt&&j.yt.dias||[],videos:(j.yt&&j.yt.videos||[]).map(v=>({id:v.id,titulo:v.titulo||'(sem título)',ts:v.publicado||'',date:v.publicado?dia(v.publicado):'',img:v.thumb,duracao:v.duracao||0,formato:v.formato||'video',publico:v.privacidade==='public',views:v.views||0,curt:v.curtidas||0,com:v.comentarios||0,minutos:v.minutos??null,pctVisto:v.pctVisto??null}))}}}
 async function carregarMeta(){const antes=META;let m=null;try{m=prepMeta(await api('/api/metricas'))}catch(_){}META=m;
   if(!EU||S.drawer||S.pop)return;const ae=document.activeElement;if(antes!==undefined&&ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
   if(['redes','performance','acervo','hoje','plano'].includes(S.view))render()}
@@ -161,7 +162,7 @@ function perfSocialReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();cons
   const segTxt=v=>v==null?'—':(v>=0?'+':'')+n(v);const desdeSeg=[...META.ig.dias,...META.fb.dias].map(x=>x.d).sort()[0];
   const linha=(f,l)=>{const ps=pub.filter(x=>x.rede===f),P=META[f].perfil||{},a=ps.reduce((s,x)=>s+(x.alc||0),0),ce=ps.filter(x=>x.eng!=null),e=ce.length?ce.reduce((s,x)=>s+x.eng,0)/ce.length:null;
     return [l,P.followers_count!=null?fk(P.followers_count):'—',segTxt(novosSeg([f],r)),a?fk(a):'—',e!=null?pct(e):'—',ps.length+(f==='ig'?' · '+st.length+' stories':'')]};
-  const redes=[linha('ig','Instagram'),linha('fb','Facebook'),['YouTube','—','—','—','—','integração pendente']];
+  const redes=[linha('ig','Instagram'),linha('fb','Facebook'),metaTem('yt')?(()=>{const Y=ytStats(r),P=META.yt.perfil||{};return ['YouTube',P.inscritos!=null?fk(P.inscritos):'—',segTxt(Y.ins),fk(Y.v)+' visualiz.','—',String(Y.pub)]})():['YouTube','—','—','—','—','integração pendente']];
   const eg=x=>x.eng??-1;const ord={alc:(a,b)=>(b.alc||0)-(a.alc||0),eng:(a,b)=>eg(b)-eg(a),recent:(a,b)=>b.ts.localeCompare(a.ts)}[S.psort||'alc'];
   const list=pub.slice().sort(ord),MAX=60;const topA=pub.filter(x=>x.alc).sort((a,b)=>b.alc-a.alc)[0],topE=pub.filter(x=>x.eng!=null&&x.alc>=100).sort((a,b)=>b.eng-a.eng)[0];
   return `<div class="actions" style="align-items:center"><span class="eyebrow">Produto</span>${prodFiltro()}</div>${kpisC([
@@ -172,9 +173,39 @@ function perfSocialReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();cons
     {l:'Stories',v:st.length,s:'alcance médio '+(SC.stAlc?fk(SC.stAlc):'—')+(capt>r.de?' · guardados desde '+fmt(capt):''),cur:st.length,prev:stOk?SP.st.length:null,prevTxt:stOk?String(SP.st.length):'sem dados'},
     {l:'Novos seguidores',v:segTxt(SC.seg),s:SC.seg==null?'histórico começa em '+(desdeSeg?fmt(desdeSeg):fmt(TODAY)):'Instagram e Facebook',cur:SC.seg,prev:SP&&SP.seg,prevTxt:SP&&SP.seg!=null?segTxt(SP.seg):null}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Rede</th><th>Seguidores</th><th>Novos</th><th>Alcance</th><th>Engajamento</th><th>Publicações</th></tr></thead><tbody>${redes.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+  ${ytPerf(r,cr)}
   <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${pub.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Instagram e Facebook${S.prod?' · '+(S.prod==='—'?'sem produto':esc(S.prod)):''}. O produto vem do calendário, quando o post publicado tem o link colado lá.</p></div>
    <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['alc','Alcance'],['eng','Engajamento'],['recent','Mais recentes']].map(([k,l])=>`<button class="chip" data-psort="${k}" aria-pressed="${(S.psort||'alc')===k}">${l}</button>`).join('')}</div></div>
    ${pub.length?`<div class="crgrid">${list.slice(0,MAX).map(x=>cardReal(x,x===topA?tagPill('Maior alcance do período','--ok'):x===topE?tagPill('Maior engajamento do período','--ok'):'')).join('')}</div>${list.length>MAX?`<p class="muted" style="font-size:12px">Mostrando ${MAX} de ${list.length}. Encurte o período para ver os demais.</p>`:''}`:'<p class="muted">Nenhum post publicado nesse período.</p>'}</section>`}
+
+// YouTube com os dados reais
+const durTxt=s=>{s=Math.round(s||0);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=String(s%60).padStart(2,'0');return h?h+':'+String(m).padStart(2,'0')+':'+x:m+':'+x};
+const ytLink=v=>'https://www.youtube.com/'+(v.formato==='short'?'shorts/':'watch?v=')+encodeURIComponent(v.id);
+function ytCard(v){const ret=v.pctVisto!=null?' · '+Math.round(v.pctVisto)+'% visto em média':'';
+  return `<a class="ytv${v.formato==='short'?' short':''}" href="${ytLink(v)}" target="_blank" rel="noopener"><div class="th" style="background:#E3E4D3">${imgTag(v.img,'ytimg')}<small>${v.formato==='live'?'AO VIVO':v.formato==='short'?'Short':durTxt(v.duracao)}</small></div><b style="font-size:13px">${esc(v.titulo)}</b><span class="muted" style="font-size:12px">${fk(v.views)} visualizações · ${v.date?fmt(v.date):''}${ret}</span></a>`}
+function redesYT(){const P=META.yt.perfil||{},V=META.yt.videos.filter(v=>v.publico).sort((a,b)=>b.ts.localeCompare(a.ts));
+  const vids=V.filter(v=>v.formato!=='short'),sh=V.filter(v=>v.formato==='short');
+  return `<div class="cover">${P.banner?imgTag(P.banner,''):''}</div><div class="prof" style="padding:0 4px;margin-top:12px"><span class="avbig" style="box-shadow:none">S${P.logo?`<img src="${esc(P.logo)}" alt="Logo do canal" referrerpolicy="no-referrer" data-falha>`:''}</span><div><b style="font-size:18px">${esc(P.titulo||YT.canal||'Spraytec Brasil')}</b><div class="muted" style="font-size:13px">${P.url?esc(P.url)+' · ':''}${P.inscritos!=null?fk(P.inscritos)+' inscritos · ':''}${n(P.videos||0)} vídeos · ${fk(P.views||0)} visualizações</div></div></div>
+   <h2 style="font-size:16px">Vídeos · ${vids.length}</h2>${vids.length?`<div class="ytgrid">${vids.map(ytCard).join('')}</div>`:'<p class="muted">Nenhum vídeo público no canal.</p>'}
+   ${sh.length?`<h2 style="font-size:16px">Shorts · ${sh.length}</h2><div class="ytgrid shorts">${sh.map(ytCard).join('')}</div>`:''}`}
+function ytConexao(){if(!isTeam()||!YT.configurado)return '';
+  if(!YT.conectado)return `<section class="panel drivep"><div><b>Conectar o YouTube da Spraytec</b><p class="muted" style="margin:4px 0 0;font-size:13px">Antes de clicar, entre neste navegador na conta Google dona do canal. Se o canal for de uma conta de marca, o Google pergunta qual canal usar: escolha o da Spraytec.</p></div><a class="btn primary" href="/api/yt/conectar">Conectar YouTube</a></section>`;
+  return `<p class="muted" style="font-size:12px;margin-top:12px">Canal ${esc(YT.canal||'')} conectado pela conta ${esc(YT.conta||'')}. <button class="linkbtn" data-act="yt-desconectar">Desconectar</button></p>`}
+function ytStats(R){const D=META.yt.dias.filter(x=>inR(R,x.d));const sm=k=>D.reduce((a,x)=>a+(x[k]||0),0);
+  return {v:sm('views'),h:sm('minutos')/60,ins:D.length?sm('ganhos')-sm('perdidos'):null,pub:META.yt.videos.filter(x=>x.publico&&inR(R,x.date)).length}}
+function ytPerf(r,cr){if(!metaTem('yt'))return '';const A=ytStats(r),C=cr?ytStats(cr):null;
+  const top=META.yt.videos.filter(x=>x.publico&&inR(r,x.date)).sort((a,b)=>b.views-a.views).slice(0,8);
+  const hTxt=h=>h>=10?n(Math.round(h)):h.toFixed(1).replace('.',','),sg=v=>v==null?'—':(v>=0?'+':'')+n(v);
+  return `<section class="panel"><div class="headrow" style="margin-bottom:6px"><h2 style="margin:0">YouTube</h2><span class="muted" style="font-size:12px">${esc(YT.canal||'')}</span></div>${metaRodape(['yt'],'YouTube')}
+   ${kpisC([{l:'Visualizações',v:fk(A.v),s:'todos os vídeos do canal no período',cur:A.v,prev:C&&C.v,prevTxt:C&&fk(C.v)},
+     {l:'Horas assistidas',v:hTxt(A.h),cur:A.h,prev:C&&C.h,prevTxt:C&&hTxt(C.h)},
+     {l:'Inscritos',v:sg(A.ins),s:'ganhos menos perdidos',cur:A.ins,prev:C&&C.ins,prevTxt:C&&sg(C.ins)},
+     {l:'Vídeos publicados',v:A.pub,cur:A.pub,prev:C&&C.pub,prevTxt:C&&String(C.pub)}],cr)}
+   <p class="muted" style="font-size:12px;margin:6px 0 10px">O YouTube leva uns 2 dias para fechar os números de cada dia.</p>
+   ${top.length?`<h3 style="font-size:14px;margin:0 0 8px">Vídeos publicados no período</h3><div class="ytgrid">${top.map(ytCard).join('')}</div>`:''}</section>`}
+function avisoYTRetorno(){const q=new URLSearchParams(location.search),r=q.get('yt');if(!r)return;history.replaceState(null,'',location.pathname);
+  const M={ok:'YouTube conectado. Os vídeos e os números aparecem em alguns minutos.',cancelado:'A conexão com o YouTube foi cancelada.',expirou:'O pedido de conexão venceu. Clique em Conectar de novo.','sem-config':'As chaves do Google ainda não estão no servidor.',erro:'Não foi possível conectar o YouTube: '+(q.get('msg')||'erro desconhecido')};
+  S.view='redes';S.rede='youtube';toast(M[r]||M.erro);if(r==='ok')[45e3,120e3,300e3].forEach(t=>setTimeout(carregarMeta,t))}
 
 // Performance › Tráfego com os anúncios reais do Meta
 const OBJ={OUTCOME_LEADS:'Contatos',LEAD_GENERATION:'Contatos',OUTCOME_TRAFFIC:'Tráfego',LINK_CLICKS:'Tráfego',OUTCOME_ENGAGEMENT:'Engajamento',POST_ENGAGEMENT:'Engajamento',OUTCOME_AWARENESS:'Alcance',REACH:'Alcance',BRAND_AWARENESS:'Reconhecimento',MESSAGES:'Mensagens',VIDEO_VIEWS:'Visualizações de vídeo',OUTCOME_SALES:'Vendas',CONVERSIONS:'Conversões',OUTCOME_APP_PROMOTION:'App'};
@@ -244,7 +275,7 @@ function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(
 
 // ARQUIVOS NO GOOGLE DRIVE: enviados pelo portal, guardados no Drive da Spraytec e vistos aqui dentro.
 // Ninguém precisa abrir o Drive nem ter acesso a ele: o portal mostra o arquivo para quem pode ver o item.
-let DRIVE={conectado:false,configurado:false},GA4={conectado:false,configurado:false},materiais=[];
+let DRIVE={conectado:false,configurado:false},GA4={conectado:false,configurado:false},YT={conectado:false,configurado:false},materiais=[];
 const PASTAS_M=['Fotos de campo','Produtos','Institucional','Eventos','Guia de marca'];
 const arqUrl=id=>'/api/arquivos/'+encodeURIComponent(id)+'/conteudo';
 const miniUrl=(id,t)=>'/api/arquivos/'+encodeURIComponent(id)+'/miniatura?t='+(t||400);
@@ -950,10 +981,12 @@ function viewCalendario(){
 const IG_EXTRA=[['Dia do agrônomo','Institucional'],['Colheita do trigo no PR','Campo'],['Como ler a bula foliar','Educação'],['Bastidores do laboratório','Institucional']];
 function viewRedes(){
   const tabs=[['instagram','Instagram'],['facebook','Facebook'],['youtube','YouTube']];
-  if(META===undefined&&S.rede!=='youtube')return metaCarregando('Redes sociais','Instagram, Facebook e YouTube da Spraytec dentro do portal.')+subtabs(tabs,'rede','Redes');
-  const conn=S.rede==='youtube'?'':metaRodape([S.rede==='instagram'?'ig':'fb'].filter(f=>META&&META.conectado||metaTem(f)));
+  if(META===undefined)return metaCarregando('Redes sociais','Instagram, Facebook e YouTube da Spraytec dentro do portal.')+subtabs(tabs,'rede','Redes');
+  const conn=S.rede==='youtube'?(metaTem('yt')?metaRodape(['yt'],'YouTube'):''):metaRodape([S.rede==='instagram'?'ig':'fb'].filter(f=>META&&META.conectado||metaTem(f)));
   let body='';
-  if(S.rede==='instagram'&&metaTem('ig'))body=redesIG();
+  if(S.rede==='youtube'&&metaTem('yt'))body=redesYT()+ytConexao();
+  else if(S.rede==='youtube'&&YT.conectado)body=`<p class="muted">Canal conectado. Buscando os vídeos e os números do YouTube…</p>${META&&META.situacao.yt&&META.situacao.yt.erro&&isTeam()?`<p class="badt" style="font-size:13px">${esc(META.situacao.yt.erro)}</p>`:''}${ytConexao()}`;
+  else if(S.rede==='instagram'&&metaTem('ig'))body=redesIG();
   else if(S.rede==='facebook'&&metaTem('fb'))body=redesFB();
   else if(S.rede==='instagram'){
     const ig=posts.filter(p=>p.rede==='ig'&&['publicado'].includes(p.status)).sort((a,b)=>b.date.localeCompare(a.date));
@@ -971,11 +1004,11 @@ function viewRedes(){
   }else{
     const yt=posts.filter(p=>p.rede==='yt').sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     const vids=[...yt.filter(p=>p.formato==='video').map(p=>({t:p.titulo,c:PILAR_HUE[p.pilar],id:p.id,st:p.status})),{t:'Manejo de pós-emergência na soja',c:PILAR_HUE.Manejo},{t:'Tour pela fábrica de Maringá',c:PILAR_HUE.Institucional},{t:'Micronutrientes: o que a planta precisa',c:PILAR_HUE['Educação']}];
-    body=`<div class="cover" style="background:linear-gradient(120deg,#16331F,#235F3F 60%,#6FA83A)"></div><div class="prof" style="padding:0 4px"><span class="avbig" style="box-shadow:none">S</span><div><b style="font-size:18px">Spraytec Brasil</b><div class="muted" style="font-size:13px">@spraytecbrasil · 3,1 mil inscritos · 86 vídeos</div></div></div>
+    body=ytConexao()+`<div class="cover" style="background:linear-gradient(120deg,#16331F,#235F3F 60%,#6FA83A)"></div><div class="prof" style="padding:0 4px"><span class="avbig" style="box-shadow:none">S</span><div><b style="font-size:18px">Spraytec Brasil</b><div class="muted" style="font-size:13px">@spraytecbrasil · 3,1 mil inscritos · 86 vídeos</div></div></div>
      <h2 style="font-size:16px">Vídeos</h2><div class="ytgrid">${vids.map(v=>`<div class="ytv" ${v.id?`data-open="${v.id}"`:''}><div class="th" style="background:${v.c}">${esc(v.t)}<small>${v.st&&v.st!=='publicado'?'em breve':'8:42'}</small></div><b style="font-size:13px">${esc(v.t)}</b><span class="muted" style="font-size:12px">Spraytec Brasil</span></div>`).join('')}</div>
      <h2 style="font-size:16px">Shorts</h2><div class="postgrid">${yt.filter(p=>p.formato==='short').map(p=>`<div data-open="${p.id}">${preview(p)}</div>`).join('')}</div>`;
   }
-  return `${head('Redes sociais','Instagram, Facebook e YouTube da Spraytec dentro do portal.')}${subtabs(tabs,'rede','Redes')}${conn}${(S.rede==='instagram'&&metaTem('ig'))||(S.rede==='facebook'&&metaTem('fb'))?'':exLinha(S.rede==='youtube'?'Canal de exemplo: o YouTube entra com a integração do Google.':'Perfil e posts de exemplo: entram com a integração do Meta.')}<div class="social">${body}</div>`;
+  return `${head('Redes sociais','Instagram, Facebook e YouTube da Spraytec dentro do portal.')}${subtabs(tabs,'rede','Redes')}${conn}${(S.rede==='instagram'&&metaTem('ig'))||(S.rede==='facebook'&&metaTem('fb'))||(S.rede==='youtube'&&(metaTem('yt')||YT.conectado))?'':exLinha(S.rede==='youtube'?'Canal de exemplo: o YouTube entra com a integração do Google.':'Perfil e posts de exemplo: entram com a integração do Meta.')}<div class="social">${body}</div>`;
 }
 
 // PERFORMANCE
@@ -1615,7 +1648,7 @@ function aplicar(j){
   APRENDIZADOS=d.aprendizados||[];RELATORIOS=d.relatorios||[];plano=d.plano||null;GUIA=d.guia||GUIA;LANES=d.lanes||[];CONC_ACOES=d.concAcoes||[];LINKS=d.links||[];
   planoItem=posts.find(p=>p.formato==='plano')||null;
   S.role=EU.papel;
-  DRIVE=j.drive||{conectado:false,configurado:false};GA4=j.ga4||{conectado:false,configurado:false};materiais=d.materiais||[];
+  DRIVE=j.drive||{conectado:false,configurado:false};GA4=j.ga4||{conectado:false,configurado:false};YT=j.yt||{conectado:false,configurado:false};materiais=d.materiais||[];
   if(primeira){if(EU.papel==='produtora')META=null;else{META=undefined;carregarMeta()}}
   if(primeira||novoDia){carregarFonteExemplo();if(!S.month){S.month=(Number(TODAY.slice(8))>=15?addDays(TODAY.slice(0,8)+'01',40):TODAY).slice(0,7);S.dmonth=TODAY.slice(0,7)}setPreset(S.per.preset&&S.per.preset!=='custom'?S.per.preset:'30')}
 }
@@ -1632,7 +1665,7 @@ async function acao(nome,dados,depois){
   finally{ocupado=false;document.body.classList.remove('salvando')}}
 function acaoSilenciosa(nome,dados){api('/api/acao',Object.assign({acao:nome},dados||{})).then(j=>{VERSAO=j.versao}).catch(()=>{})}
 async function iniciar(){
-  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0);abrirDoLink();const qs=new URLSearchParams(location.search);if(qs.get('drive')){avisoDriveRetorno();render()}else if(qs.get('ga4')){avisoGA4Retorno();render()}}catch(_){}}
+  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0);abrirDoLink();const qs=new URLSearchParams(location.search);if(qs.get('drive')){avisoDriveRetorno();render()}else if(qs.get('ga4')){avisoGA4Retorno();render()}else if(qs.get('yt')){avisoYTRetorno();render()}}catch(_){}}
 // Atualiza sozinho quando outra pessoa muda algo (ex.: a Spraytec aprova pelo celular), sem atrapalhar quem está editando.
 setInterval(async()=>{
   if(!EU||document.hidden||ocupado)return;
@@ -1736,6 +1769,7 @@ document.addEventListener('click',e=>{
     case 'atividade-atualizar':ATIVIDADE=null;render();break;
     case 'drive-desconectar':if(confirm('Desconectar o Google Drive? Os arquivos continuam no Drive da Spraytec, mas o portal deixa de mostrar e de enviar até conectar de novo.'))api('/api/drive/desconectar',{}).then(()=>{toast('Drive desconectado.');S.driveSit=null;S.driveSitPedido=false;iniciar()}).catch(err=>toast(err.message));break;
     case 'ga4-escolher':{const sel=$('#ga4-prop');if(!sel)break;api('/api/ga4/propriedade',{id:sel.value}).then(()=>{toast('Propriedade escolhida. Os números do site aparecem em alguns minutos.');[60e3,180e3].forEach(t=>setTimeout(carregarMeta,t));iniciar()}).catch(err=>toast(err.message));break}
+    case 'yt-desconectar':if(confirm('Desconectar o YouTube? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/yt/desconectar',{}).then(()=>{toast('YouTube desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'ga4-desconectar':if(confirm('Desconectar o Google Analytics? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/ga4/desconectar',{}).then(()=>{toast('Google Analytics desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'm-nova-pasta':{const n=(prompt('Nome da nova pasta de materiais:')||'').trim().slice(0,60);if(n){S.mpasta=n;render()}break}
     case 'meta-atualizar':api('/api/integracoes/atualizar',{}).then(j=>{toast(j.jaRodando?'A coleta já está rodando. Os números novos aparecem em alguns minutos.':'Coleta iniciada. Os números novos aparecem em alguns minutos.');[60e3,180e3,360e3].forEach(t=>setTimeout(carregarMeta,t))}).catch(err=>toast(err.message));break;

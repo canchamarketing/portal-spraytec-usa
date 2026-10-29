@@ -17,6 +17,7 @@ import {
 import {
   carregarGA4, coletaGA4Rodando, coletarGA4, concluirGA4, desconectarGA4, escolherPropriedade, ga4Conectado, ga4Configurado, urlAutorizacaoGA4,
 } from './integracoes/ga4.ts';
+import { carregarYT, coletaYTRodando, coletarYT, concluirYT, desconectarYT, urlAutorizacaoYT, ytConectado, ytConfigurado } from './integracoes/youtube.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
 import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
@@ -31,6 +32,7 @@ const b = await abrirBanco();
 const aplicadas = await migrar(b);
 await carregarDrive(b);
 await carregarGA4(b);
+await carregarYT(b);
 
 // Pessoas de demonstração e dados fictícios (só em modo demonstração e com o banco vazio).
 async function garantirUsuariosDemo() {
@@ -77,7 +79,7 @@ app.addHook('onSend', async (req, rep, payload) => {
   rep.header('X-Frame-Options', 'DENY');
   rep.header('Referrer-Policy', 'same-origin');
   rep.header('Content-Security-Policy',
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.cdninstagram.com https://*.fbcdn.net; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://*.cdninstagram.com https://*.fbcdn.net https://i.ytimg.com https://yt3.ggpht.com https://yt3.googleusercontent.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   return payload;
 });
 // Pedidos que alteram dados precisam vir do próprio portal.
@@ -109,6 +111,8 @@ async function estadoPara(u: Usuario) {
   const dc = driveConectado();
   r.drive = { configurado: driveConfigurado(), conectado: !!dc, ...(u.papel === 'cancha' && dc ? { conta: dc.conta } : {}) };
   const ga = ga4Conectado();
+  const yt = ytConectado();
+  r.yt = { configurado: ytConfigurado(), conectado: !!yt, canal: yt?.canal.titulo || null, ...(u.papel === 'cancha' && yt ? { conta: yt.conta } : {}) };
   r.ga4 = { configurado: ga4Configurado(), conectado: !!ga, propriedade: ga?.propriedade?.nome || null, ...(u.papel === 'cancha' && ga ? { conta: ga.conta, opcoes: ga.propriedade ? [] : ga.opcoes } : {}) };
   if (['operacao', 'cancha', 'leitor'].includes(u.papel)) r.mencionaveis = pessoas.filter((p: any) => ['operacao', 'cancha', 'leitor'].includes(p.papel) && p.id !== u.id);
   return r;
@@ -346,8 +350,8 @@ app.get('/api/metricas', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel === 'produtora') return rep.code(403).send({ erro: 'Não permitido.' });
   const r: any = { conectado: metaConfigurado(), ig: { perfil: null, dias: [], posts: [], stories: [] }, fb: { perfil: null, dias: [], posts: [] }, ads: { anuncios: [], dias: [] },
-    ga4: { dias: [], canais: [], paginas: [], eventos: [] } };
-  const lista: Record<string, string> = { dia: 'dias', post: 'posts', story: 'stories', anuncio: 'anuncios', anuncio_dia: 'dias', canal_dia: 'canais', pagina_dia: 'paginas', evento_dia: 'eventos' };
+    ga4: { dias: [], canais: [], paginas: [], eventos: [] }, yt: { perfil: null, dias: [], videos: [] } };
+  const lista: Record<string, string> = { dia: 'dias', post: 'posts', story: 'stories', anuncio: 'anuncios', anuncio_dia: 'dias', canal_dia: 'canais', pagina_dia: 'paginas', evento_dia: 'eventos', video: 'videos' };
   const { rows } = await b.query(`select fonte, tipo, id, dados from metricas order by fonte, tipo, id`);
   for (const x of rows) {
     if (!r[x.fonte]) continue;
@@ -362,17 +366,18 @@ app.get('/api/metricas', async (req, rep) => {
 app.post('/api/integracoes/atualizar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha atualiza as integrações.' });
-  const ga = !!ga4Conectado()?.propriedade;
-  if (!metaConfigurado() && !ga) return rep.code(503).send({ erro: 'Nenhuma integração está configurada no servidor.' });
-  if (coletaRodando() || coletaGA4Rodando()) return { ok: true, jaRodando: true };
+  const ga = !!ga4Conectado()?.propriedade, yt = !!ytConectado();
+  if (!metaConfigurado() && !ga && !yt) return rep.code(503).send({ erro: 'Nenhuma integração está configurada no servidor.' });
+  if (coletaRodando() || coletaGA4Rodando() || coletaYTRodando()) return { ok: true, jaRodando: true };
   if (metaConfigurado()) coletarMeta(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));
   if (ga) coletarGA4(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Analytics'));
+  if (yt) coletarYT(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do YouTube'));
   return { ok: true };
 });
 
 // ---------- Google Drive: conexão (a Cancha conecta uma vez, logada na conta Google da Spraytec) ----------
 const RETORNO_DRIVE = BASE_URL + '/api/drive/retorno';
-const pedidosDrive = new Map<string, { uid: string; ate: number; tipo?: 'ga4' }>();
+const pedidosDrive = new Map<string, { uid: string; ate: number; tipo?: 'ga4' | 'yt' }>();
 app.get('/api/drive/conectar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha conecta o Drive.' });
@@ -386,9 +391,20 @@ app.get('/api/drive/retorno', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   const qy: any = req.query || {}, st = pedidosDrive.get(String(qy.state || ''));
   pedidosDrive.delete(String(qy.state || ''));
-  const aviso = st?.tipo === 'ga4' ? 'ga4' : 'drive';
+  const aviso = st?.tipo || 'drive';
   if (!st || st.ate < Date.now() || st.uid !== u.id) return rep.redirect(`/?${aviso}=expirou`);
   if (qy.error || !qy.code) return rep.redirect(`/?${aviso}=cancelado`);
+  if (st.tipo === 'yt') {
+    try {
+      const r = await concluirYT(b, String(qy.code), RETORNO_DRIVE);
+      await auditar(b, u, 'yt-conectar', `Conectou o canal ${r.canal.titulo} do YouTube pela conta ${r.conta || '(sem e-mail)'}`, { conta: r.conta, canal: r.canal }, null, req.ip);
+      coletarYT(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do YouTube'));
+      return rep.redirect('/?yt=ok');
+    } catch (err) {
+      req.log.error({ err }, 'falha ao conectar o YouTube');
+      return rep.redirect('/?yt=erro&msg=' + encodeURIComponent(String((err as Error).message).slice(0, 200)));
+    }
+  }
   if (st.tipo === 'ga4') {
     try {
       const r = await concluirGA4(b, String(qy.code), RETORNO_DRIVE);
@@ -426,6 +442,24 @@ app.get('/api/ga4/conectar', async (req, rep) => {
   for (const [k, v] of pedidosDrive) if (v.ate < Date.now()) pedidosDrive.delete(k);
   pedidosDrive.set(s, { uid: u.id, ate: Date.now() + 15 * 60e3, tipo: 'ga4' });
   return rep.redirect(urlAutorizacaoGA4(RETORNO_DRIVE, s));
+});
+// ---------- YouTube: conexão (a Cancha conecta uma vez, com a conta dona do canal) ----------
+app.get('/api/yt/conectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha conecta o YouTube.' });
+  if (!ytConfigurado()) return rep.redirect('/?yt=sem-config');
+  const s = randomBytes(18).toString('base64url');
+  for (const [k, v] of pedidosDrive) if (v.ate < Date.now()) pedidosDrive.delete(k);
+  pedidosDrive.set(s, { uid: u.id, ate: Date.now() + 15 * 60e3, tipo: 'yt' });
+  return rep.redirect(urlAutorizacaoYT(RETORNO_DRIVE, s));
+});
+app.post('/api/yt/desconectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha desconecta o YouTube.' });
+  const yt = ytConectado();
+  await desconectarYT(b);
+  await auditar(b, u, 'yt-desconectar', `Desconectou o YouTube${yt ? ' (canal ' + yt.canal.titulo + ')' : ''}; os números já coletados continuam no portal`, null, null, req.ip);
+  return { ok: true };
 });
 app.post('/api/ga4/propriedade', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
@@ -575,3 +609,7 @@ if (metaConfigurado()) {
 const coletarSite = () => coletarGA4(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do Google Analytics'));
 setTimeout(coletarSite, 45e3);
 setInterval(coletarSite, 3600e3);
+// Coleta do YouTube: mesma cadência do Google Analytics.
+const coletarCanal = () => coletarYT(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do YouTube'));
+setTimeout(coletarCanal, 60e3);
+setInterval(coletarCanal, 3600e3);

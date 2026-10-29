@@ -1008,3 +1008,10 @@ a.igt{color:#15170E;text-decoration:none}
 .stthumb .stimg~.sttxt{display:none}
 .stthumb .sttxt{font-family:var(--f-display);font-weight:700;font-size:13px;color:#15170E;background:rgba(255,255,255,.85);padding:4px 8px;border-radius:6px}
 .stthumb .stplay{position:absolute;top:8px;right:8px;z-index:1;background:rgba(0,0,0,.6);color:#fff;border-radius:999px;font-size:10px;padding:2px 7px}
+/* YouTube real */
+a.ytv{color:inherit;text-decoration:none}
+.ytv .th{overflow:hidden}
+.ytv .th .ytimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.ytv .th small{z-index:1}
+.ytgrid.shorts{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+.ytgrid.shorts .th{aspect-ratio:9/16}
