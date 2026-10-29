@@ -1,0 +1,35 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0\fswiss Arial;}}
+\paperw11906\paperh16838\margl1440\margr1440\margt1200\margb1200
+\f0\fs22
+{\pard\sa120\b\fs32 Portal Spraytec - Google Ads API Design Document\par}
+{\pard\sa240\fs20 Applicant: Cancha Marketing (digital marketing agency, Brazil) - canchamarketing.com.br\line Manager account (MCC): 223-025-0690\line API contact: analytics@canchamarketing.com.br\line Date: October 2026\par}
+
+{\pard\sa120\b\fs26 1. Company and purpose\par}
+{\pard\sa200 Cancha Marketing is a digital marketing agency that manages social media, paid media, e-mail marketing, video production and website maintenance for its clients. One of our clients is Spraytec Brasil (spraytec.com), an agricultural inputs company. We are building "Portal Spraytec", a private web portal (spraytec.canchamarketing.com.br) where the agency team and the client's marketing team follow the work we do for them: content calendar, approvals, and performance reports for all channels in one place.\par}
+{\pard\sa200 We are requesting Google Ads API access only to READ the performance of the client's Google Ads account, which is linked to our manager account, and show it in the portal next to the data we already collect from Meta (Instagram, Facebook and Meta Ads), Google Analytics 4 and YouTube. The tool does not create, edit, pause or delete anything in Google Ads.\par}
+
+{\pard\sa120\b\fs26 2. Users\par}
+{\pard\sa200 Internal reporting tool, not offered to the public or to other advertisers. About 10 users: agency staff and the client's marketing team, each with a personal login and a role (agency, client approver, client reader, video producer). The video producer role cannot see performance data. Every access and action is logged in an audit table.\par}
+
+{\pard\sa120\b\fs26 3. How the tool uses the API\par}
+{\pard\sa80 - Authentication: OAuth 2.0 with an agency Google account that has access to the client account through our manager account. The refresh token is stored encrypted (AES-256-GCM) in the portal database; the encryption key exists only on the server.\par}
+{\pard\sa80 - Account discovery: CustomerService.ListAccessibleCustomers and a GAQL query on customer_client from the manager account, to find the client account.\par}
+{\pard\sa80 - Reporting: GoogleAdsService.SearchStream with GAQL queries (read only):\par}
+{\pard\li360\sa40 a) campaign: id, name, status, advertising_channel_type, budget; metrics impressions, clicks, cost_micros, conversions, conversions_value; segmented by segments.date.\par}
+{\pard\li360\sa40 b) ad_group: id, name, status, campaign; same metrics by date.\par}
+{\pard\li360\sa40 c) ad_group_ad: ad id, type, final URLs, headlines/descriptions (responsive search ads), status; same metrics by date.\par}
+{\pard\li360\sa120 d) conversion_action: name, category (to label which conversions are leads).\par}
+{\pard\sa80 - Frequency: one synchronization every 6 hours for a single client account (about 4 to 5 SearchStream requests per run, roughly 20 requests per day). The first run loads the last 13 months; later runs refresh only the last 30 days, because conversions are attributed with delay.\par}
+{\pard\sa200 - No mutate operations are used. No user lists, no customer match, no personal data is uploaded or downloaded.\par}
+
+{\pard\sa120\b\fs26 4. Architecture\par}
+{\pard\sa200 Node.js server (Fastify) running in a Docker container on a VPS located in Brazil, behind HTTPS. Data is stored in a PostgreSQL database in a separate container that is not exposed to the internet. A scheduler inside the server runs the synchronization; results are saved as daily rows (date, campaign, ad group, ad, metrics). The web interface reads only from the database, never calls the Google Ads API directly. Database backups are encrypted and stored outside the server. If a synchronization fails or no new data arrives for more than 24 hours, the portal shows a warning and the agency is alerted, so stale numbers are never shown without notice.\par}
+
+{\pard\sa120\b\fs26 5. What users see\par}
+{\pard\sa80 - Performance > Paid media: investment, impressions, clicks, CTR, cost per click, conversions (leads) and cost per lead for the selected period, with comparison to a previous period, side by side with Meta Ads.\par}
+{\pard\sa80 - List of campaigns and ads with their numbers, best and worst cost per lead highlighted.\par}
+{\pard\sa200 - Monthly report for the client, combining all channels.\par}
+
+{\pard\sa120\b\fs26 6. Compliance\par}
+{\pard\sa200 Access is limited to the client's own account, with the client's consent. Data is used only to report results to the client. We follow the Google Ads API Terms and Conditions and the Required Minimum Functionality does not apply because the tool does not create or manage campaigns.\par}
+}
