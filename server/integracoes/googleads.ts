@@ -37,7 +37,14 @@ export async function carregarGAds(q: Consulta) {
   if (!driveConfigurado()) return;
   const r = (await q.query<{ valor: string }>(`select valor from segredos where nome='gads'`)).rows[0];
   if (r) try { conexao = JSON.parse(decifrar(r.valor)); } catch { conexao = null; }
+  // Conta cravada no .env (o MCC tem a Spraytec Brasil e a dos EUA): vale também para uma conexão já feita.
+  const c = conexao?.opcoes.find((o) => o.id === fixa());
+  if (conexao && c && conexao.cliente?.id !== c.id) {
+    await q.query(`delete from metricas where fonte='gads'`);
+    await guardar(q, { ...conexao, cliente: c });
+  }
 }
+const fixa = () => (process.env.GOOGLE_ADS_CONTA || '').replace(/\D/g, '');
 async function guardar(q: Consulta, c: Conexao) {
   await q.query(`insert into segredos (nome, valor) values ('gads', $1) on conflict (nome) do update set valor=excluded.valor, atualizado_em=now()`, [cifrar(JSON.stringify(c))]);
   conexao = c;
@@ -110,9 +117,9 @@ export async function concluirGAds(q: Consulta, codigo: string, retorno: string)
   }
   const opcoes = linhas.map((l) => l.customerClient).filter((c) => c && !c.manager && c.status === 'ENABLED').map((c) => ({ id: String(c.id), nome: c.descriptiveName || String(c.id) }));
   if (!opcoes.length) throw new ErroGAds('O MCC da Cancha não tem nenhuma conta de anúncios ativa vinculada. Confira se a Spraytec aceitou o vínculo.');
-  const fixa = (process.env.GOOGLE_ADS_CONTA || '').replace(/\D/g, '');
+  const f = fixa();
   const sp = opcoes.filter((o) => /spraytec/i.test(o.nome));
-  const cliente = fixa ? opcoes.find((o) => o.id === fixa) || null : sp.length === 1 ? sp[0] : opcoes.length === 1 ? opcoes[0] : null;
+  const cliente = f ? opcoes.find((o) => o.id === f) || null : sp.length === 1 ? sp[0] : opcoes.length === 1 ? opcoes[0] : null;
   if (conexao?.cliente?.id !== cliente?.id) await q.query(`delete from metricas where fonte='gads'`);
   await guardar(q, { refresh: t.refresh_token, conta, cliente, opcoes });
   return { conta, cliente, opcoes };
@@ -122,6 +129,7 @@ export async function escolherClienteGAds(q: Consulta, id: string) {
   if (!conexao) throw new ErroGAds('O Google Ads não está conectado.', 503);
   const c = conexao.opcoes.find((o) => o.id === id);
   if (!c) throw new ErroGAds('Essa conta não está no MCC da Cancha.', 400);
+  if (fixa() && c.id !== fixa()) throw new ErroGAds('A conta de anúncios está fixada no servidor (GOOGLE_ADS_CONTA).', 400);
   if (conexao.cliente?.id !== c.id) await q.query(`delete from metricas where fonte='gads'`);
   await guardar(q, { ...conexao, cliente: c });
   return c;

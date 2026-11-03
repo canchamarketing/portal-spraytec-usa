@@ -115,6 +115,13 @@ await espera(() => A.escolherClienteGAds(b, '999'), 'conta fora do MCC é recusa
 await A.escolherClienteGAds(b, '5556667778');
 checa(A.gadsConectado()?.cliente?.id === '5556667778', 'conta escolhida pela Cancha');
 
+console.log('Conta cravada no servidor');
+process.env.GOOGLE_ADS_CONTA = '1112223334';
+await A.carregarGAds(b);
+checa(A.gadsConectado()?.cliente?.id === '1112223334', 'conta cravada no .env vale para a conexão já feita, ao reiniciar');
+await espera(() => A.escolherClienteGAds(b, '5556667778'), 'com a conta cravada, outra escolha é recusada');
+delete process.env.GOOGLE_ADS_CONTA;
+
 console.log('Desconexão');
 await A.desconectarGAds(b);
 checa(!A.gadsConectado() && !(await b.query(`select 1 from segredos where nome='gads'`)).rows.length, 'desconectar apaga a autorização');
