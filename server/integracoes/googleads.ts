@@ -52,19 +52,30 @@ async function chamar(caminho: string, tk: string, corpo?: any, mcc = true) {
     body: corpo ? JSON.stringify(corpo) : undefined,
   });
   const j: any = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const e = Array.isArray(j) ? j[0]?.error : j.error;
-    const det = e?.details?.[0]?.errors?.[0]?.message;
-    throw new ErroGAds(det || e?.message || `O Google Ads respondeu ${r.status}.`, r.status);
-  }
+  if (!r.ok) throw erroDe(j, r.status);
   return j;
+}
+// O Google devolve 403 por motivos bem diferentes (API desligada no projeto, token de desenvolvedor,
+// conta sem acesso); a mensagem diz qual, com a explicação em português quando o motivo é conhecido.
+function erroDe(j: any, status: number) {
+  const e = Array.isArray(j) ? j[0]?.error : j.error;
+  const errs = (e?.details || []).flatMap((d: any) => d.errors || []);
+  const codigos = errs.flatMap((x: any) => Object.values(x.errorCode || {})).concat((e?.details || []).map((d: any) => d.reason)).filter(Boolean).join(' ');
+  const msg = errs[0]?.message || e?.message || `O Google Ads respondeu ${status}.`;
+  const dica = /SERVICE_DISABLED|has not been used|is disabled/i.test(codigos + ' ' + msg) ? 'A Google Ads API não está ativada no projeto "Portal Spraytec" do Google Cloud (ou acabou de ser ativada: espere uns minutos).'
+    : /DEVELOPER_TOKEN/i.test(codigos + ' ' + msg) ? 'O Google não aceitou o token de desenvolvedor: confira se é o do MCC da Cancha.'
+    : /USER_PERMISSION_DENIED|CUSTOMER_NOT_FOUND|doesn't have permission/i.test(codigos + ' ' + msg) ? 'A conta que conectou não tem acesso a esse MCC ou conta de anúncios.' : '';
+  return new ErroGAds((dica ? dica + ' ' : '') + `(Google: ${msg}${codigos ? ' · ' + codigos : ''})`, status);
 }
 async function descobrirVersao(tk: string) {
   for (const v of VERSOES) {
     const r = await fetch(`${BASE()}/${v}/customers:listAccessibleCustomers`, {
       headers: { authorization: 'Bearer ' + tk, 'developer-token': process.env.GOOGLE_ADS_TOKEN_DEV || '' }, signal: AbortSignal.timeout(30e3),
     });
-    if (r.status !== 404) { versao = v; return v; }
+    if (r.status === 404) continue;
+    // Só guarda a versão quando ela responde de verdade; outro erro (API desligada, token) sobe com o motivo.
+    if (!r.ok) throw erroDe(await r.json().catch(() => ({})), r.status);
+    versao = v; return v;
   }
   throw new ErroGAds('Nenhuma versão conhecida da API do Google Ads respondeu. Atualize a lista de versões em googleads.ts.');
 }
@@ -90,7 +101,8 @@ export async function concluirGAds(q: Consulta, codigo: string, retorno: string)
   try {
     linhas = await consulta(MCC(), `SELECT customer_client.id, customer_client.descriptive_name, customer_client.manager, customer_client.status FROM customer_client WHERE customer_client.level <= 1`, t.access_token);
   } catch (e) {
-    if (e instanceof ErroGAds && e.status === 403) throw new ErroGAds(`A conta ${conta || 'escolhida'} não tem acesso ao MCC da Cancha (${MCC()}). Entre com uma conta que seja usuária do MCC.`, 403);
+    if (e instanceof ErroGAds && e.status === 403 && /não tem acesso a esse MCC/.test(e.message))
+      throw new ErroGAds(`A conta ${conta || 'escolhida'} não tem acesso ao MCC da Cancha (${MCC()}). Entre com uma conta que seja usuária do MCC. ${e.message.slice(e.message.indexOf('(Google:'))}`, 403);
     throw e;
   }
   const opcoes = linhas.map((l) => l.customerClient).filter((c) => c && !c.manager && c.status === 'ENABLED').map((c) => ({ id: String(c.id), nome: c.descriptiveName || String(c.id) }));
