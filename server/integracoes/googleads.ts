@@ -170,9 +170,9 @@ export async function coletarGAds(q: Consulta, log: Log, forcar = false) {
   try {
     const { rows } = await q.query(`select 1 from metricas where fonte='gads' and tipo='campanha_dia' limit 1`);
     const ate = hojeBR(), de = new Date(Date.parse(ate + 'T12:00:00Z') - (rows.length ? 30 : 400) * 864e5).toISOString().slice(0, 10);
-    const camps = await consulta(cid, `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign.start_date, campaign_budget.amount_micros FROM campaign WHERE campaign.status != 'REMOVED'`);
+    const camps = await consulta(cid, `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign_budget.amount_micros FROM campaign WHERE campaign.status != 'REMOVED'`);
     for (const r of camps) await gravar(q, 'gads', 'campanha', String(r.campaign.id), {
-      id: String(r.campaign.id), nome: r.campaign.name, status: r.campaign.status, tipo: r.campaign.advertisingChannelType, inicio: r.campaign.startDate, orcamentoDia: reais(r.campaignBudget?.amountMicros),
+      id: String(r.campaign.id), nome: r.campaign.name, status: r.campaign.status, tipo: r.campaign.advertisingChannelType, orcamentoDia: reais(r.campaignBudget?.amountMicros),
     });
     const cdias = await consulta(cid, `SELECT campaign.id, segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${de}' AND '${ate}'`);
     for (const r of cdias) await gravar(q, 'gads', 'campanha_dia', `${r.campaign.id}:${r.segments.date}`, { campanha: String(r.campaign.id), d: r.segments.date, ...metr(r.metrics) });
