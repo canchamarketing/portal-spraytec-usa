@@ -49,10 +49,10 @@ export async function carregarDrive(q: Consulta) {
 }
 
 // ---------- conexão (OAuth) ----------
-export function urlAutorizacao(retorno: string, estado: string, escopo = ESCOPO) {
+export function urlAutorizacao(retorno: string, estado: string, escopo = ESCOPO, cliente = process.env.GOOGLE_CLIENT_ID!) {
   const u = new URL(AUTH_URL);
   u.search = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID!, redirect_uri: retorno, response_type: 'code', scope: escopo,
+    client_id: cliente, redirect_uri: retorno, response_type: 'code', scope: escopo,
     access_type: 'offline', prompt: 'consent select_account', include_granted_scopes: 'false', state: estado,
   }).toString();
   return u.toString();

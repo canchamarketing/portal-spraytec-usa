@@ -26,6 +26,9 @@ type Conexao = { refresh: string; conta: string; cliente: { id: string; nome: st
 let conexao: Conexao | null = null;
 let acesso: { token: string; ate: number } | null = null;
 let versao: string | null = process.env.GOOGLE_ADS_VERSAO || null;
+// O Google Ads só aceita o projeto do Google Cloud aprovado junto com o token do MCC; se ele for outro que não
+// o do Drive, a credencial dele vem em GOOGLE_ADS_CLIENT_ID/SECRET (o retorno é o mesmo /api/drive/retorno).
+const CLIENTE = (): Record<string, string> => (process.env.GOOGLE_ADS_CLIENT_ID ? { client_id: process.env.GOOGLE_ADS_CLIENT_ID, client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET || '' } : {});
 export const gadsConfigurado = () => driveConfigurado() && !!process.env.GOOGLE_ADS_TOKEN_DEV;
 export const gadsConectado = () => (conexao ? { conta: conexao.conta, cliente: conexao.cliente, opcoes: conexao.opcoes } : null);
 
@@ -86,11 +89,11 @@ async function consulta(cliente: string, gaql: string, tk?: string) {
 }
 
 // ---------- conexão (OAuth) ----------
-export const urlAutorizacaoGAds = (retorno: string, estado: string) => urlAutorizacao(retorno, estado, `openid email ${ESCOPO}`);
+export const urlAutorizacaoGAds = (retorno: string, estado: string) => urlAutorizacao(retorno, estado, `openid email ${ESCOPO}`, process.env.GOOGLE_ADS_CLIENT_ID || process.env.GOOGLE_CLIENT_ID!);
 
 export async function concluirGAds(q: Consulta, codigo: string, retorno: string) {
   if (!process.env.GOOGLE_ADS_TOKEN_DEV) throw new ErroGAds('Falta o token de desenvolvedor do Google Ads no servidor.');
-  const t = await pedirToken({ code: codigo, redirect_uri: retorno, grant_type: 'authorization_code' });
+  const t = await pedirToken({ code: codigo, redirect_uri: retorno, grant_type: 'authorization_code', ...CLIENTE() });
   if (!t.refresh_token) throw new ErroGAds('O Google não devolveu a autorização permanente. Tente conectar de novo.');
   if (!String(t.scope || '').split(' ').includes(ESCOPO)) throw new ErroGAds('A permissão do Google Ads não foi marcada. Tente de novo e marque a caixa do Google Ads.');
   acesso = { token: t.access_token, ate: Date.now() + (t.expires_in - 60) * 1000 };
@@ -135,7 +138,7 @@ async function token(): Promise<string> {
   if (!conexao) throw new ErroGAds('O Google Ads não está conectado.', 503);
   if (acesso && acesso.ate > Date.now()) return acesso.token;
   try {
-    const t = await pedirToken({ refresh_token: conexao.refresh, grant_type: 'refresh_token' });
+    const t = await pedirToken({ refresh_token: conexao.refresh, grant_type: 'refresh_token', ...CLIENTE() });
     acesso = { token: t.access_token, ate: Date.now() + (t.expires_in - 60) * 1000 };
     return acesso.token;
   } catch (e) {
