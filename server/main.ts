@@ -17,6 +17,7 @@ import {
 import {
   carregarGA4, coletaGA4Rodando, coletarGA4, concluirGA4, desconectarGA4, escolherPropriedade, ga4Conectado, ga4Configurado, urlAutorizacaoGA4,
 } from './integracoes/ga4.ts';
+import { carregarGAds, coletaGAdsRodando, coletarGAds, concluirGAds, desconectarGAds, escolherClienteGAds, gadsConectado, gadsConfigurado, urlAutorizacaoGAds } from './integracoes/googleads.ts';
 import { carregarYT, coletaYTRodando, coletarYT, concluirYT, desconectarYT, urlAutorizacaoYT, ytConectado, ytConfigurado } from './integracoes/youtube.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
 import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
@@ -33,6 +34,7 @@ const aplicadas = await migrar(b);
 await carregarDrive(b);
 await carregarGA4(b);
 await carregarYT(b);
+await carregarGAds(b);
 
 // Pessoas de demonstração e dados fictícios (só em modo demonstração e com o banco vazio).
 async function garantirUsuariosDemo() {
@@ -111,6 +113,8 @@ async function estadoPara(u: Usuario) {
   const dc = driveConectado();
   r.drive = { configurado: driveConfigurado(), conectado: !!dc, ...(u.papel === 'cancha' && dc ? { conta: dc.conta } : {}) };
   const ga = ga4Conectado();
+  const ga2 = gadsConectado();
+  r.gads = { configurado: gadsConfigurado(), conectado: !!ga2, conta: ga2?.cliente?.nome || null, ...(u.papel === 'cancha' && ga2 ? { email: ga2.conta, opcoes: ga2.cliente ? [] : ga2.opcoes } : {}) };
   const yt = ytConectado();
   r.yt = { configurado: ytConfigurado(), conectado: !!yt, canal: yt?.canal.titulo || null, ...(u.papel === 'cancha' && yt ? { conta: yt.conta } : {}) };
   r.ga4 = { configurado: ga4Configurado(), conectado: !!ga, propriedade: ga?.propriedade?.nome || null, ...(u.papel === 'cancha' && ga ? { conta: ga.conta, opcoes: ga.propriedade ? [] : ga.opcoes } : {}) };
@@ -350,8 +354,9 @@ app.get('/api/metricas', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel === 'produtora') return rep.code(403).send({ erro: 'Não permitido.' });
   const r: any = { conectado: metaConfigurado(), ig: { perfil: null, dias: [], posts: [], stories: [] }, fb: { perfil: null, dias: [], posts: [] }, ads: { anuncios: [], dias: [] },
-    ga4: { dias: [], canais: [], paginas: [], eventos: [] }, yt: { perfil: null, dias: [], videos: [] } };
-  const lista: Record<string, string> = { dia: 'dias', post: 'posts', story: 'stories', anuncio: 'anuncios', anuncio_dia: 'dias', canal_dia: 'canais', pagina_dia: 'paginas', evento_dia: 'eventos', video: 'videos' };
+    ga4: { dias: [], canais: [], paginas: [], eventos: [] }, yt: { perfil: null, dias: [], videos: [] },
+    gads: { campanhas: [], dias: [], anuncios: [], adDias: [] } };
+  const lista: Record<string, string> = { dia: 'dias', post: 'posts', story: 'stories', anuncio: 'anuncios', anuncio_dia: 'dias', canal_dia: 'canais', pagina_dia: 'paginas', evento_dia: 'eventos', video: 'videos', campanha: 'campanhas', campanha_dia: 'dias', anuncio_g_dia: 'adDias' };
   const { rows } = await b.query(`select fonte, tipo, id, dados from metricas order by fonte, tipo, id`);
   for (const x of rows) {
     if (!r[x.fonte]) continue;
@@ -366,18 +371,19 @@ app.get('/api/metricas', async (req, rep) => {
 app.post('/api/integracoes/atualizar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha atualiza as integrações.' });
-  const ga = !!ga4Conectado()?.propriedade, yt = !!ytConectado();
-  if (!metaConfigurado() && !ga && !yt) return rep.code(503).send({ erro: 'Nenhuma integração está configurada no servidor.' });
-  if (coletaRodando() || coletaGA4Rodando() || coletaYTRodando()) return { ok: true, jaRodando: true };
+  const ga = !!ga4Conectado()?.propriedade, yt = !!ytConectado(), gads = !!gadsConectado()?.cliente;
+  if (!metaConfigurado() && !ga && !yt && !gads) return rep.code(503).send({ erro: 'Nenhuma integração está configurada no servidor.' });
+  if (coletaRodando() || coletaGA4Rodando() || coletaYTRodando() || coletaGAdsRodando()) return { ok: true, jaRodando: true };
   if (metaConfigurado()) coletarMeta(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));
   if (ga) coletarGA4(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Analytics'));
   if (yt) coletarYT(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do YouTube'));
+  if (gads) coletarGAds(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Ads'));
   return { ok: true };
 });
 
 // ---------- Google Drive: conexão (a Cancha conecta uma vez, logada na conta Google da Spraytec) ----------
 const RETORNO_DRIVE = BASE_URL + '/api/drive/retorno';
-const pedidosDrive = new Map<string, { uid: string; ate: number; tipo?: 'ga4' | 'yt' }>();
+const pedidosDrive = new Map<string, { uid: string; ate: number; tipo?: 'ga4' | 'yt' | 'gads' }>();
 app.get('/api/drive/conectar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha conecta o Drive.' });
@@ -394,6 +400,17 @@ app.get('/api/drive/retorno', async (req, rep) => {
   const aviso = st?.tipo || 'drive';
   if (!st || st.ate < Date.now() || st.uid !== u.id) return rep.redirect(`/?${aviso}=expirou`);
   if (qy.error || !qy.code) return rep.redirect(`/?${aviso}=cancelado`);
+  if (st.tipo === 'gads') {
+    try {
+      const r = await concluirGAds(b, String(qy.code), RETORNO_DRIVE);
+      await auditar(b, u, 'gads-conectar', `Conectou o Google Ads pela conta ${r.conta || '(sem e-mail)'}${r.cliente ? ', conta de anúncios ' + r.cliente.nome : ''}`, { conta: r.conta, cliente: r.cliente }, null, req.ip);
+      if (r.cliente) coletarGAds(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Ads'));
+      return rep.redirect(r.cliente ? '/?gads=ok' : '/?gads=escolher');
+    } catch (err) {
+      req.log.error({ err }, 'falha ao conectar o Google Ads');
+      return rep.redirect('/?gads=erro&msg=' + encodeURIComponent(String((err as Error).message).slice(0, 200)));
+    }
+  }
   if (st.tipo === 'yt') {
     try {
       const r = await concluirYT(b, String(qy.code), RETORNO_DRIVE);
@@ -452,6 +469,34 @@ app.get('/api/yt/conectar', async (req, rep) => {
   for (const [k, v] of pedidosDrive) if (v.ate < Date.now()) pedidosDrive.delete(k);
   pedidosDrive.set(s, { uid: u.id, ate: Date.now() + 15 * 60e3, tipo: 'yt' });
   return rep.redirect(urlAutorizacaoYT(RETORNO_DRIVE, s));
+});
+// ---------- Google Ads: conexão (a Cancha conecta uma vez, com uma conta que é usuária do MCC) ----------
+app.get('/api/gads/conectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha conecta o Google Ads.' });
+  if (!gadsConfigurado()) return rep.redirect('/?gads=sem-config');
+  const s = randomBytes(18).toString('base64url');
+  for (const [k, v] of pedidosDrive) if (v.ate < Date.now()) pedidosDrive.delete(k);
+  pedidosDrive.set(s, { uid: u.id, ate: Date.now() + 15 * 60e3, tipo: 'gads' });
+  return rep.redirect(urlAutorizacaoGAds(RETORNO_DRIVE, s));
+});
+app.post('/api/gads/conta', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha escolhe a conta de anúncios.' });
+  try {
+    const c = await escolherClienteGAds(b, String((req.body as any)?.id || ''));
+    await auditar(b, u, 'gads-conta', `Escolheu a conta ${c.nome} do Google Ads`, { cliente: c }, null, req.ip);
+    coletarGAds(b, app.log, true).catch((err) => app.log.error({ err }, 'falha na coleta do Google Ads'));
+    return { ok: true };
+  } catch (err) { return rep.code((err as any).status || 400).send({ erro: (err as Error).message }); }
+});
+app.post('/api/gads/desconectar', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha desconecta o Google Ads.' });
+  const g = gadsConectado();
+  await desconectarGAds(b);
+  await auditar(b, u, 'gads-desconectar', `Desconectou o Google Ads${g?.conta ? ' da conta ' + g.conta : ''}; os números já coletados continuam no portal`, null, null, req.ip);
+  return { ok: true };
 });
 app.post('/api/yt/desconectar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
@@ -613,3 +658,7 @@ setInterval(coletarSite, 3600e3);
 const coletarCanal = () => coletarYT(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do YouTube'));
 setTimeout(coletarCanal, 60e3);
 setInterval(coletarCanal, 3600e3);
+// Coleta do Google Ads: mesma cadência.
+const coletarAnuncios = () => coletarGAds(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do Google Ads'));
+setTimeout(coletarAnuncios, 75e3);
+setInterval(coletarAnuncios, 3600e3);

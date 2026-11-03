@@ -79,7 +79,7 @@ function carregarFonteExemplo(){
 // DADOS DO META (Instagram, Página e anúncios), coletados pelo servidor. Enquanto uma fonte não tem
 // coleta boa, as telas dela continuam com o exemplo. undefined = carregando; null = indisponível.
 let META;
-const FONTE_NOME={ig:'Instagram',fb:'Facebook',ads:'Anúncios do Meta',ga4:'Google Analytics',yt:'YouTube'};
+const FONTE_NOME={ig:'Instagram',fb:'Facebook',ads:'Anúncios do Meta',ga4:'Google Analytics',yt:'YouTube',gads:'Google Ads'};
 const metaTem=f=>!!(META&&META.situacao[f]&&META.situacao[f].ultimoOk);
 const igUser=()=>esc((META&&META.ig.perfil&&META.ig.perfil.username)||'spraytecbr');
 const imgTag=(u,cls)=>u?`<img class="${cls||''}" src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-falha>`:'';
@@ -109,6 +109,7 @@ function prepMeta(j){
   const ST=(j.ig.stories||[]).map(s=>{const m=s.metricas||{},ts=tsN(s.timestamp);return {id:s.id,ts,date:dia(ts),hora:hora(ts),tipo:s.media_type,drive:s.drive,driveTipo:s.drive_tipo,img:s.drive_capa?miniUrl(s.drive_capa,600):s.drive&&/^image\//.test(s.drive_tipo||'')?miniUrl(s.drive,600):s.thumbnail_url||(s.media_type!=='VIDEO'&&s.media_url)||(s.drive?miniUrl(s.drive,600):''),alc:m.reach??null,views:m.views??null,resp:m.replies||0,inter:m.total_interactions||0}});
   return {conectado:j.conectado,situacao:j.situacao||{},ig:{perfil:j.ig.perfil,dias:j.ig.dias||[]},fb:{perfil:j.fb.perfil,dias:j.fb.dias||[]},posts:P,stories:ST,
     ads:{anuncios:new Map((j.ads.anuncios||[]).map(a=>[a.id,a])),dias:j.ads.dias||[]},ga4:Object.assign({dias:[],canais:[],paginas:[],eventos:[]},j.ga4||{}),
+    gads:{campanhas:new Map((j.gads&&j.gads.campanhas||[]).map(c=>[c.id,c])),dias:j.gads&&j.gads.dias||[],anuncios:new Map((j.gads&&j.gads.anuncios||[]).map(a=>[a.id,a])),adDias:j.gads&&j.gads.adDias||[]},
     yt:{perfil:j.yt&&j.yt.perfil||null,dias:j.yt&&j.yt.dias||[],videos:(j.yt&&j.yt.videos||[]).map(v=>({id:v.id,titulo:v.titulo||'(sem título)',ts:v.publicado||'',date:v.publicado?dia(v.publicado):'',img:v.thumb,duracao:v.duracao||0,formato:v.formato||'video',publico:v.privacidade==='public',views:v.views||0,curt:v.curtidas||0,com:v.comentarios||0,minutos:v.minutos??null,pctVisto:v.pctVisto??null}))}}}
 async function carregarMeta(){const antes=META;let m=null;try{m=prepMeta(await api('/api/metricas'))}catch(_){}META=m;
   if(!EU||S.drawer||S.pop)return;const ae=document.activeElement;if(antes!==undefined&&ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
@@ -207,6 +208,30 @@ function avisoYTRetorno(){const q=new URLSearchParams(location.search),r=q.get('
   const M={ok:'YouTube conectado. Os vídeos e os números aparecem em alguns minutos.',cancelado:'A conexão com o YouTube foi cancelada.',expirou:'O pedido de conexão venceu. Clique em Conectar de novo.','sem-config':'As chaves do Google ainda não estão no servidor.',erro:'Não foi possível conectar o YouTube: '+(q.get('msg')||'erro desconhecido')};
   S.view='redes';S.rede='youtube';toast(M[r]||M.erro);if(r==='ok')[45e3,120e3,300e3].forEach(t=>setTimeout(carregarMeta,t))}
 
+// Google Ads com os dados reais
+const CANAL_GADS={SEARCH:'Pesquisa',DISPLAY:'Display',VIDEO:'YouTube',PERFORMANCE_MAX:'Performance Max',SHOPPING:'Shopping',DEMAND_GEN:'Geração de demanda',DISCOVERY:'Geração de demanda',SMART:'Inteligente',LOCAL:'Local',MULTI_CHANNEL:'App'};
+const ST_GADS={ENABLED:['Ativa','--ok'],PAUSED:['Pausada','--muted'],REMOVED:['Removida','--muted']};
+function gadsTot(r){return META.gads.dias.filter(x=>inR(r,x.d)).reduce((a,x)=>({i:a.i+x.investido,im:a.im+x.impressoes,c:a.c+x.cliques,ct:a.ct+x.conversoes}),{i:0,im:0,c:0,ct:0})}
+function gadsPor(lista,chave,r){const o={};lista.filter(x=>inR(r,x.d)).forEach(x=>{const t=o[x[chave]]||(o[x[chave]]={i:0,im:0,c:0,ct:0});t.i+=x.investido;t.im+=x.impressoes;t.c+=x.cliques;t.ct+=x.conversoes});return o}
+function gadsSecao(r,cr){const rs=v=>'R$ '+n(Math.round(v)),rs2=v=>'R$ '+v.toFixed(2).replace('.',','),cv=v=>v%1?v.toFixed(1).replace('.',','):n(v);
+  const P=gadsPor(META.gads.dias,'campanha',r),PC=cr?gadsPor(META.gads.dias,'campanha',cr):{};
+  const camps=[...META.gads.campanhas.values()].filter(c=>P[c.id]||c.status==='ENABLED').map(c=>({c,t:P[c.id]||{i:0,im:0,c:0,ct:0},p:PC[c.id]})).sort((a,b)=>b.t.i-a.t.i);
+  const AD=gadsPor(META.gads.adDias,'ad',r);const ads=Object.keys(AD).map(id=>({a:META.gads.anuncios.get(id)||{id,nome:'Anúncio '+id,titulos:[]},t:AD[id]})).filter(x=>x.t.im).sort((a,b)=>b.t.ct-a.t.ct||b.t.i-a.t.i).slice(0,12);
+  const linha=x=>{const st=ST_GADS[x.c.status]||[x.c.status,'--muted'];return `<tr><td><b>${esc(x.c.nome||'')}</b><div class="muted" style="font-size:12px">${CANAL_GADS[x.c.tipo]||esc(x.c.tipo||'')}${x.c.orcamentoDia?' · '+rs(x.c.orcamentoDia)+'/dia':''}</div></td><td>${tagPill(st[0],st[1])}</td><td class="mono">${rs(x.t.i)}</td><td class="mono">${fk(x.t.im)}</td><td class="mono">${fk(x.t.c)}</td><td class="mono">${x.t.im?pct(x.t.c/x.t.im*100):'—'}</td><td class="mono">${cv(x.t.ct)}</td><td class="mono">${x.t.ct?rs(x.t.i/x.t.ct):'—'}</td></tr>`};
+  const camp=META.gads.campanhas;
+  return `<section class="panel"><div class="headrow" style="margin-bottom:6px"><div><h2 style="margin:0">Campanhas do Google Ads · ${camps.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">${esc(GADS.conta||'')} · ${perLabel()}. Conversões como contadas no Google Ads.</p></div></div>${metaRodape(['gads'],'Google Ads')}
+   ${camps.length?`<div class="tablewrap" style="border:0"><table class="ap" style="min-width:820px"><thead><tr><th>Campanha</th><th>Situação</th><th>Investido</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>Conversões</th><th>Custo por conversão</th></tr></thead><tbody>${camps.map(linha).join('')}</tbody></table></div>`:'<p class="muted">Nenhuma campanha ativa ou com veiculação no período.</p>'}
+   ${ads.length?`<h3 style="font-size:14px;margin:14px 0 6px">Anúncios que mais converteram</h3><div class="tablewrap" style="border:0"><table class="ap" style="min-width:760px"><thead><tr><th>Anúncio</th><th>Investido</th><th>Cliques</th><th>Conversões</th><th>Custo por conversão</th></tr></thead><tbody>${ads.map(x=>{const a=x.a,tit=(a.titulos||[]).slice(0,3).join(' | ')||a.nome||'Anúncio '+a.id;return `<tr><td style="max-width:420px"><b>${esc(tit)}</b><div class="muted" style="font-size:12px">${esc((camp.get(a.campanha)||{}).nome||'')}${a.grupo?' · '+esc(a.grupo):''}</div></td><td class="mono">${rs(x.t.i)}</td><td class="mono">${fk(x.t.c)}</td><td class="mono">${cv(x.t.ct)}</td><td class="mono">${x.t.ct?rs(x.t.i/x.t.ct):'—'}</td></tr>`}).join('')}</tbody></table></div><p class="muted" style="font-size:12px;margin:6px 0 0">Campanhas Performance Max não têm anúncio individual: entram só na tabela de campanhas.</p>`:''}
+   ${gadsConexao()}</section>`}
+function gadsConexao(){if(!isTeam())return '';
+  if(!GADS.configurado)return '<p class="muted" style="font-size:13px">Google Ads: falta o token de desenvolvedor no servidor.</p>';
+  if(!GADS.conectado)return `<section class="panel drivep"><div><b>Conectar o Google Ads</b><p class="muted" style="margin:4px 0 0;font-size:13px">Antes de clicar, entre neste navegador com uma conta Google que é usuária do MCC da Cancha. O portal só lê os números.</p></div><a class="btn primary" href="/api/gads/conectar">Conectar Google Ads</a></section>`;
+  if(!GADS.conta)return `<section class="panel drivep"><div><b>Qual conta de anúncios é a da Spraytec?</b></div><div class="perdates"><select id="gads-conta" class="pe" aria-label="Conta do Google Ads">${(GADS.opcoes||[]).map(o=>`<option value="${esc(o.id)}">${esc(o.nome)} · ${esc(o.id)}</option>`).join('')}</select><button class="btn primary sm" data-act="gads-escolher">Usar esta</button></div></section>`;
+  return `<p class="muted" style="font-size:12px;margin:8px 0 0">Google Ads conectado pela conta ${esc(GADS.email||'')}. <button class="linkbtn" data-act="gads-desconectar">Desconectar</button></p>`}
+function avisoGAdsRetorno(){const q=new URLSearchParams(location.search),r=q.get('gads');if(!r)return;history.replaceState(null,'',location.pathname);
+  const M={ok:'Google Ads conectado. Os números aparecem em alguns minutos.',escolher:'Google Ads conectado. Escolha a conta de anúncios da Spraytec.',cancelado:'A conexão com o Google Ads foi cancelada.',expirou:'O pedido de conexão venceu. Clique em Conectar de novo.','sem-config':'Falta o token do Google Ads no servidor.',erro:'Não foi possível conectar o Google Ads: '+(q.get('msg')||'erro desconhecido')};
+  S.view='performance';S.psub='trafego';toast(M[r]||M.erro);if(r==='ok')[60e3,180e3,360e3].forEach(t=>setTimeout(carregarMeta,t))}
+
 // Performance › Tráfego com os anúncios reais do Meta
 const OBJ={OUTCOME_LEADS:'Contatos',LEAD_GENERATION:'Contatos',OUTCOME_TRAFFIC:'Tráfego',LINK_CLICKS:'Tráfego',OUTCOME_ENGAGEMENT:'Engajamento',POST_ENGAGEMENT:'Engajamento',OUTCOME_AWARENESS:'Alcance',REACH:'Alcance',BRAND_AWARENESS:'Reconhecimento',MESSAGES:'Mensagens',VIDEO_VIEWS:'Visualizações de vídeo',OUTCOME_SALES:'Vendas',CONVERSIONS:'Conversões',OUTCOME_APP_PROMOTION:'App'};
 const OTIM={LINK_CLICKS:'Cliques no link',LANDING_PAGE_VIEWS:'Visualizações da página',REACH:'Alcance',IMPRESSIONS:'Impressões',POST_ENGAGEMENT:'Engajamento',THRUPLAY:'Reproduções de vídeo',LEAD_GENERATION:'Contatos (formulário)',QUALITY_LEAD:'Contatos de qualidade',CONVERSATIONS:'Conversas',OFFSITE_CONVERSIONS:'Conversões no site',PROFILE_VISIT:'Visitas ao perfil',ENGAGED_USERS:'Pessoas engajadas',VALUE:'Valor das conversões'};
@@ -229,20 +254,23 @@ function publicoDe(t){t=t||{};const g=t.geo_locations||{};const cut=(s,k)=>s.len
     pos:(t.publisher_platforms||[]).map(x=>({facebook:'Facebook',instagram:'Instagram',audience_network:'Audience Network',messenger:'Messenger'}[x]||x)).join(', ')||'Automático (Advantage+)'}}
 function adRealPreview(a){const cr=a.creative||{};const im=cr.image_url||orgImg(cr.instagram_permalink_url)||cr.thumbnail_url;const b=(cr.body||'').split('\n').find(l=>l.trim())||'';
   return `<div class="pv"><div class="hd">${avS()}<span><b>Spraytec Brasil</b><br><span class="sm">Patrocinado</span></span></div>${b?`<div class="txt">${esc(b.slice(0,160))}</div>`:''}<div class="img adimg" style="--bg:#E3E4D3">${imgTag(im,'pvimg')}${cr.object_type==='VIDEO'?'<span class="cnt">▶ vídeo</span>':''}<span>${esc(cr.title||a.name||'')}</span></div><div class="ctabar"><span class="sm">${esc(OBJ[(a.campaign||{}).objective]||'')}</span><b>Saiba mais ›</b></div></div>`}
-function midiaReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();const A=adsTotais(r),T=somaAds(A),C=cr?somaAds(adsTotais(cr)):null,cOk=C&&(C.i||C.im);
+function midiaReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();const A=adsTotais(r),TM=somaAds(A),CM=cr?somaAds(adsTotais(cr)):null;const temM=metaTem('ads'),temG=metaTem('gads'),GT=gadsTot(r),GC=cr?gadsTot(cr):null;
+  const soma=(a,b)=>({i:a.i+b.i,im:a.im+b.im,c:a.c+b.c,ct:a.ct+b.ct}),T=temG?soma(TM,GT):TM,C=cr?(temG?soma(CM,GC):CM):null,cOk=C&&(C.i||C.im);
+  const plats=[temM&&'Meta Ads',temG&&'Google Ads'].filter(Boolean).join(' e ');
   const meta=plano&&plano.dados&&plano.dados.metas?plano.dados.metas.cpl:null;const rs=v=>'R$ '+n(Math.round(v)),rs2=v=>'R$ '+v.toFixed(2).replace('.',',');
   const ads=Object.keys(A).filter(id=>A[id].inv||A[id].im).map(id=>{const t=A[id];return {a:META.ads.anuncios.get(id)||{id,name:'Anúncio '+id},...t,ctr:t.im?t.c/t.im*100:0,cpl:t.ct?t.inv/t.ct:null}});
   const ord={cont:(x,y)=>y.ct-x.ct||y.inv-x.inv,cpl:(x,y)=>(x.cpl??1e9)-(y.cpl??1e9),ctr:(x,y)=>y.ctr-x.ctr,inv:(x,y)=>y.inv-x.inv}[S.cord||'cont'];
   const list=ads.slice().sort(ord),best=ads.filter(x=>x.cpl).sort((x,y)=>x.cpl-y.cpl)[0];
   const conj=[...new Map(ads.map(x=>[(x.a.adset||{}).id||x.a.id,x.a])).values()];
-  return `<h2 style="font-size:16px;margin:4px 0 0">Mídia paga · Meta Ads</h2>
-  ${kpisC([{l:'Investimento',v:rs(T.i),s:'Meta Ads',cur:T.i,prev:cOk?C.i:null,prevTxt:cOk?rs(C.i):null},{l:'Impressões',v:fk(T.im),cur:T.im,prev:cOk?C.im:null,prevTxt:cOk?fk(C.im):null},
-    {l:'Cliques no link',v:fk(T.c),s:'CTR '+(T.im?pct(T.c/T.im*100):'—'),cur:T.c,prev:cOk?C.c:null,prevTxt:cOk?fk(C.c):null},{l:'Contatos',v:n(T.ct),s:'formulários e conversas iniciadas',cur:T.ct,prev:cOk?C.ct:null,prevTxt:cOk?n(C.ct):null},
+  return `<h2 style="font-size:16px;margin:4px 0 0">Mídia paga · ${plats}</h2>
+  ${kpisC([{l:'Investimento',v:rs(T.i),s:plats,cur:T.i,prev:cOk?C.i:null,prevTxt:cOk?rs(C.i):null},{l:'Impressões',v:fk(T.im),cur:T.im,prev:cOk?C.im:null,prevTxt:cOk?fk(C.im):null},
+    {l:'Cliques no link',v:fk(T.c),s:'CTR '+(T.im?pct(T.c/T.im*100):'—'),cur:T.c,prev:cOk?C.c:null,prevTxt:cOk?fk(C.c):null},{l:'Contatos',v:n(Math.round(T.ct)),s:temG?'formulários, conversas e conversões do Google':'formulários e conversas iniciadas',cur:T.ct,prev:cOk?C.ct:null,prevTxt:cOk?n(Math.round(C.ct)):null},
     {l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:meta?'meta: até R$ '+meta:'',cur:T.ct?T.i/T.ct:null,prev:cOk&&C.ct?C.i/C.ct:null,prevTxt:cOk&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>
-   <tr><td>Meta Ads</td><td class="mono">${rs(T.i)}</td><td class="mono">${fk(T.im)}</td><td class="mono">${fk(T.c)}</td><td class="mono">${T.c?rs2(T.i/T.c):'—'}</td><td class="mono">${n(T.ct)}</td><td class="mono">${T.ct?rs(T.i/T.ct):'—'}</td></tr>
-   <tr><td>Google Ads e YouTube Ads</td><td colspan="6" class="muted">Integração pendente: entram quando o acesso for liberado.</td></tr></tbody></table></div>
-  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Anúncios que veicularam · ${ads.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Gerenciador de Anúncios da Meta · ${perLabel()}.</p></div>
+   ${[temM&&['Meta Ads',TM],temG&&['Google Ads',GT]].filter(Boolean).map(([l,x])=>`<tr><td>${l}</td><td class="mono">${rs(x.i)}</td><td class="mono">${fk(x.im)}</td><td class="mono">${fk(x.c)}</td><td class="mono">${x.c?rs2(x.i/x.c):'—'}</td><td class="mono">${n(Math.round(x.ct))}</td><td class="mono">${x.ct?rs(x.i/x.ct):'—'}</td></tr>`).join('')}
+   ${temM?'':'<tr><td>Meta Ads</td><td colspan="6" class="muted">Sem dados do Meta.</td></tr>'}${temG?'':'<tr><td>Google Ads</td><td colspan="6" class="muted">Integração pendente: entra quando o acesso for liberado.</td></tr>'}</tbody></table></div>
+  ${temG?gadsSecao(r,cr):gadsConexao()}
+  ${temM?`<section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Anúncios que veicularam · ${ads.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Gerenciador de Anúncios da Meta · ${perLabel()}.</p></div>
    <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['cont','Contatos'],['cpl','Custo por contato'],['ctr','Taxa de cliques'],['inv','Investimento']].map(([k,l])=>`<button class="chip" data-cord="${k}" aria-pressed="${(S.cord||'cont')===k}">${l}</button>`).join('')}</div></div>
    ${list.length?`<div class="crgrid">${list.map(x=>{const a=x.a,pb=publicoDe((a.adset||{}).targeting),lk=(a.creative||{}).instagram_permalink_url;
      const flag=x===best?tagPill('Melhor custo por contato','--ok'):meta&&x.cpl>meta?tagPill('Acima da meta de R$ '+meta,'--bad'):'';
@@ -251,8 +279,8 @@ function midiaReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();const A=a
       <div>${a.effective_status==='ACTIVE'?tagPill('Ativo','--ok'):tagPill('Pausado','--muted')} ${flag}</div>
       <div class="crm"><div><span>Investido</span><b>${rs(x.inv)}</b></div><div><span>Impressões</span><b>${n(x.im)}</b></div><div><span>Cliques</span><b>${n(x.c)}</b></div><div><span>Taxa de cliques</span><b>${pct(x.ctr)}</b></div><div><span>Contatos</span><b>${n(x.ct)}</b></div><div><span>Custo por contato</span><b class="${meta&&x.cpl>meta?'bad':''}">${x.cpl?rs(x.cpl):'—'}</b></div></div>
       <div class="aud"><span class="eyebrow">Público</span><div>${esc(pb.quem)}</div><div class="muted" style="font-size:12px">${esc(pb.loc)} · ${pb.ida} anos · ${pb.gen} · ${esc(pb.pos)}</div></div>
-      ${lk?`<a class="linkbtn" href="${esc(lk)}" target="_blank" rel="noopener">Ver o post ›</a>`:''}</div></article>`}).join('')}</div>`:'<p class="muted">Nenhum anúncio veiculou nesse período.</p>'}</section>
-  ${conj.length?`<section class="panel"><h2>Públicos dos conjuntos de anúncios</h2><div class="tablewrap" style="border:0"><table class="ap" style="min-width:900px"><thead><tr><th>Conjunto</th><th>Onde</th><th>Idade</th><th>Quem</th><th>Fora do público</th><th>Posicionamento</th><th>Otimizado para</th><th>Orçamento</th></tr></thead><tbody>
+      ${lk?`<a class="linkbtn" href="${esc(lk)}" target="_blank" rel="noopener">Ver o post ›</a>`:''}</div></article>`}).join('')}</div>`:'<p class="muted">Nenhum anúncio veiculou nesse período.</p>'}</section>`:''}
+  ${temM&&conj.length?`<section class="panel"><h2>Públicos dos conjuntos de anúncios</h2><div class="tablewrap" style="border:0"><table class="ap" style="min-width:900px"><thead><tr><th>Conjunto</th><th>Onde</th><th>Idade</th><th>Quem</th><th>Fora do público</th><th>Posicionamento</th><th>Otimizado para</th><th>Orçamento</th></tr></thead><tbody>
    ${conj.map(a=>{const s=a.adset||{},pb=publicoDe(s.targeting);return `<tr><td><b>${esc(s.name||a.name)}</b><div class="muted" style="font-size:12px">${esc((a.campaign||{}).name||'')}</div></td><td style="max-width:220px">${esc(pb.loc)}</td><td>${pb.ida} · ${pb.gen}</td><td style="max-width:260px">${esc(pb.quem)}</td><td style="max-width:200px">${esc(pb.excl)}</td><td>${esc(pb.pos)}</td><td>${OTIM[s.optimization_goal]||'—'}</td><td class="mono">${orcDe(a)}</td></tr>`}).join('')}
   </tbody></table></div></section>`:''}`}
 
@@ -275,7 +303,7 @@ function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(
 
 // ARQUIVOS NO GOOGLE DRIVE: enviados pelo portal, guardados no Drive da Spraytec e vistos aqui dentro.
 // Ninguém precisa abrir o Drive nem ter acesso a ele: o portal mostra o arquivo para quem pode ver o item.
-let DRIVE={conectado:false,configurado:false},GA4={conectado:false,configurado:false},YT={conectado:false,configurado:false},materiais=[];
+let DRIVE={conectado:false,configurado:false},GA4={conectado:false,configurado:false},YT={conectado:false,configurado:false},GADS={conectado:false,configurado:false},materiais=[];
 const PASTAS_M=['Fotos de campo','Produtos','Institucional','Eventos','Guia de marca'];
 const arqUrl=id=>'/api/arquivos/'+encodeURIComponent(id)+'/conteudo';
 const miniUrl=(id,t)=>'/api/arquivos/'+encodeURIComponent(id)+'/miniatura?t='+(t||400);
@@ -1066,7 +1094,7 @@ function perfTrafego(){
   const pl=base.map(x=>[x.k,rs(x.i),fk(x.im),fk(x.c),rs2(x.i/x.c),x.ct,x.ct?rs(x.i/x.ct):'—']);
   const tot=18200,exc=tot-15000;
   return `${siteSecao()}
-  ${metaTem('ads')?midiaReal():`<h2 style="font-size:16px;margin:4px 0 0">Mídia paga ${EX}</h2>
+  ${metaTem('ads')||metaTem('gads')?midiaReal():`${gadsConexao()}<h2 style="font-size:16px;margin:4px 0 0">Mídia paga ${EX}</h2>
   ${kpisC([{l:'Investimento',v:rs(T.i),s:'3 plataformas',cur:T.i,prev:C&&C.i,prevTxt:C&&rs(C.i)},{l:'Impressões',v:fk(T.im),cur:T.im,prev:C&&C.im,prevTxt:C&&fk(C.im)},{l:'Cliques',v:fk(T.c),s:'CTR '+pct(T.c/T.im*100),cur:T.c,prev:C&&C.c,prevTxt:C&&fk(C.c)},{l:'Contatos',v:T.ct,s:'formulário e WhatsApp',cur:T.ct,prev:C&&C.ct,prevTxt:C&&String(C.ct)},{l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:'meta: até R$ '+plano.dados.metas.cpl,cur:T.ct?T.i/T.ct:null,prev:C&&C.ct?C.i/C.ct:null,prevTxt:C&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>${pl.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   ${secCriativos()}`}
@@ -1648,7 +1676,7 @@ function aplicar(j){
   APRENDIZADOS=d.aprendizados||[];RELATORIOS=d.relatorios||[];plano=d.plano||null;GUIA=d.guia||GUIA;LANES=d.lanes||[];CONC_ACOES=d.concAcoes||[];LINKS=d.links||[];
   planoItem=posts.find(p=>p.formato==='plano')||null;
   S.role=EU.papel;
-  DRIVE=j.drive||{conectado:false,configurado:false};GA4=j.ga4||{conectado:false,configurado:false};YT=j.yt||{conectado:false,configurado:false};materiais=d.materiais||[];
+  DRIVE=j.drive||{conectado:false,configurado:false};GA4=j.ga4||{conectado:false,configurado:false};YT=j.yt||{conectado:false,configurado:false};GADS=j.gads||{conectado:false,configurado:false};materiais=d.materiais||[];
   if(primeira){if(EU.papel==='produtora')META=null;else{META=undefined;carregarMeta()}}
   if(primeira||novoDia){carregarFonteExemplo();if(!S.month){S.month=(Number(TODAY.slice(8))>=15?addDays(TODAY.slice(0,8)+'01',40):TODAY).slice(0,7);S.dmonth=TODAY.slice(0,7)}setPreset(S.per.preset&&S.per.preset!=='custom'?S.per.preset:'30')}
 }
@@ -1665,7 +1693,7 @@ async function acao(nome,dados,depois){
   finally{ocupado=false;document.body.classList.remove('salvando')}}
 function acaoSilenciosa(nome,dados){api('/api/acao',Object.assign({acao:nome},dados||{})).then(j=>{VERSAO=j.versao}).catch(()=>{})}
 async function iniciar(){
-  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0);abrirDoLink();const qs=new URLSearchParams(location.search);if(qs.get('drive')){avisoDriveRetorno();render()}else if(qs.get('ga4')){avisoGA4Retorno();render()}else if(qs.get('yt')){avisoYTRetorno();render()}}catch(_){}}
+  try{const j=await api('/api/estado');document.body.classList.remove('entrando');EU=null;S.view=j.eu.papel==='produtora'?'videos':'hoje';S.drawer=null;S.sel={};S.pdraft=null;S.pop=null;S.thread=null;ATIVIDADE=null;aplicar(j);render();window.scrollTo(0,0);abrirDoLink();const qs=new URLSearchParams(location.search);if(qs.get('drive')){avisoDriveRetorno();render()}else if(qs.get('ga4')){avisoGA4Retorno();render()}else if(qs.get('yt')){avisoYTRetorno();render()}else if(qs.get('gads')){avisoGAdsRetorno();render()}}catch(_){}}
 // Atualiza sozinho quando outra pessoa muda algo (ex.: a Spraytec aprova pelo celular), sem atrapalhar quem está editando.
 setInterval(async()=>{
   if(!EU||document.hidden||ocupado)return;
@@ -1769,6 +1797,8 @@ document.addEventListener('click',e=>{
     case 'atividade-atualizar':ATIVIDADE=null;render();break;
     case 'drive-desconectar':if(confirm('Desconectar o Google Drive? Os arquivos continuam no Drive da Spraytec, mas o portal deixa de mostrar e de enviar até conectar de novo.'))api('/api/drive/desconectar',{}).then(()=>{toast('Drive desconectado.');S.driveSit=null;S.driveSitPedido=false;iniciar()}).catch(err=>toast(err.message));break;
     case 'ga4-escolher':{const sel=$('#ga4-prop');if(!sel)break;api('/api/ga4/propriedade',{id:sel.value}).then(()=>{toast('Propriedade escolhida. Os números do site aparecem em alguns minutos.');[60e3,180e3].forEach(t=>setTimeout(carregarMeta,t));iniciar()}).catch(err=>toast(err.message));break}
+    case 'gads-escolher':{const sel=$('#gads-conta');if(!sel)break;api('/api/gads/conta',{id:sel.value}).then(()=>{toast('Conta escolhida. Os números aparecem em alguns minutos.');[60e3,180e3].forEach(t=>setTimeout(carregarMeta,t));iniciar()}).catch(err=>toast(err.message));break}
+    case 'gads-desconectar':if(confirm('Desconectar o Google Ads? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/gads/desconectar',{}).then(()=>{toast('Google Ads desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'yt-desconectar':if(confirm('Desconectar o YouTube? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/yt/desconectar',{}).then(()=>{toast('YouTube desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'ga4-desconectar':if(confirm('Desconectar o Google Analytics? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/ga4/desconectar',{}).then(()=>{toast('Google Analytics desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'm-nova-pasta':{const n=(prompt('Nome da nova pasta de materiais:')||'').trim().slice(0,60);if(n){S.mpasta=n;render()}break}
