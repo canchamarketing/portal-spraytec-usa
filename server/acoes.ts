@@ -633,7 +633,7 @@ export const ACOES: Record<string, Def> = {
   'marcos-salvar': {
     papeis: C,
     fn: (c) => {
-      const tipos = ['safra', 'comercial', 'evento', 'recesso'];
+      const tipos = ['safra', 'comercial', 'evento', 'recesso', 'feriado'];
       const ms = (Array.isArray(c.d.marcos) ? c.d.marcos : []).slice(0, 100).map((m: any) => {
         const ini = isoValida(m.ini) ? m.ini : c.hoje; let fim = isoValida(m.fim) ? m.fim : ini; if (fim < ini) fim = ini;
         return { id: typeof m.id === 'string' && m.id ? m.id.slice(0, 40) : novoId('m'), tipo: tipos.includes(m.tipo) ? m.tipo : 'evento', nome: texto(m.nome, 'nome da fase', 120, false) || 'Fase', ini, fim };

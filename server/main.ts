@@ -20,7 +20,7 @@ import {
 import { carregarGAds, coletaGAdsRodando, coletarGAds, concluirGAds, desconectarGAds, escolherClienteGAds, gadsConectado, gadsConfigurado, urlAutorizacaoGAds } from './integracoes/googleads.ts';
 import { carregarYT, coletaYTRodando, coletarYT, concluirYT, desconectarYT, urlAutorizacaoYT, ytConectado, ytConfigurado } from './integracoes/youtube.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
-import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, hojeBR, novoId, type Usuario } from './dominio.ts';
+import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, definirFeriadosExtras, hojeBR, novoId, type Usuario } from './dominio.ts';
 import {
   COOKIE_DEMO, codigoDemoConfere, consultarToken, criarSessao, criarToken, demoLiberado, emailConfigurado, encerrarSessao,
   enviarAviso, enviarConvite, enviarRedefinicao, bloqueado, hashSenha, liberarDemo, linkDoToken, modoDemo, permitido, problemaNaSenha,
@@ -244,6 +244,7 @@ async function executarAcao(u: Usuario, acao: string, d: any, ip?: string) {
   const res = await emFila(() => b.tx(async (q) => {
     const e = await carregar(q);
     const antes = clone(e);
+    definirFeriadosExtras(e.marcos);
     const r = def.fn({ e, u, d, hoje: hojeBR(), agora: agoraBR(), pessoas: await pessoasAtivas(q) });
     const mud = await salvar(q, antes, e, u.nome);
     if (!def.semAuditoria) await auditar(q, u, acao, r.resumo, d, mud, ip);

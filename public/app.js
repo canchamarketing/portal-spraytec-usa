@@ -11,7 +11,12 @@ const NET={ig:'IG',fb:'FB',yt:'YT',ads:'ADS',email:'E-MAIL',design:'DESIGN',vide
 const NETNAME={ig:'Instagram',fb:'Facebook',yt:'YouTube',ads:'Mídia paga',email:'E-mail marketing',design:'Design',video:'Vídeo'};
 const FORMATO={carrossel:'Carrossel',post:'Post',story:'Story',reel:'Reel',video:'Vídeo',short:'Short',newsletter:'Newsletter',plano:'Plano de mídia',pecas:'Peça em 3 formatos',producao:'Produção de peças',gravacao:'Gravação',entrega:'Entrega do vídeo'};
 const PILAR_HUE={Manejo:'#D7E6A3',Campo:'#BFD9C2',Produto:'#E9D7A8',Educação:'#C9DCEB',Institucional:'#E2D6E8',Relacionamento:'#F0CDBF',Eventos:'#F3E0B5'};
-const HOLIDAYS={'2026-09-07':'Independência','2026-10-12':'N. Sra. Aparecida','2026-11-02':'Finados','2026-11-15':'Proclamação','2026-11-20':'Consc. Negra','2026-12-25':'Natal','2027-01-01':'Ano-novo','2027-02-08':'Carnaval','2027-02-09':'Carnaval','2027-03-26':'Sexta-feira Santa','2027-04-21':'Tiradentes','2027-05-01':'Dia do Trabalho','2027-05-27':'Corpus Christi','2027-09-07':'Independência','2027-10-12':'N. Sra. Aparecida','2027-11-02':'Finados','2027-11-15':'Proclamação','2027-11-20':'Consc. Negra','2027-12-25':'Natal'};
+// Feriados nacionais de qualquer ano (os móveis saem da Páscoa) + feriados e recessos cadastrados no calendário.
+function pascoa(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),x=h+l-7*m+114;return y+'-'+String(Math.floor(x/31)).padStart(2,'0')+'-'+String(x%31+1).padStart(2,'0')}
+const _fer={};
+function feriadosAno(y){if(_fer[y])return _fer[y];const o={},p=pascoa(y);[['01-01','Ano-novo'],['04-21','Tiradentes'],['05-01','Dia do Trabalho'],['09-07','Independência'],['10-12','N. Sra. Aparecida'],['11-02','Finados'],['11-15','Proclamação'],['11-20','Consc. Negra'],['12-25','Natal']].forEach(([d,n])=>o[y+'-'+d]=n);
+  [[-48,'Carnaval'],[-47,'Carnaval'],[-2,'Sexta-feira Santa'],[60,'Corpus Christi']].forEach(([k,n])=>o[addDays(p,k)]=n);return _fer[y]=o}
+function feriado(iso){if(!iso)return '';const n=feriadosAno(+iso.slice(0,4))[iso];if(n)return n;const m=MARCOS.find(x=>(x.tipo==='feriado'||x.tipo==='recesso')&&x.ini<=iso&&x.fim>=iso);return m?m.nome||MK_TIPO[m.tipo]:''}
 const PESO={carrossel:2,post:1,story:1,pecas:1};
 const TIPOS=[['post','Posts'],['email','E-mail marketing'],['design','Design'],['video','Vídeo'],['demanda','Demandas']];
 
@@ -21,7 +26,7 @@ const STAGES=[['pauta','Pauta'],['viabilidade','Viabilidade'],['roteiro','Roteir
 let videos=[];
 
 let MARCOS=[];
-const MK_TIPO={safra:'Safra',comercial:'Foco comercial',evento:'Evento',recesso:'Recesso'};
+const MK_TIPO={safra:'Safra',comercial:'Foco comercial',evento:'Evento',recesso:'Recesso',feriado:'Feriado'};
 
 let demandas=[];
 const QUEM={cancha:'Cancha',spraytec:'Spraytec'};
@@ -51,7 +56,9 @@ const PASTAS=['Soja','Milho','Trigo','Institucional','Vídeos da produtora'];
 
 function addDays(iso,n){const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function dow(iso){return new Date(iso+'T12:00:00Z').getUTCDay()}
-function isBiz(iso){const w=dow(iso);return w!==0&&w!==6&&!HOLIDAYS[iso]}
+function isBiz(iso){const w=dow(iso);return w!==0&&w!==6&&!feriado(iso)}
+function proxUtil(iso){let d=iso;while(!isBiz(d))d=addDays(d,1);return d}
+function antUtil(iso){let d=iso;while(!isBiz(d))d=addDays(d,-1);return d}
 
 let acervo=[],stories=[],darkposts=[],STORIES_DESDE='';
 function carregarFonteExemplo(){
@@ -1035,7 +1042,7 @@ function viewHoje(){
   const linhaExec=exec?`<button class="hlinha" data-act="rel-ver" data-id="${exec.id}"><span class="eyebrow">Resumo executivo</span><span class="hl-obj">${esc(exec.frase||exec.t)}</span><span class="hl-meta">${esc(exec.t)}</span><span class="hl-ir">›</span></button>`:'';
   return `<div class="headrow hello"><div><div class="eyebrow">Spraytec Brasil · ${fmtLong(TODAY)}</div><h1>${'Olá, '+esc(EU.nome.split(' ')[0])}</h1></div></div>
   ${nums}
-  ${isDir()?'':cicloStrip(addMonth(TODAY.slice(0,7),1),true)}
+  ${isDir()?'':cicloStrip(addMonth(TODAY.slice(0,7),1))}
   ${linhaEst}
   ${isDir()?linhaExec:chatSection()}
   ${novidadesBlock()}`;
@@ -1070,7 +1077,7 @@ function calGrid(month,renderDay,bands,addAct){
     if(bands){const ms=MARCOS.filter(m=>m.ini<=we&&m.fim>=ws).sort((a,b)=>a.ini.localeCompare(b.ini)||b.fim.localeCompare(a.fim));const ends=[];
       ms.forEach(m=>{const s=w.indexOf(m.ini>ws?m.ini:ws),e=w.indexOf(m.fim<we?m.fim:we);let L=ends.findIndex(x=>x<s);if(L<0){L=ends.length;ends.push(e)}else ends[L]=e;segs.push({m,s,e,L,st:m.ini>=ws,en:m.fim<=we})})}
     const lanes=segs.length?Math.max(...segs.map(x=>x.L))+1:0;
-    return `<div class="wk" style="grid-template-rows:26px ${lanes?`repeat(${lanes},22px) `:''}auto">${w.map((d,i)=>{const out=!d.startsWith(month);if(out)return `<div class="day out" style="grid-column:${i+1};grid-row:1 / -1" aria-hidden="true"></div>`;return `<div class="day ${d===TODAY?'today':''}" data-day="${d}" style="grid-column:${i+1};grid-row:1 / -1"><div class="dn"><span>${Number(d.slice(8))}</span>${HOLIDAYS[d]?`<span class="hol">${HOLIDAYS[d]}</span>`:''}${addAct?`<button class="addd" data-act="${addAct}" data-date="${d}" aria-label="Adicionar em ${fmt(d)}">+</button>`:''}</div>${lanes?`<div style="height:${lanes*22}px;flex:none"></div>`:''}${out?'':renderDay(d)}</div>`}).join('')}
+    return `<div class="wk" style="grid-template-rows:26px ${lanes?`repeat(${lanes},22px) `:''}auto">${w.map((d,i)=>{const out=!d.startsWith(month);if(out)return `<div class="day out" style="grid-column:${i+1};grid-row:1 / -1" aria-hidden="true"></div>`;return `<div class="day ${d===TODAY?'today':''}" data-day="${d}" style="grid-column:${i+1};grid-row:1 / -1"><div class="dn"><span>${Number(d.slice(8))}</span>${feriado(d)?`<span class="hol">${feriado(d)}</span>`:''}${addAct?`<button class="addd" data-act="${addAct}" data-date="${d}" aria-label="Adicionar em ${fmt(d)}">+</button>`:''}</div>${lanes?`<div style="height:${lanes*22}px;flex:none"></div>`:''}${out?'':renderDay(d)}</div>`}).join('')}
       ${segs.map(x=>`<button class="band b-${x.m.tipo} ${x.st?'s':''} ${x.en?'e':''}" data-act="${isTeam()?'marcos':''}" style="grid-column:${x.s+1} / ${x.e+2};grid-row:${x.L+2}" title="${esc(MK_TIPO[x.m.tipo]+': '+x.m.nome+' · '+fmt(x.m.ini)+' a '+fmt(x.m.fim))}"><b>${MK_TIPO[x.m.tipo]}</b><span>${esc(x.m.nome)}</span></button>`).join('')}</div>`}).join('')}</div>`;
 }
 function monthNav(key){const [y,m]=S[key].split('-').map(Number);return `<div class="monthnav"><button class="iconbtn" data-month="-1" data-mk="${key}" aria-label="Mês anterior">‹</button><h2>${MONTHS[m-1]} ${y}</h2><button class="iconbtn" data-month="1" data-mk="${key}" aria-label="Próximo mês">›</button></div>`}
@@ -1094,8 +1101,9 @@ function viewCalendario(){
   return `${head('Calendário','Posts, e-mail, produção de design e vídeo e as demandas, tudo ligado. Clique num item para ver os detalhes e o que está ligado a ele.',sw)}
   <div class="toolbar">${monthNav('month')}
    <div class="filters" role="group" aria-label="Tipos">${TIPOS.map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
-   <div class="actions">${isTeam()?'<button class="btn" data-act="marcos">Editar safra e eventos</button><button class="btn" data-act="importar">Planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>
-  ${S.month===TODAY.slice(0,7)?cicloStrip(addMonth(S.month,1),true):''}${cicloStrip(S.month)}
+   <div class="actions">${isTeam()?'<button class="btn" data-act="marcos">Editar safra, eventos e feriados</button><button class="btn" data-act="importar">Planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>
+  ${S.month===TODAY.slice(0,7)?cicloAviso(addMonth(S.month,1)):''}${cicloStrip(S.month)}
+  <h2 class="calh">Publicações de ${mesCiclo(S.month)}</h2>
   <div class="calwrap">
    ${calGrid(S.month,d=>vp.filter(p=>p.date===d).sort(byTime).map(calItem).join('')+(S.tipos.demanda?demandas.filter(x=>x.data===d).map(x=>demChip(x,!isDir())).join(''):''),true,'cal-add')}
    <div class="calist"><section class="panel"><div class="eyebrow" style="margin-bottom:6px">Safra, comercial e eventos</div><div class="mkchips">${mk.length?'':'<span class="muted" style="font-size:13px">Nenhum evento cadastrado neste mês.</span>'}${mk.map(x=>`<button class="band b-${x.tipo}" data-act="${isTeam()?'marcos':''}"><b>${MK_TIPO[x.tipo]}</b><span>${esc(x.nome)} · ${fmt(x.ini)}–${fmt(x.fim)}</span></button>`).join('')}</div></section>${list||'<p class="muted">Nada neste mês.</p>'}</div>
@@ -1412,7 +1420,9 @@ function addMonth(m,k){return new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7)-1+k,
 const mesCiclo=m=>MONTHS[+m.slice(5)-1].toLowerCase();
 const fimMes=m=>new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7),0)).toISOString().slice(0,10);
 function addBiz(iso,k){let d=iso;const sn=k<0?-1:1;let c=Math.abs(k);while(c>0){d=addDays(d,sn);if(isBiz(d))c--}return d}
-function prazosCiclo(m){const a=addMonth(m,-1);return {ins:a+'-01',pau:a+'-10',aprP:a+'-12',txt:a+'-15',aprT:a+'-20',pec:fimMes(a)}}
+function prazosCiclo(m){const a=addMonth(m,-1),dep=(d,ant)=>{d=proxUtil(d);const min=addBiz(ant,1);return d<min?min:d};
+  const ins=proxUtil(a+'-01'),pau=proxUtil(a+'-10'),aprP=dep(a+'-12',pau),txt=dep(a+'-15',aprP),aprT=dep(a+'-20',txt);let pec=antUtil(fimMes(a));if(pec<=aprT)pec=addBiz(aprT,1);
+  return {ins,pau,aprP,txt,aprT,pec}}
 const cicloDe=m=>CICLOS.find(x=>x.id===m)||{id:m};
 const CICLO_DESDE='2026-12';
 // Em que ponto do caminho está cada item: 0 pauta, 1 pauta em aprovação, 2 textos, 3 textos em aprovação,
@@ -1421,7 +1431,7 @@ function fase(p){const s=p.status,e=p.etapaAjuste;if(s==='pauta'||(s==='ajuste'&
   if(s==='ajuste'&&e==='texto')return 2;if(s==='texto_aprovacao')return 3;if(s==='ajuste')return 4;if(s==='aprovacao')return 5;if(s==='aprovado'||s==='agendado')return 6;if(s==='publicado')return 7;return -1}
 const pautasDe=m=>posts.filter(p=>p.date&&p.date.startsWith(m)&&temPauta(p)&&p.status!=='espera'&&p.rede!=='ads').sort((a,b)=>a.date.localeCompare(b.date));
 const quemNome=q=>q==='spraytec'&&isM()?'Você · Spraytec':q==='cancha'&&isTeam()?'Você · Cancha':q==='produtora'?'Produtora':q==='auto'?'Publicação':QUEM[q];
-function cicloStrip(m,prep){if(m<CICLO_DESDE)return '';const c=cicloDe(m),z=prazosCiclo(m),ps=pautasDe(m),tot=ps.length,cnt=k=>ps.filter(p=>fase(p)>=k).length;
+function cicloEtapas(m){const c=cicloDe(m),z=prazosCiclo(m),ps=pautasDe(m),tot=ps.length,cnt=k=>ps.filter(p=>fase(p)>=k).length;
   const em=st=>ps.some(p=>p.status===st);
   const S8=[
     {l:'Insumos do mês',q:'spraytec',done:!!c.ins,ate:z.ins,d:c.ins?'Recebidos em '+fmt(c.ins.ok):'Até '+fmtLong(z.ins),btn:[c.ins?'Ver insumos':isM()?'Enviar insumos':isTeam()?'Registrar recebidos':'Ver insumos','ins-open',!c.ins&&isM()]},
@@ -1432,9 +1442,16 @@ function cicloStrip(m,prep){if(m<CICLO_DESDE)return '';const c=cicloDe(m),z=praz
     {l:'Peças',q:'cancha',sub:'e produtora',done:tot>0&&cnt(5)===tot,ate:z.pec,d:tot?cnt(5)+' de '+tot+' enviadas':'Depois dos textos'},
     {l:'Aprovação das peças',q:'spraytec',done:tot>0&&cnt(6)===tot,d:tot?cnt(6)+' de '+tot+' aprovadas':'2 dias úteis por peça',btn:em('aprovacao')&&isM()?['Aprovar agora','go-aprov',1]:null},
     {l:'Publicação',q:'auto',done:tot>0&&cnt(7)===tot,d:tot?cnt(7)+' de '+tot+' no ar':''}];
-  const cur=S8.findIndex(x=>!x.done);
-  return `<section class="ciclobox"><div class="ciclohead"><h2>Ciclo de ${mesCiclo(m)}${prep?' · em preparo agora':''}</h2><span class="muted" style="font-size:12px">Combinado: insumos até dia 1 · pautas até dia 10 · textos até dia 15 · peças até o fim do mês anterior · cada aprovação em até 2 dias úteis</span></div>
+  return {S8,cur:S8.findIndex(x=>!x.done),z}}
+const cicloTit=m=>'Preparação do calendário de '+mesCiclo(m);
+function cicloQuando(m){const a=addMonth(m,-1),t=TODAY.slice(0,7),ma=mesCiclo(a);return a===t?'agora, em '+ma:a<t?'feita em '+ma:'acontece em '+ma}
+function cicloStrip(m){if(m<CICLO_DESDE)return '';const {S8,cur}=cicloEtapas(m);
+  if(S8.slice(0,7).every(x=>x.done))return `<section class="ciclobox ciclook"><div class="ciclohead"><h2>✓ ${cicloTit(m)} concluída</h2><span class="muted" style="font-size:12px">Pautas, textos e peças aprovados · ${S8[7].d}</span></div></section>`;
+  return `<section class="ciclobox"><div class="ciclohead"><h2>${cicloTit(m)} <span class="cq">· ${cicloQuando(m)}</span></h2><span class="muted" style="font-size:12px">Combinado: insumos até dia 1 · pautas até dia 10 · textos até dia 15 · peças até o fim do mês · cada aprovação em até 2 dias úteis · prazo que cai em fim de semana ou feriado passa para o dia útil seguinte</span></div>
   <div class="ciclo">${S8.map((x,i)=>{const late=!x.done&&x.ate&&x.ate<TODAY;return `<div class="cs ${x.done?'done':i===cur?'cur':''} ${late?'late':''}" style="--kc:var(--k-${x.q==='auto'?'post':x.q})"><span class="n">${x.done?'✓':i+1}</span><b>${x.l}</b><span class="q">${quemNome(x.q)+(x.sub?' '+x.sub:'')}</span><span class="d">${late?'Atrasado · ':''}${x.d}${x.ate&&!x.done&&!late&&!/^Até/.test(x.d)?' · até '+fmt(x.ate):''}</span>${x.btn?`<button class="btn ${x.btn[2]?'primary':''} sm" data-act="${x.btn[1]}" data-m="${m}">${x.btn[0]}</button>`:''}</div>`}).join('')}</div></section>`}
+// No mês atual, o calendário mostra só um aviso da preparação do mês seguinte, com o atalho para ele.
+function cicloAviso(m){if(m<CICLO_DESDE)return '';const {S8,cur}=cicloEtapas(m),x=cur<0?null:S8[cur],late=x&&x.ate&&x.ate<TODAY;
+  return `<section class="cicloaviso"><div><span class="eyebrow">${cicloQuando(m).replace(/^./,c=>c.toUpperCase())}</span><b>${cicloTit(m)}</b><span class="muted" style="font-size:13px">${x?`Etapa ${cur+1} de 8: ${x.l} · ${quemNome(x.q)}${x.ate?' · '+(late?'<span class="badt">atrasado, era até '+fmtLong(x.ate)+'</span>':'até '+fmtLong(x.ate)):''}`:'Preparação concluída'}</span></div><button class="btn primary sm" data-act="cal-mes" data-m="${m}">Abrir ${mesCiclo(m)} ›</button></section>`}
 function drawerIns(){const m=S.drawer.id,c=cicloDe(m),z=prazosCiclo(m),x=(c.ins&&c.ins.txt)||{},pode=isM()||isTeam();
   return `<header><div><div class="eyebrow">Ciclo de ${mesCiclo(m)} · etapa 1</div><h2>Insumos do mês</h2></div>${closeBtn()}</header>
   <div class="content"><p class="muted" style="margin:0">O que a Cancha precisa saber da Spraytec para montar as pautas de ${mesCiclo(m)}. Prazo: ${fmtLong(z.ins)}.</p>
@@ -1811,7 +1828,7 @@ function drawerVideo(v){
 }
 function drawerMarcos(){
   return `<header><div><div class="eyebrow">Calendário</div><h2>Safra, foco comercial e eventos</h2></div>${closeBtn()}</header>
-  <div class="content"><p class="muted" style="margin:0">Essas faixas aparecem no topo dos dias do calendário. Ajuste o nome e as datas de cada fase.</p>
+  <div class="content"><p class="muted" style="margin:0">Essas faixas aparecem no topo dos dias do calendário. Feriado e recesso também tiram os dias da contagem de prazos (os feriados nacionais já entram sozinhos; cadastre aqui os de Maringá ou do Paraná e os recessos). Ajuste o nome e as datas de cada fase.</p>
   ${(S.marcosEd||MARCOS).map(m=>`<div class="panel" style="display:grid;gap:8px">
     <div style="display:grid;grid-template-columns:1fr 150px;gap:8px"><div><label for="mn-${m.id}" class="muted" style="font-size:12px">Nome</label><input type="text" id="mn-${m.id}" value="${esc(m.nome)}"></div><div><label for="mt-${m.id}" class="muted" style="font-size:12px">Tipo</label><select id="mt-${m.id}">${Object.entries(MK_TIPO).map(([k,l])=>`<option value="${k}" ${m.tipo===k?'selected':''}>${l}</option>`).join('')}</select></div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end"><div><label for="mi-${m.id}" class="muted" style="font-size:12px">Início</label><input type="date" id="mi-${m.id}" value="${m.ini}" style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px;width:100%"></div><div><label for="mf-${m.id}" class="muted" style="font-size:12px">Fim</label><input type="date" id="mf-${m.id}" value="${m.fim}" style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px;width:100%"></div><button class="btn danger" data-act="marco-del" data-id="${m.id}">Remover</button></div></div>`).join('')}
@@ -2088,6 +2105,7 @@ document.addEventListener('click',e=>{
     case 'newver':acao('nova-versao',{id},()=>toast('Nova versão enviada para aprovação.'));break;
     case 'enviar-pauta':acao('enviar-pauta',{id},()=>toast('Pauta enviada para aprovação da Spraytec.'));break;
     case 'enviar-textos':acao('enviar-textos',{id},()=>toast('Textos enviados para aprovação da Spraytec.'));break;
+    case 'cal-mes':S.view='calendario';S.calv='mes';S.month=t.dataset.m;render();scrollTo(0,0);break;
     case 'ins-open':openDrawer('ins',t.dataset.m);break;
     case 'pau-open':openDrawer('pau',t.dataset.m);break;
     case 'txt-open':openDrawer('txt',t.dataset.m);break;

@@ -1123,3 +1123,14 @@ a.ytv{color:inherit;text-decoration:none}
   table.ap.aprov td:not(:first-child){grid-column:2}
   table.ap.aprov td:nth-child(3),table.ap.aprov td:nth-child(5){display:none}
 }
+/* ciclo x calendário (05/11) */
+.calwrap{align-items:stretch}
+.calh{font-size:16px;margin:6px 0 -2px}
+.ciclohead .cq{font-weight:500;color:var(--muted)}
+.ciclook h2{font-size:14px;color:var(--ok)}
+.cicloaviso{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--k-spraytec)}
+.cicloaviso>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+:root{--b-feriado-bg:#F6DADA;--b-feriado-fg:#6B1F1F}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--b-feriado-bg:#3D2020;--b-feriado-fg:#F2C1C1}}
+:root[data-theme="dark"]{--b-feriado-bg:#3D2020;--b-feriado-fg:#F2C1C1}
+.b-feriado{background:var(--b-feriado-bg);color:var(--b-feriado-fg)}
