@@ -490,9 +490,8 @@ function planoVisual(){
   const hero=`<section class="qhero ${chObj?'qchg':''}" ${edT('tese')}>
     <div class="qtese"><span class="eyebrow">A aposta do período</span><h3>${esc(cur.objetivo)}</h3>${wasP('objetivo',cur.objetivo)}${cur.objItens.length?`<p class="muted">${cur.objItens.map(esc).join(' · ')}</p>`:''}</div>
     <div class="qmetas">
-     <div class="qm"><span class="ql">Contatos no mês ${EX}</span><b>${m.cont}<small> / ${cur.metas.contatos}</small></b>${wasP('metas.contatos',cur.metas.contatos,v=>'meta '+v)}<div class="qbar"><i style="width:${Math.min(100,m.cont/cur.metas.contatos*100)}%"></i><u style="left:${Math.min(100,m.proj/Math.max(cur.metas.contatos,m.proj)*100)}%"></u></div><span class="ql">projeção ${m.proj} · ${m.proj>=cur.metas.contatos?'<em class="okt">no caminho</em>':'<em class="badt">abaixo</em>'}</span></div>
-     <div class="qm"><span class="ql">Custo por contato ${EX}</span><b>R$ ${Math.round(m.cpl)}</b><span class="ql">meta até R$ ${cur.metas.cpl}${wasP('metas.cpl',cur.metas.cpl,v=>' (era R$ '+v+')')} · ${m.cpl<=cur.metas.cpl?'<em class="okt">dentro</em>':'<em class="badt">acima</em>'}</span></div>
-     <div class="qm"><span class="ql">Retorno sobre a mídia ${EX}</span><b>${(F.rec/F.inv).toFixed(1).replace('.',',')}x</b><span class="ql">receita atribuída ${fk(F.rec)}</span></div>
+     ${temMeta(cur.metas.contatos)?`<div class="qm"><span class="ql">Contatos no mês ${EX}</span><b>${m.cont}<small> / ${cur.metas.contatos}</small></b>${wasP('metas.contatos',cur.metas.contatos,v=>'meta '+v)}<div class="qbar"><i style="width:${Math.min(100,m.cont/cur.metas.contatos*100)}%"></i><u style="left:${Math.min(100,m.proj/Math.max(cur.metas.contatos,m.proj)*100)}%"></u></div><span class="ql">projeção ${m.proj} · ${m.proj>=cur.metas.contatos?'<em class="okt">no caminho</em>':'<em class="badt">abaixo</em>'}</span></div>`:`<div class="qm"><span class="ql">Meta de contatos no mês</span><b class="badt">Não definida</b><span class="ql">${isTeam()?'Clique no quadro para definir com a Spraytec':'A Cancha e a Spraytec vão definir'}</span></div>`}
+     <div class="qm"><span class="ql">Custo por contato ${EX}</span><b>R$ ${Math.round(m.cpl)}</b><span class="ql">${temMeta(cur.metas.cpl)?`meta até R$ ${cur.metas.cpl}${wasP('metas.cpl',cur.metas.cpl,v=>' (era R$ '+v+')')} · ${m.cpl<=cur.metas.cpl?'<em class="okt">dentro</em>':'<em class="badt">acima</em>'}`:'meta não definida'}</span></div>
     </div></section>`;
   // 2. matriz
   const cols=cur.jornada.length;
@@ -718,7 +717,7 @@ function renderNav(){
     return `<button data-view="${v[0]}" ${S.view===v[0]?'aria-current="page"':''}>${v[1]}${c}</button>`}).join('');
 }
 function head(title,sub,right){return `<div class="headrow"><div><h1>${title}</h1>${sub?`<p class="sub">${sub}</p>`:''}</div>${right||''}</div>`}
-function subtabs(list,key,label){return `<div class="subtabs" role="tablist" aria-label="${label}">${list.map(([k,l])=>`<button role="tab" data-tab="${key}" data-val="${k}" aria-selected="${S[key]===k}">${l}</button>`).join('')}</div>`}
+function subtabs(list,key,label){return `<div class="subtabs" role="tablist" aria-label="${label}">${list.map(([k,l])=>`<button role="tab" data-tab="${key}" data-val="${k}" aria-selected="${(S[key]??list[0][0])===k}">${l}</button>`).join('')}</div>`}
 
 // INÍCIO
 // ===================== NOVOS MÓDULOS =====================
@@ -739,11 +738,12 @@ const SPRAY={nome:'Spraytec',cor:'var(--accent)',ads:9,novos:3,dur:31,fmt:[45,35
 const TEMAS_C=[['prod','Produtividade'],['foliar','Nutrição foliar'],['bio','Manejo de estresse'],['prova','Prova de campo e depoimento'],['preco','Preço e condição'],['tec','Conteúdo técnico com agrônomo']];
 let CONC_ACOES=[];
 function viewPlano(){
-  const tabs=[['plano','Plano atual'],['ano','Ano safra'],['conc','Concorrência']];const sb=S.esub||'plano';
+  const tabs=[['plano','Plano atual'],['ano','Eventos e ano safra'],['conc','Concorrência']];const sb=S.esub||'plano';
   const body=sb==='ano'?estAno():sb==='conc'?estConc():planoSection();
-  return `${head('Estratégia','O plano de mídia, o ano safra e a leitura da concorrência.')}${subtabs(tabs,'esub','Estratégia')}${body}`}
+  return `${head('Estratégia','O plano de mídia, os eventos e o ano safra, e a leitura da concorrência.')}${subtabs(tabs,'esub','Estratégia')}${body}`}
 function estAno(){
-  if(!ANO.length)return '<p class="muted">O ano safra ainda não foi cadastrado.</p>';
+  const aviso=MOSTRAR_EXEMPLO?'<section class="panel metaaviso" role="note"><b>Exemplo: este quadro ainda não é o calendário da Spraytec</b><p style="margin:6px 0 0">Ele mostra como vai ficar. A Spraytec vai enviar o calendário real do ano: safra das culturas, janelas comerciais, feiras, dias de campo e demais eventos.</p></section>':'';
+  if(!ANO.length)return aviso+'<p class="muted">Os eventos e o ano safra ainda não foram cadastrados.</p>';
   const ci=Math.max(0,ANO.findIndex(x=>x.m===TODAY.slice(0,7)));const cur=ANO[ci];
   const tp=ANO.reduce((a,x)=>a+x.p,0),te=ANO.reduce((a,x)=>a+(x.e||0),0);
   const dia=Number(TODAY.slice(8)),ndias=new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7),0)).getUTCDate();
@@ -762,9 +762,9 @@ function estAno(){
       <dl class="kv mk"><dt>Produtos</dt><dd>${esc([...new Set(ms.flatMap(x=>x.prods.split(' · ')))].join(' · '))}</dd><dt>Meta</dt><dd>${[...new Set(ms.map(x=>x.kpi))].map(esc).join(' · ')}</dd></dl>
       <div class="frch">${FRENTES_E.map(([f,fl])=>`<span class="${fr.includes(f)?'on':''}">${fl}</span>`).join('')}</div>
       <div class="anov"><span class="muted">${Math.round(v/tp*100)}% da verba do ano</span><b>${brl(v)}</b></div>${ex?`<div class="meter"><b class="ok" style="width:${ex/v*100}%"></b></div><span class="muted" style="font-size:12px">${brl(ex)} executados</span>`:''}</article>`}).join('');
-  return `<div class="kpis">
+  return `${aviso}<div class="kpis">
     <div class="kpi"><div class="l">Agora</div><div class="v" style="font-size:18px">${esc(cur.fase)}</div><div class="l">Foco do mês: ${esc(cur.tema)}</div></div>
-    <div class="kpi"><div class="l">Ritmo de verba em ${mesLbl(cur.m)} ${EX}</div><div class="v ${ritmo>1.1?'bad':''}">${Math.round(ritmo*100)}%</div><div class="l">${brl(cur.e)} de ${brl(cur.p)} · ${ritmo>1.1?'acima do ritmo':ritmo<.85?'abaixo do ritmo':'no ritmo'}</div></div>
+    <div class="kpi"><div class="l">Ritmo de verba em ${mesLbl(cur.m)} ${EX}</div><div class="v ${ritmo>1.1?'bad':''}">${Math.round(ritmo*100)}%</div><div class="l">${cur.e!=null?brl(cur.e):'—'} de ${brl(cur.p)} · ${ritmo>1.1?'acima do ritmo':ritmo<.85?'abaixo do ritmo':'no ritmo'}</div></div>
     <div class="kpi"><div class="l">Próximo momento</div><div class="v" style="font-size:18px">${prox?esc(MOMENTOS.find(m=>m[0]===prox.mo)[1]):'—'}</div><div class="l">${prox?'a partir de '+mesLbl(prox.m)+' · preparar criativos 30 dias antes':''}</div></div>
     <div class="kpi"><div class="l">Verba no ano safra</div><div class="v">${brl(tp)}</div><div class="l">${brl(te)} executados até agora</div></div></div>
   <section class="panel"><div class="toolbar" style="margin-bottom:8px"><h2 style="margin:0">Linha do tempo · ${mesLbl(ANO[0].m)} a ${mesLbl(ANO[ANO.length-1].m)}</h2><span class="muted" style="font-size:12px">${isTeam()?'Clique em um mês para editar':'Clique em um mês para ver o detalhe'}</span></div>
@@ -792,8 +792,7 @@ function estConc(){
     <div class="kpi"><div class="l">Anúncios novos na semana</div><div class="v">${nov}</div><div class="l">somando todas as marcas</div></div>
     <div class="kpi"><div class="l">Concorrentes monitorados</div><div class="v">${CONC.length}</div><div class="l">na Biblioteca de Anúncios da Meta</div></div></div>
   <section class="panel"><div class="toolbar" style="margin-bottom:10px"><h2 style="margin:0">Presença em anúncios ${EX}</h2>${isTeam()?'<button class="btn" data-act="conc-novo">+ Concorrente</button>':''}</div>${sovBar}<div style="margin-top:14px">${tbl}</div></section>
-  <div class="grid2" style="grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr)">
-   <section class="panel"><h2>Mapa de temas</h2><p class="muted" style="font-size:13px;margin:0 0 10px">Quanto cada marca fala de cada tema nos anúncios ativos.</p>${heat}</section>
+  <div>
    <section class="panel" style="position:relative">${isTeam()?'<button class="pedit" data-act="cacoes-edit">Editar</button>':''}<h2>O que muda no nosso plano</h2><ol class="cacoes">${CONC_ACOES.map(a=>`<li><span>${esc(a.t)}</span><span class="muted" style="font-size:12px">${esc(a.ref)}</span></li>`).join('')}</ol><p class="muted" style="font-size:12px;margin:8px 0 0">Leitura da Cancha, revisada todo mês.</p></section></div>
   <section><h2 style="font-size:18px;margin-bottom:10px">Anúncios que estão durando</h2><div class="cadgrid">${gal}</div></section>`}
 function drawerAcoes(){return `<header><div><div class="eyebrow">Concorrência</div><h2>O que muda no nosso plano</h2></div>${closeBtn()}</header>
@@ -826,25 +825,25 @@ function drawerConc(){const id=S.drawer.id;const c=id?CONC.find(x=>x.id===id):{n
 function funilStats(r,isCur){const f=daysOf(r)/30,a=isCur?1:r.ate<addDays(TODAY,-300)?.55:.82;return {inv:18200*f*(isCur?1:.95),impr:392000*f*a,clk:9420*f*a,cont:Math.round(214*f*a),opp:Math.round(71*f*a),vend:Math.round(19*f*a),rec:412000*f*a}}
 const CAMP_RET=[['Remarketing · visitantes 60 dias','Meta',3820,58,7,152000],['Pesquisa · nutrição foliar','Google',6900,84,8,171000],['Prospecção · produtores de soja','Meta',2940,36,3,58000],['Florescimento (teste A/B)','Meta',3040,24,1,31000],['Vídeo · ensaio de campo','YouTube',1500,12,0,0]];
 // exemplo: ritmo de ~7,6 contatos e ~R$ 606 de mídia por dia
-function metaMes(){const diasPass=Number(TODAY.slice(8)),diasMes=new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7),0)).getUTCDate(),cont=Math.max(1,Math.round(7.56*diasPass)),inv=Math.round(606*diasPass),mt=plano?plano.dados.metas:{contatos:220,cpl:90},metaC=mt.contatos,metaCpl=mt.cpl;const proj=Math.round(cont/diasPass*diasMes);const cpl=inv/cont;
+const temMeta=v=>Number(v)>0;
+function metaMes(){const diasPass=Number(TODAY.slice(8)),diasMes=new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7),0)).getUTCDate(),cont=Math.max(1,Math.round(7.56*diasPass)),inv=Math.round(606*diasPass),mt=plano?plano.dados.metas:{contatos:220,cpl:90},metaC=Number(mt.contatos)||0,metaCpl=Number(mt.cpl)||0;const proj=Math.round(cont/diasPass*diasMes);const cpl=inv/cont;
   return {diasPass,diasMes,cont,proj,metaC,cpl,metaCpl,ok:proj>=metaC,ritmo:Math.round(metaC*diasPass/diasMes)}}
-function metaBlock(compact){const m=metaMes();const w=v=>Math.min(100,v/Math.max(m.metaC,m.proj)*100);
+function metaBlock(compact){const m=metaMes();
+  if(!m.metaC)return `<div class="metab ${compact?'compact':''}"><div class="mhead"><b>Meta de contatos · ${MONTHS[+TODAY.slice(5,7)-1].toLowerCase()}</b><span class="badt">Não definida</span></div><p class="muted" style="font-size:13px;margin:6px 0 0">A meta de contatos do mês ainda não foi definida com a Spraytec. ${isTeam()?'Defina em Estratégia › Plano atual.':''}</p></div>`;const w=v=>Math.min(100,v/Math.max(m.metaC,m.proj)*100);
   return `<div class="metab ${compact?'compact':''}"><div class="mhead"><b>Meta de contatos · ${MONTHS[+TODAY.slice(5,7)-1].toLowerCase()} ${EX}</b><span class="${m.ok?'okt':'badt'}">${m.ok?'No caminho':'Abaixo do ritmo'}</span></div>
    <div class="mbar"><span class="mfill" style="width:${w(m.cont)}%"></span><span class="mproj" style="width:${w(m.proj)}%"></span><i class="mmeta" style="left:${w(m.metaC)}%" title="Meta: ${m.metaC}"></i></div>
    <div class="mlegend"><span><b>${m.cont}</b> até hoje (dia ${m.diasPass} de ${m.diasMes})</span><span>projeção <b>${m.proj}</b></span><span>meta <b>${m.metaC}</b></span></div>
-   ${compact?'':`<div class="mlegend"><span>Custo por contato no mês <b>R$ ${Math.round(m.cpl)}</b> · meta até R$ ${m.metaCpl}</span><span class="${m.cpl<=m.metaCpl?'okt':'badt'}">${m.cpl<=m.metaCpl?'dentro da meta':'acima da meta'}</span></div>`}</div>`}
+   ${compact?'':`<div class="mlegend"><span>Custo por contato no mês <b>R$ ${Math.round(m.cpl)}</b> · ${m.metaCpl?'meta até R$ '+m.metaCpl:'meta não definida'}</span><span class="${m.cpl<=m.metaCpl?'okt':'badt'}">${m.cpl<=m.metaCpl?'dentro da meta':'acima da meta'}</span></div>`}</div>`}
 function perfFunil(){
   const F=funilStats({de:S.per.de,ate:S.per.ate},true),cr=cmpRange(),P=cr?funilStats(cr,false):null;
-  const steps=[['Impressões',F.impr,P&&P.impr],['Cliques',F.clk,P&&P.clk],['Contatos',F.cont,P&&P.cont],['Oportunidades',F.opp,P&&P.opp],['Vendas',F.vend,P&&P.vend]];
-  const roas=F.rec/F.inv,roasP=P?P.rec/P.inv:null;
+  const steps=[['Impressões',F.impr],['Cliques',F.clk],['Contatos',F.cont]];
   return `<section class="panel">${metaBlock(false)}</section>
-  ${exLinha('Investimento, vendas e receita de exemplo: entram com as plataformas de anúncio e a planilha de vendas do comercial.')}${kpisC([{l:'Investimento em mídia',v:brl(Math.round(F.inv)),cur:F.inv,prev:P&&P.inv,prevTxt:P&&brl(Math.round(P.inv))},{l:'Vendas atribuídas',v:F.vend,s:'informadas pelo comercial',cur:F.vend,prev:P&&P.vend,prevTxt:P&&String(P.vend)},{l:'Receita atribuída',v:brl(Math.round(F.rec)),cur:F.rec,prev:P&&P.rec,prevTxt:P&&brl(Math.round(P.rec))},{l:'Retorno sobre a mídia',v:roas.toFixed(1).replace('.',',')+'x',s:'receita ÷ investimento',cur:roas,prev:roasP,prevTxt:roasP&&roasP.toFixed(1).replace('.',',')+'x'},{l:'Custo por venda',v:F.vend?brl(Math.round(F.inv/F.vend)):'—',cur:F.vend?F.inv/F.vend:null,prev:P&&P.vend?P.inv/P.vend:null,prevTxt:P&&P.vend?brl(Math.round(P.inv/P.vend)):null,low:true}],cr)}
-  <section class="panel"><h2>Do anúncio à venda ${EX}</h2><div class="funil">${steps.map((s,i)=>{const w=Math.max(18,100-i*19);const conv=i?s[1]/steps[i-1][1]*100:null;
+  ${exLinha('Investimento e contatos de exemplo: entram com as plataformas de anúncio e o site.')}${kpisC([{l:'Investimento em mídia',v:brl(Math.round(F.inv)),cur:F.inv,prev:P&&P.inv,prevTxt:P&&brl(Math.round(P.inv))},{l:'Contatos',v:n(F.cont),s:'formulários e conversas',cur:F.cont,prev:P&&P.cont,prevTxt:P&&n(P.cont)},{l:'Custo por contato',v:F.cont?brl(Math.round(F.inv/F.cont)):'—',cur:F.cont?F.inv/F.cont:null,prev:P&&P.cont?P.inv/P.cont:null,prevTxt:P&&P.cont?brl(Math.round(P.inv/P.cont)):null,low:true}],cr)}
+  <section class="panel"><h2>Do anúncio ao contato ${EX}</h2><div class="funil">${steps.map((s,i)=>{const w=Math.max(18,100-i*25);const conv=i?s[1]/steps[i-1][1]*100:null;
     return `<div class="fstep"><div class="fbar" style="width:${w}%"><span>${s[0]}</span><b>${fk(s[1])}</b></div><span class="fconv">${conv!=null?pct(conv)+' do passo anterior':''}</span></div>`}).join('')}</div>
-   <p class="muted" style="font-size:12px;margin:8px 0 0">Impressões, cliques e contatos vêm das plataformas e do site. Oportunidades e vendas vêm do comercial da Spraytec.</p></section>
-  <section class="panel"><h2>Retorno por campanha ${EX}</h2><div class="tablewrap" style="border:0"><table class="ap" style="min-width:680px"><thead><tr><th>Campanha</th><th>Investimento</th><th>Contatos</th><th>Vendas</th><th>Receita</th><th>Retorno</th></tr></thead><tbody>
-   ${CAMP_RET.map(c=>{const f=perF();const inv=c[2]*f,rec=c[5]*f;return `<tr><td><b>${c[0]}</b><div class="muted" style="font-size:12px">${c[1]}</div></td><td class="mono">${brl(Math.round(inv))}</td><td class="mono">${Math.round(c[3]*f)}</td><td class="mono">${Math.round(c[4]*f)}</td><td class="mono">${rec?brl(Math.round(rec)):'—'}</td><td class="mono"><b>${rec?(rec/inv).toFixed(1).replace('.',',')+'x':'—'}</b></td></tr>`}).join('')}</tbody></table></div>
-   <p class="muted" style="font-size:12px;margin:0">Vídeo e alcance aparecem com pouca venda direta. Eles alimentam o remarketing, que fecha a venda depois.</p></section>`}
+   <p class="muted" style="font-size:12px;margin:8px 0 0">Impressões, cliques e contatos vêm das plataformas de anúncio e do site. Oportunidades e vendas entram depois, quando o funil com o comercial estiver definido.</p></section>
+  <section class="panel"><h2>Contatos por campanha ${EX}</h2><div class="tablewrap" style="border:0"><table class="ap" style="min-width:560px"><thead><tr><th>Campanha</th><th>Investimento</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>
+   ${CAMP_RET.map(c=>{const f=perF();const inv=c[2]*f,ct=Math.round(c[3]*f);return `<tr><td><b>${c[0]}</b><div class="muted" style="font-size:12px">${c[1]}</div></td><td class="mono">${brl(Math.round(inv))}</td><td class="mono">${ct}</td><td class="mono">${ct?brl(Math.round(inv/ct)):'—'}</td></tr>`}).join('')}</tbody></table></div></section>`}
 
 // ---------- DESDE A SUA ÚLTIMA VISITA ----------
 function novidadesBlock(){
@@ -853,7 +852,7 @@ function novidadesBlock(){
   const its=[];
   if(plano&&plano.pendente)its.push({tag:['ESTRATÉGIA','--k-trafego'],t:'Nova versão do plano de mídia '+(isM()?'para aprovar':'enviada'),a:'data-view="plano"'});
   const rx=RELATORIOS.find(r=>r.tipo==='Executivo semanal'&&r.status==='entregue');if(rx)its.push({tag:['RELATÓRIO','--k-email'],t:rx.t+' disponível',a:`data-act="rel-ver" data-id="${rx.id}"`});
-  its.push({tag:['RESULTADO','--ok'],ex:true,t:'Contatos no mês: '+metaMes().cont+', projeção de '+metaMes().proj+' para a meta de '+metaMes().metaC,a:'data-view="performance"'});
+  its.push({tag:['RESULTADO','--ok'],ex:true,t:'Contatos no mês: '+metaMes().cont+', projeção de '+metaMes().proj+(metaMes().metaC?' para a meta de '+metaMes().metaC:' (meta ainda não definida)'),a:'data-view="performance"'});
   if(!isDir()){if(pubs.length)its.push({tag:['POSTS','--k-post'],t:pubs.length+(pubs.length>1?' posts publicados':' post publicado')+' desde então',a:'data-view="calendario"'});const un=unreadCount();if(un)its.push({tag:['CONVERSA','--k-spraytec'],t:un+(un>1?' mensagens novas':' mensagem nova')+(isM()?' com a Cancha':' da Spraytec'),a:'data-act="ir-chat"'});
     const late=demandas.filter(d=>!d.feito&&d.data<TODAY&&d.quem==='spraytec');if(late.length)its.push({tag:['DEMANDA','--bad'],t:late.length+(late.length>1?' demandas atrasadas':' demanda atrasada')+' com a Spraytec',a:`data-dem="${late[0].id}"`})}
   return `<section class="panel novid"><div class="mhead"><h2>Desde a sua última visita</h2><span class="muted" style="font-size:12px">${ULTIMA_VISITA?fmtVisita(ULTIMA_VISITA):'primeira visita'}</span></div><div class="list">${its.map(x=>`<button class="nrow" ${x.a}>${ktag(x.tag[0],x.tag[1])}<span>${esc(x.t)}${x.ex?' '+EX:''}</span><span class="muted">›</span></button>`).join('')}</div></section>`}
@@ -862,7 +861,7 @@ function novidadesBlock(){
 function relAuto(r){return r.tipo==='Executivo semanal'||r.tipo==='Gerencial semanal'}
 function drawerRelView(){const r=RELATORIOS.find(x=>x.id===S.drawer.id);const ed=isTeam()&&r.status==='rascunho';const m=metaMes();
   const K=r.k||{cont:52,contP:44,cpl:82,cplP:91,alc:24100,alcP:19800,pub:4};
-  const kp=`<div class="kpis">${[['Contatos na semana',K.cont,K.contP,0],['Custo por contato','R$ '+K.cpl,'R$ '+K.cplP,1],['Alcance nas redes',fk(K.alc),fk(K.alcP),0],['Projeção do mês',m.proj+' / '+m.metaC,null,0]].map(([l,v,pv,low])=>`<div class="kpi"><div class="l">${l} ${EX}</div><div class="v">${v}</div>${pv?`<div class="l">semana anterior: ${pv}</div>`:''}</div>`).join('')}</div>`;
+  const kp=`<div class="kpis">${[['Contatos na semana',K.cont,K.contP,0],['Custo por contato','R$ '+K.cpl,'R$ '+K.cplP,1],['Alcance nas redes',fk(K.alc),fk(K.alcP),0],['Projeção do mês',m.metaC?m.proj+' / '+m.metaC:m.proj+' · sem meta',null,0]].map(([l,v,pv,low])=>`<div class="kpi"><div class="l">${l} ${EX}</div><div class="v">${v}</div>${pv?`<div class="l">semana anterior: ${pv}</div>`:''}</div>`).join('')}</div>`;
   const ta=(id,label,val,rows)=>ed?`<label for="${id}" class="eyebrow">${label}</label><textarea id="${id}" class="pe" rows="${rows||3}">${esc(val)}</textarea>`:`<div><div class="eyebrow" style="margin-bottom:4px">${label}</div>${val.includes('\n')?`<ul style="margin:0;padding-left:18px">${val.split('\n').filter(Boolean).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:`<p style="margin:0">${esc(val)}</p>`}</div>`;
   let body='';
   if(r.tipo==='Executivo semanal')body=`${kp}${ta('rv-frase','Em uma frase',r.frase||'',2)}${ta('rv-dest','Destaques',(r.dest||[]).join('\n'),3)}${ta('rv-aten','Ponto de atenção',r.aten||'',2)}${ta('rv-prox','Próximos passos',r.prox||'',3)}`;
@@ -935,7 +934,7 @@ function viewHoje(){
     ${num(n,isM()?(n===1?'item esperando você':'itens esperando você'):isDir()?'itens em aprovação':'itens com a Spraytec para aprovar',isDir()?'':'aprovacao')}
     ${num(pz?fmt(pz):'—',pz?(pz<TODAY?'prazo vencido':'prazo mais próximo'):'nenhum prazo aberto',isDir()?'':'aprovacao',pz&&pz<TODAY?'bad':'')}
     ${num(late.length,late.length===1?'demanda atrasada':'demandas atrasadas',isDir()?'':'calendario',late.length?'bad':'')}</section>`;
-  const linhaEst=`<button class="hlinha" data-view="plano"><span class="eyebrow">Estratégia</span><span class="hl-obj">${esc(cur.objetivo)}</span><span class="hl-meta">${cur.metas.contatos} contatos/mês · até R$ ${cur.metas.cpl} por contato · ${brl(tot)}/mês em mídia</span>${pd?`<span class="hl-novo"><span class="pdot"></span>Versão ${pd.versao} ${isM()?'para aprovar':'aguardando aprovação'}</span>`:`<span class="hl-meta">Versão ${plano.versao} em vigor</span>`}<span class="hl-ir">›</span></button>`;
+  const linhaEst=`<button class="hlinha" data-view="plano"><span class="eyebrow">Estratégia</span><span class="hl-obj">${esc(cur.objetivo)}</span><span class="hl-meta">${temMeta(cur.metas.contatos)?cur.metas.contatos+' contatos/mês':'meta de contatos não definida'}${temMeta(cur.metas.cpl)?' · até R$ '+cur.metas.cpl+' por contato':''} · ${brl(tot)}/mês em mídia</span>${pd?`<span class="hl-novo"><span class="pdot"></span>Versão ${pd.versao} ${isM()?'para aprovar':'aguardando aprovação'}</span>`:`<span class="hl-meta">Versão ${plano.versao} em vigor</span>`}<span class="hl-ir">›</span></button>`;
   const exec=RELATORIOS.find(x=>x.tipo==='Executivo semanal'&&x.status==='entregue');
   const linhaExec=exec?`<button class="hlinha" data-act="rel-ver" data-id="${exec.id}"><span class="eyebrow">Resumo executivo</span><span class="hl-obj">${esc(exec.frase||exec.t)}</span><span class="hl-meta">${esc(exec.t)}</span><span class="hl-ir">›</span></button>`:'';
   return `<div class="headrow hello"><div><div class="eyebrow">Spraytec Brasil · ${fmtLong(TODAY)}</div><h1>${'Olá, '+esc(EU.nome.split(' ')[0])}</h1></div></div>
@@ -1042,7 +1041,7 @@ function viewRedes(){
 // PERFORMANCE
 function kpis(arr){return `<div class="kpis">${arr.map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div><div class="l">${k[2]||''}</div></div>`).join('')}</div>`}
 function viewPerformance(){
-  const tabs=[['funil','Funil e vendas'],['trafego','Tráfego'],['social','Social'],['email','E-mail']];
+  const tabs=[['funil','Funil'],['trafego','Tráfego'],['social','Social'],['email','E-mail']];
   const fontes=({social:['ig','fb'],trafego:['ads']}[S.psub]||[]);
   if(META===undefined&&fontes.length)return metaCarregando('Performance','Mídia paga, redes sociais e e-mail num lugar só, com comparação entre períodos.')+subtabs(tabs,'psub','Performance');
   const body={funil:perfFunil,trafego:perfTrafego,social:perfSocial,email:perfEmail}[S.psub]();
@@ -1095,7 +1094,7 @@ function perfTrafego(){
   const tot=18200,exc=tot-15000;
   return `${siteSecao()}
   ${metaTem('ads')||metaTem('gads')?midiaReal():`${gadsConexao()}<h2 style="font-size:16px;margin:4px 0 0">Mídia paga ${EX}</h2>
-  ${kpisC([{l:'Investimento',v:rs(T.i),s:'3 plataformas',cur:T.i,prev:C&&C.i,prevTxt:C&&rs(C.i)},{l:'Impressões',v:fk(T.im),cur:T.im,prev:C&&C.im,prevTxt:C&&fk(C.im)},{l:'Cliques',v:fk(T.c),s:'CTR '+pct(T.c/T.im*100),cur:T.c,prev:C&&C.c,prevTxt:C&&fk(C.c)},{l:'Contatos',v:T.ct,s:'formulário e WhatsApp',cur:T.ct,prev:C&&C.ct,prevTxt:C&&String(C.ct)},{l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:'meta: até R$ '+plano.dados.metas.cpl,cur:T.ct?T.i/T.ct:null,prev:C&&C.ct?C.i/C.ct:null,prevTxt:C&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
+  ${kpisC([{l:'Investimento',v:rs(T.i),s:'3 plataformas',cur:T.i,prev:C&&C.i,prevTxt:C&&rs(C.i)},{l:'Impressões',v:fk(T.im),cur:T.im,prev:C&&C.im,prevTxt:C&&fk(C.im)},{l:'Cliques',v:fk(T.c),s:'CTR '+pct(T.c/T.im*100),cur:T.c,prev:C&&C.c,prevTxt:C&&fk(C.c)},{l:'Contatos',v:T.ct,s:'formulário e WhatsApp',cur:T.ct,prev:C&&C.ct,prevTxt:C&&String(C.ct)},{l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:plano&&temMeta(plano.dados.metas.cpl)?'meta: até R$ '+plano.dados.metas.cpl:'',cur:T.ct?T.i/T.ct:null,prev:C&&C.ct?C.i/C.ct:null,prevTxt:C&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>${pl.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   ${secCriativos()}`}
   <div class="grid2">

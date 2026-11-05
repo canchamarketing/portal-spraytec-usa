@@ -34,17 +34,19 @@ async function todas(caminho: string, params: Record<string, string | number>, m
 
 // Métricas mudam de nome e de disponibilidade por tipo de publicação. Pede todas de uma vez; se o
 // Meta recusar por parâmetro inválido (código 100), tenta uma por uma e lembra quais não existem
-// para aquele tipo. Outras falhas (chave, limite de uso) sobem e a coleta registra o erro.
+// para aquele tipo. Story ou post visto por pouca gente não tem números ("Not enough viewers"): fica
+// sem métricas, sem derrubar a coleta. Outras falhas (chave, limite de uso) sobem e a coleta registra o erro.
 const invalida = (e: unknown) => e instanceof ErroMeta && e.codigo === 100;
+const semPublico = (e: unknown) => e instanceof ErroMeta && /not enough viewers/i.test(e.message);
 const naoTem = new Set<string>();
 async function insights(id: string, tipo: string, metricas: string[], token?: string): Promise<Record<string, number>> {
   const pedir = metricas.filter((m) => !naoTem.has(tipo + ':' + m));
   const ler = (j: any) => Object.fromEntries((j.data || []).map((m: any) => [m.name, m.total_value?.value ?? m.values?.at(-1)?.value ?? null]));
   if (!pedir.length) return {};
-  try { return ler(await graph(id + '/insights', { metric: pedir.join(',') }, token)); } catch (e) { if (!invalida(e)) throw e; }
+  try { return ler(await graph(id + '/insights', { metric: pedir.join(',') }, token)); } catch (e) { if (semPublico(e)) return {}; if (!invalida(e)) throw e; }
   const o: Record<string, number> = {};
   for (const m of pedir) {
-    try { Object.assign(o, ler(await graph(id + '/insights', { metric: m }, token))); } catch (e) { if (!invalida(e)) throw e; naoTem.add(tipo + ':' + m); }
+    try { Object.assign(o, ler(await graph(id + '/insights', { metric: m }, token))); } catch (e) { if (semPublico(e)) return o; if (!invalida(e)) throw e; naoTem.add(tipo + ':' + m); }
   }
   return o;
 }

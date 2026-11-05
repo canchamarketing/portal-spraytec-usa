@@ -24,7 +24,7 @@ const servidor = createServer((req, res) => {
   const m = u.searchParams.get('metric') || '';
   if (p === 'me/accounts') return json(200, { data: [{ id: 'pg9', name: 'Spraytec', followers_count: 90000, access_token: 'chave-da-pagina' }, { id: 'pg1', name: 'Spraytec Brasil', followers_count: 11, access_token: 'chave-da-pagina', instagram_business_account: { id: 'ig1', username: 'spraytec.brasil' } }] });
   if (p === 'ig1') return json(200, { id: 'ig1', username: 'spraytec.brasil', followers_count: 18640, media_count: 413 });
-  if (p === 'ig1/stories') return json(200, { data: [{ id: 'st1', media_type: 'IMAGE', permalink: 'https://instagram.com/stories/x/1', timestamp: iso(agora - 3600e3) }] });
+  if (p === 'ig1/stories') return json(200, { data: [{ id: 'st1', media_type: 'IMAGE', permalink: 'https://instagram.com/stories/x/1', timestamp: iso(agora - 3600e3) }, { id: 'st2', media_type: 'IMAGE', permalink: 'https://instagram.com/stories/x/2', timestamp: iso(agora - 600e3) }] });
   if (p === 'ig1/media') {
     if (!u.searchParams.get('after')) return json(200, { data: [
       { id: 'm1', caption: 'Pós-emergência', media_type: 'CAROUSEL_ALBUM', media_product_type: 'FEED', permalink: 'https://instagram.com/p/AAA', timestamp: iso(agora - 2 * dia), like_count: 120, comments_count: 8 },
@@ -33,6 +33,8 @@ const servidor = createServer((req, res) => {
   }
   if (/^(m\d|st\d)\/insights$/.test(p)) {
     // "views" não existe para carrossel neste simulado: o pedido em grupo falha e a coleta tenta uma por uma
+    // story recente, visto por pouca gente: o Instagram não dá números
+    if (p.startsWith('st2')) return json(400, { error: { message: '(#10) Not enough viewers for the media to show insights', code: 10 } });
     if (p.startsWith('m1') && m.split(',').includes('views')) return json(400, { error: { message: '(#100) metric views not supported', code: 100 } });
     return json(200, { data: m.split(',').map((n, i) => ({ name: n, total_value: { value: 100 * (i + 1) } })) });
   }
@@ -68,7 +70,7 @@ const posts = await linhas('ig', 'post');
 checa(posts.length === 2, 'lê todos os posts do Instagram, seguindo a paginação');
 const m1 = posts.find((x: any) => x.id === 'm1')!.dados;
 checa(m1.metricas.reach === 100 && m1.metricas.views === undefined && m1.metricas.saved > 0, 'métrica que não existe para o tipo é pulada sem perder as outras');
-checa((await linhas('ig', 'story')).length === 1, 'guarda o story que está no ar');
+checa((await linhas('ig', 'story')).length === 2, 'guarda os stories que estão no ar, inclusive o visto por pouca gente (sem números, sem derrubar a coleta)');
 checa((await linhas('ig', 'perfil'))[0].dados.followers_count === 18640, 'guarda o perfil do Instagram');
 checa((await linhas('ig', 'dia')).length === 1, 'guarda os seguidores do dia');
 const fb = (await linhas('fb', 'post'))[0]?.dados;
