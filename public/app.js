@@ -126,24 +126,31 @@ function metaRodape(fontes,origem='Meta'){if(!META||!fontes.length)return '';con
   return `<section class="panel metaaviso" role="status"><b>Integração com o ${origem==='Meta'?'Meta':origem} precisa de atenção</b><ul>${li}</ul>${btn}</section>`}
 
 // Redes sociais com os dados reais
+// Topo do perfil (Instagram, Página do Facebook e canal do YouTube) no mesmo formato.
+function perfilTopo(o){const img=o.logo?`<img src="${esc(o.logo)}" alt="" referrerpolicy="no-referrer" data-falha>`:'';
+  return `<section class="ptopo ${o.cls||''}">${o.capa!==undefined?`<div class="ptcapa">${o.capa?`<img src="${esc(o.capa)}" alt="" referrerpolicy="no-referrer" data-falha>`:''}</div>`:''}
+  <div class="ptlinha ${o.capa!==undefined?'comcapa':''}"><span class="ptlogo">S${img}</span><div class="ptinfo"><b class="ptnome">${o.nome}</b>${o.sub?`<span class="muted ptsub">${o.sub}</span>`:''}<div class="ptstats">${o.stats.map(([v,l])=>`<span><b>${v}</b> ${l}</span>`).join('')}</div>${o.bio?`<p class="ptbio">${o.bio}</p>`:''}</div>${o.link?`<a class="btn sm" href="${esc(o.link)}" target="_blank" rel="noopener">${o.linkTxt} ›</a>`:''}</div></section>`}
 function redesIG(){const P=META.ig.perfil||{};const ps=META.posts.filter(x=>x.rede==='ig').sort((a,b)=>b.ts.localeCompare(a.ts));
   const noAr=META.stories.filter(s=>Date.parse(s.ts)>Date.now()-864e5).sort((a,b)=>a.ts.localeCompare(b.ts));
   const desde=META.stories.reduce((a,s)=>s.date<a?s.date:a,'9999');const bio=(P.biography||'').split('\n')[0];
   const lg=P.profile_picture_url;
-  return `<div class="prof"><span class="avbig">S${lg?`<img src="${esc(lg)}" alt="Logo da Spraytec" referrerpolicy="no-referrer" data-falha>`:''}</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">${esc(P.username||'')}</b><div class="cnts"><span><b>${n(P.media_count||0)}</b> publicações</span><span><b>${fk(P.followers_count||0)}</b> seguidores</span><span><b>${n(P.follows_count||0)}</b> seguindo</span></div><span class="muted" style="font-size:13px">${esc(P.name||'')}${bio?' · '+esc(bio):''}</span></div></div>
-   <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${noAr.length}</h2><span class="muted" style="font-size:12px">Depois de 24 h, ficam guardados no Acervo › Stories.</span></div>
-    ${noAr.length?`<div class="rings">${noAr.map(s=>`<div class="ring" ${s.drive?`data-arq="${esc(s.drive)}" role="button" tabindex="0" title="Ver o story"`:''}><span><i>${imgTag(s.img,'ringimg')}</i></span><b class="rh">${s.hora}</b><span class="ra">${s.alc!=null?fk(s.alc)+' de alcance':''}</span></div>`).join('')}</div>`:'<p class="muted" style="margin:0">Nenhum story no ar.</p>'}
+  return `${perfilTopo({cls:'ig',logo:lg,nome:esc(P.username||''),sub:esc(P.name||''),stats:[[n(P.media_count||0),'publicações'],[fk(P.followers_count||0),'seguidores'],[n(P.follows_count||0),'seguindo']],bio:bio?esc(bio):'',link:P.username?'https://www.instagram.com/'+encodeURIComponent(P.username)+'/':'',linkTxt:'Abrir no Instagram'})}
+   <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${noAr.length}</h2><span class="muted" style="font-size:12px">Embaixo de cada um, a hora e o alcance. Depois de 24 h, ficam guardados no Acervo › Stories.</span></div>
+    ${noAr.length?`<div class="rings">${noAr.map(s=>`<div class="ring" ${s.drive?`data-arq="${esc(s.drive)}" role="button" tabindex="0" title="Ver o story"`:''}><span><i>${imgTag(s.img,'ringimg')}</i></span><b class="rh">${s.hora}</b><small class="ra">${s.alc!=null?fk(s.alc)+' alcance':'sem números'}</small></div>`).join('')}</div>`:'<p class="muted" style="margin:0">Nenhum story no ar.</p>'}
     ${META.stories.length?`<p style="margin:8px 0 0;font-size:13px">${META.stories.length} stories guardados pelo portal desde ${fmt(desde)}.</p>`:''}</section>
    <div class="iggrid">${ps.slice(0,30).map(x=>{const c=calDe(x);const tag=c?'div':'a';const at=c?`data-open="${c.id}"`:`href="${esc(x.link)}" target="_blank" rel="noopener"`;
      return `<${tag} class="igt" style="background:${PILAR_HUE[c&&c.pilar]||'#E3E4D3'}" ${at} title="${esc(x.titulo)}">${imgTag(x.img,'igimg')}${x.formato==='carrossel'?'<small>Carrossel</small>':x.formato==='reel'?'<small>▶ Reel</small>':x.formato==='video'?'<small>▶ Vídeo</small>':''}<span class="igcap">${esc(x.titulo.slice(0,70))}</span></${tag}>`}).join('')}</div>
    ${ps.length>30?'<p class="muted" style="font-size:12px">Os 30 posts mais recentes. O histórico completo, com os números, está em Performance › Social.</p>':''}`}
-function redesFB(){const P=META.fb.perfil||{};const ps=META.posts.filter(x=>x.rede==='fb').sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,20);
-  const lg=P.picture&&P.picture.data&&P.picture.data.url,capa=P.cover&&P.cover.source;
-  const nome=esc(P.name||'Spraytec Brasil');
-  return `<div class="cover">${capa?`<img src="${esc(capa)}" alt="Capa da Página" referrerpolicy="no-referrer" data-falha>`:''}</div><div class="prof" style="margin-top:-40px;padding:0 16px"><span class="avbig" style="box-shadow:0 0 0 4px var(--surface)">S${lg?`<img src="${esc(lg)}" alt="Logo da Spraytec" referrerpolicy="no-referrer" data-falha>`:''}</span><div><b style="font-size:18px">${nome}</b><div class="muted" style="font-size:13px">${n(P.fan_count||0)} curtidas · ${n(P.followers_count||0)} seguidores</div></div></div>
-   <div class="fbfeed">
-    ${ps.map(x=>{const c=calDe(x);const txt=x.legenda.split('\n').filter(l=>l.trim()).slice(0,4).map(l=>esc(l.slice(0,200))).join('<br>')||'<span class="muted">(sem texto)</span>';
-      return `<div ${c?`data-open="${c.id}"`:''}><div class="pv"><div class="hd">${avS()}<span style="min-width:0"><b>${nome}</b><br><span class="sm">${fmtLong(x.date)} · ${x.hora}</span></span></div><div class="txt">${txt}</div>${x.img?`<div class="fbimg">${imgTag(x.img)}</div>`:''}<div class="ft row3"><span>${n(x.curt)} reações</span><span>${n(x.com)} comentários</span><span>${n(x.comp)} compart.</span></div></div>${c?'':`<a class="linkbtn" href="${esc(x.link)}" target="_blank" rel="noopener">Ver no Facebook ›</a>`}</div>`}).join('')||'<p class="muted">Nenhum post na Página.</p>'}</div>`}
+function redesFB(){const P=META.fb.perfil||{};const ps=META.posts.filter(x=>x.rede==='fb').sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,30);
+  const lg=P.picture&&P.picture.data&&P.picture.data.url,capa=P.cover&&P.cover.source;const nome=esc(P.name||'Spraytec Brasil');
+  const card=x=>{const c=calDe(x);const t=x.legenda||'';const curto=t.length>320?t.slice(0,t.lastIndexOf(' ',300)>200?t.lastIndexOf(' ',300):300):t;
+    return `<article class="fbpost"><div class="fbh">${avS()}<div><b>${nome}</b><span class="muted">${fmtLong(x.date)} · ${x.hora}</span></div></div>
+    ${t?`<div class="fbtxt">${esc(curto)}${curto.length<t.length?`<details class="fbmais"><summary>ver mais</summary>${esc(t.slice(curto.length))}</details>`:''}</div>`:''}
+    ${x.img?`<div class="fbmid" ${c?`data-open="${c.id}"`:''}>${imgTag(x.img,'fbimg2')}${x.formato==='video'?'<small>▶ Vídeo</small>':''}</div>`:''}
+    <div class="fbft"><span><b>${n(x.curt)}</b> reações</span><span><b>${n(x.com)}</b> comentários</span><span><b>${n(x.comp)}</b> compart.</span>${x.alc!=null?`<span><b>${fk(x.alc)}</b> alcance</span>`:''}</div>
+    <div class="fbacts">${c?`<button class="linkbtn" data-open="${c.id}">Abrir no calendário</button>`:''}<a class="linkbtn" href="${esc(x.link)}" target="_blank" rel="noopener">Ver no Facebook ›</a></div></article>`};
+  return `${perfilTopo({capa:capa||'',logo:lg,nome,stats:[[n(P.followers_count||0),'seguidores'],[n(P.fan_count||0),'curtidas']],link:P.id?'https://www.facebook.com/'+encodeURIComponent(P.id):'',linkTxt:'Abrir no Facebook'})}
+   ${ps.length?`<div class="fbfeed2">${ps.map(card).join('')}</div>`:'<p class="muted">Nenhum post na Página.</p>'}${META.posts.filter(x=>x.rede==='fb').length>30?'<p class="muted" style="font-size:12px">Os 30 posts mais recentes. O histórico completo, com os números, está em Performance › Social.</p>':''}`}
 
 // Performance › Social com os dados reais
 function segEm(f,d){const L=META[f].dias.filter(x=>x.d<=d);return L.length?L[L.length-1].seguidores:null}
@@ -191,11 +198,16 @@ const durTxt=s=>{s=Math.round(s||0);const h=Math.floor(s/3600),m=Math.floor(s%36
 const ytLink=v=>'https://www.youtube.com/'+(v.formato==='short'?'shorts/':'watch?v=')+encodeURIComponent(v.id);
 function ytCard(v){const ret=v.pctVisto!=null?' · '+Math.round(v.pctVisto)+'% visto em média':'';
   return `<a class="ytv${v.formato==='short'?' short':''}" href="${ytLink(v)}" target="_blank" rel="noopener"><div class="th" style="background:#E3E4D3">${imgTag(v.img,'ytimg')}<small>${v.formato==='live'?'AO VIVO':v.formato==='short'?'Short':durTxt(v.duracao)}</small></div><b style="font-size:13px">${esc(v.titulo)}</b><span class="muted" style="font-size:12px">${fk(v.views)} visualizações · ${v.date?fmt(v.date):''}${ret}</span></a>`}
-function redesYT(){const P=META.yt.perfil||{},V=META.yt.videos.filter(v=>v.publico).sort((a,b)=>b.ts.localeCompare(a.ts));
-  const vids=V.filter(v=>v.formato!=='short'),sh=V.filter(v=>v.formato==='short');
-  return `<div class="cover">${P.banner?imgTag(P.banner,''):''}</div><div class="prof" style="padding:0 4px;margin-top:12px"><span class="avbig" style="box-shadow:none">S${P.logo?`<img src="${esc(P.logo)}" alt="Logo do canal" referrerpolicy="no-referrer" data-falha>`:''}</span><div><b style="font-size:18px">${esc(P.titulo||YT.canal||'Spraytec Brasil')}</b><div class="muted" style="font-size:13px">${P.url?esc(P.url)+' · ':''}${P.inscritos!=null?fk(P.inscritos)+' inscritos · ':''}${n(P.videos||0)} vídeos · ${fk(P.views||0)} visualizações</div></div></div>
-   <h2 style="font-size:16px">Vídeos · ${vids.length}</h2>${vids.length?`<div class="ytgrid">${vids.map(ytCard).join('')}</div>`:'<p class="muted">Nenhum vídeo público no canal.</p>'}
-   ${sh.length?`<h2 style="font-size:16px">Shorts · ${sh.length}</h2><div class="ytgrid shorts">${sh.map(ytCard).join('')}</div>`:''}`}
+function redesYT(){const P=META.yt.perfil||{},V=META.yt.videos.filter(v=>v.publico);
+  const grupos=[['videos','Vídeos',V.filter(v=>v.formato==='video')],['shorts','Shorts',V.filter(v=>v.formato==='short')],['lives','Ao vivo',V.filter(v=>v.formato==='live')]].filter(g=>g[2].length||g[0]==='videos');
+  if(!grupos.some(g=>g[0]===S.ytsub))S.ytsub=grupos[0][0];
+  const g=grupos.find(x=>x[0]===S.ytsub),ord=S.ytord||'recent';
+  const lista=g[2].slice().sort(ord==='views'?(a,b)=>b.views-a.views:(a,b)=>b.ts.localeCompare(a.ts));
+  const link=P.url?'https://www.youtube.com/'+encodeURIComponent(P.url):P.id?'https://www.youtube.com/channel/'+encodeURIComponent(P.id):'';
+  return `${perfilTopo({capa:P.banner||'',logo:P.logo,nome:esc(P.titulo||YT.canal||'Spraytec Brasil'),sub:P.url?esc(P.url):'',stats:[[P.inscritos!=null?fk(P.inscritos):'—','inscritos'],[n(P.videos||0),'vídeos'],[fk(P.views||0),'visualizações']],link,linkTxt:'Abrir no YouTube'})}
+   <div class="toolbar">${subtabs(grupos.map(([k,l,it])=>[k,l+' · '+it.length]),'ytsub','YouTube')}<div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['recent','Mais recentes'],['views','Mais vistos']].map(([k,l])=>`<button class="chip" data-ytord="${k}" aria-pressed="${ord===k}">${l}</button>`).join('')}</div></div>
+   ${lista.length?`<div class="ytgrid ${S.ytsub==='shorts'?'shorts':''}">${lista.map(ytCard).join('')}</div>`:'<p class="muted">Nada publicado aqui.</p>'}`}
+
 function ytConexao(){if(!isTeam()||!YT.configurado)return '';
   if(!YT.conectado)return `<section class="panel drivep"><div><b>Conectar o YouTube da Spraytec</b><p class="muted" style="margin:4px 0 0;font-size:13px">Antes de clicar, entre neste navegador na conta Google dona do canal. Se o canal for de uma conta de marca, o Google pergunta qual canal usar: escolha o da Spraytec.</p></div><a class="btn primary" href="/api/yt/conectar">Conectar YouTube</a></section>`;
   return `<p class="muted" style="font-size:12px;margin-top:12px">Canal ${esc(YT.canal||'')} conectado pela conta ${esc(YT.conta||'')}. <button class="linkbtn" data-act="yt-desconectar">Desconectar</button></p>`}
@@ -227,7 +239,7 @@ function gadsSecao(r,cr){const rs=v=>'R$ '+n(Math.round(v)),rs2=v=>'R$ '+v.toFix
   const linha=x=>{const st=ST_GADS[x.c.status]||[x.c.status,'--muted'];return `<tr><td><b>${esc(x.c.nome||'')}</b><div class="muted" style="font-size:12px">${CANAL_GADS[x.c.tipo]||esc(x.c.tipo||'')}${x.c.orcamentoDia?' · '+rs(x.c.orcamentoDia)+'/dia':''}</div></td><td>${tagPill(st[0],st[1])}</td><td class="mono">${rs(x.t.i)}</td><td class="mono">${fk(x.t.im)}</td><td class="mono">${fk(x.t.c)}</td><td class="mono">${x.t.im?pct(x.t.c/x.t.im*100):'—'}</td><td class="mono">${cv(x.t.ct)}</td><td class="mono">${x.t.ct?rs(x.t.i/x.t.ct):'—'}</td></tr>`};
   const camp=META.gads.campanhas;
   return `<section class="panel"><div class="headrow" style="margin-bottom:6px"><div><h2 style="margin:0">Campanhas do Google Ads · ${camps.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">${esc(GADS.conta||'')} · ${perLabel()}. Conversões como contadas no Google Ads.</p></div></div>${metaRodape(['gads'],'Google Ads')}
-   ${camps.length?`<div class="tablewrap" style="border:0"><table class="ap" style="min-width:820px"><thead><tr><th>Campanha</th><th>Situação</th><th>Investido</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>Conversões</th><th>Custo por conversão</th></tr></thead><tbody>${camps.map(linha).join('')}</tbody></table></div>`:'<p class="muted">Nenhuma campanha ativa ou com veiculação no período.</p>'}
+   ${camps.length?`<div class="tablewrap" style="border:0"><table class="ap" style="min-width:820px"><thead><tr><th>Campanha</th><th>Situação</th><th>Investido</th><th>Impressões</th><th>Cliques</th><th>CTR</th><th>Conversões</th><th>Custo por conversão</th></tr></thead><tbody>${camps.map(linha).join('')}</tbody></table></div>`:`<p class="muted">Nenhuma campanha ativa ou com veiculação no período.${[...META.gads.campanhas.values()].filter(c=>c.status==='PAUSED').length?' A conta tem '+[...META.gads.campanhas.values()].filter(c=>c.status==='PAUSED').length+' campanhas pausadas.':''}</p>`}
    ${ads.length?`<h3 style="font-size:14px;margin:14px 0 6px">Anúncios que mais converteram</h3><div class="tablewrap" style="border:0"><table class="ap" style="min-width:760px"><thead><tr><th>Anúncio</th><th>Investido</th><th>Cliques</th><th>Conversões</th><th>Custo por conversão</th></tr></thead><tbody>${ads.map(x=>{const a=x.a,tit=(a.titulos||[]).slice(0,3).join(' | ')||a.nome||'Anúncio '+a.id;return `<tr><td style="max-width:420px"><b>${esc(tit)}</b><div class="muted" style="font-size:12px">${esc((camp.get(a.campanha)||{}).nome||'')}${a.grupo?' · '+esc(a.grupo):''}</div></td><td class="mono">${rs(x.t.i)}</td><td class="mono">${fk(x.t.c)}</td><td class="mono">${cv(x.t.ct)}</td><td class="mono">${x.t.ct?rs(x.t.i/x.t.ct):'—'}</td></tr>`}).join('')}</tbody></table></div><p class="muted" style="font-size:12px;margin:6px 0 0">Campanhas Performance Max não têm anúncio individual: entram só na tabela de campanhas.</p>`:''}
    ${gadsConexao()}</section>`}
 function gadsConexao(){if(!isTeam())return '';
@@ -435,7 +447,7 @@ function chatSection(){
   const th=threads.find(t=>t.id===S.thread)||threads[0];S.thread=th.id;
   if(th.unread[me]){th.unread[me]=0;acaoSilenciosa('conversa-lida',{id:th.id})}
   const r=th.ref&&resolve(th.ref);
-  return `<section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Conversas com a Cancha</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Cada conversa tem um tema, e tudo fica registrado.</p></div></div>
+  return `<section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">${isTeam()?'Conversas com a Spraytec':'Conversas com a Cancha'}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Cada conversa tem um tema, e tudo fica registrado.</p></div></div>
   <div class="chat">
    <aside class="threads">${S.novoTema?`<div class="newt"><input type="text" id="nt" placeholder="Tema da conversa" aria-label="Tema da conversa"><button class="btn primary" data-act="criar-tema">Criar</button></div>`:`<button class="btn" data-act="novo-tema">Novo tema</button>`}
     ${threads.map(t=>{const last=t.msgs[t.msgs.length-1];const un=t.unread[me];return `<button class="thr" data-thread="${t.id}" aria-pressed="${t.id===th.id}"><span class="tt"><span># ${esc(t.tema)}</span>${un?`<span class="badge">${un}</span>`:''}</span><span class="ls">${last?esc(last.nome+': '+last.txt):'Sem mensagens ainda'}</span></button>`}).join('')}</aside>
@@ -784,6 +796,7 @@ function spark(tr,cor){const mx=Math.max(...tr),mn=Math.min(...tr),w=90,h=26;con
 function fmtMix(f){return `<span class="fmix" title="Vídeo ${f[0]}% · Carrossel ${f[1]}% · Imagem ${f[2]}%"><i style="width:${f[0]}%;background:var(--ink)"></i><i style="width:${f[1]}%;background:var(--muted)"></i><i style="width:${f[2]}%;background:var(--line)"></i></span>`}
 function concAd(c){const bg=PILAR_HUE[c.pilar]||'#E2E8DC';return `<div class="pv"><div class="hd"><span class="av" style="background:${c.cor}">${esc(c.nome.slice(-1))}</span><span><b>${esc(c.nome)}</b><br><span class="sm">Patrocinado</span></span></div><div class="img" style="--bg:${bg}"><span>${esc(c.dest)}</span></div><div class="ctabar"><span class="sm">Saiba mais</span><b>›</b></div></div>`}
 function estConc(){
+  const aviso=MOSTRAR_EXEMPLO?'<section class="panel metaaviso" role="note"><b>Exemplo: os concorrentes e os números desta aba são ilustrativos</b><p style="margin:6px 0 0">Mostram como vai ficar o acompanhamento. Os concorrentes reais entram com a lista da Spraytec e a ferramenta de monitoramento.</p></section>':'';
   const all=[SPRAY,...CONC],tot=all.reduce((a,c)=>a+c.ads,0),sov=Math.round(SPRAY.ads/tot*100),nov=all.reduce((a,c)=>a+c.novos,0);
   const lider=[...CONC].sort((a,b)=>b.ads-a.ads)[0]||SPRAY;
   const sovBar=`<div class="sov">${all.map(c=>`<span style="width:${c.ads/tot*100}%;background:${c.cor}" title="${esc(c.nome)}: ${c.ads}"></span>`).join('')}</div><div class="mlegend" style="justify-content:flex-start">${all.map(c=>`<span><i class="lg" style="background:${c.cor}"></i>${esc(c.nome)} · ${Math.round(c.ads/tot*100)}%</span>`).join('')}</div>`;
@@ -794,7 +807,7 @@ function estConc(){
     ${TEMAS_C.map(([k,l])=>{const mxc=Math.max(...CONC.map(c=>c.tem[k])),me=SPRAY.tem[k];const op=me===0&&mxc>=2?['Não disputamos','--muted']:mxc<=1&&me<=2?['Espaço livre','--ok']:mxc>me?['Perdendo','--bad']:me>mxc?['Liderando','--accent-ink']:['Empate','--muted'];
       return `<span class="hl">${l}</span>${all.map(c=>`<span class="hc" style="--n:${c.tem[k]*28}%" title="${['Não fala','Pouco','Frequente','Tema central'][c.tem[k]]}"></span>`).join('')}<span>${ktag(op[0].toUpperCase(),op[1])}</span>`}).join('')}</div><div class="mlegend" style="justify-content:flex-start;margin-top:10px">${['Não fala','Pouco','Frequente','Tema central'].map((t,n)=>`<span><i class="lg" style="background:color-mix(in srgb,var(--accent) ${n*28}%,var(--surface-2))"></i>${t}</span>`).join('')}<span><i class="lg" style="background:var(--ink)"></i>Vídeo</span><span><i class="lg" style="background:var(--muted)"></i>Carrossel</span><span><i class="lg" style="background:var(--line)"></i>Imagem</span></div>`;
   const gal=CONC.filter(c=>c.dest).sort((a,b)=>b.dur-a.dur).map(c=>`<article class="pcard cad clickable" data-act="conc-edit" data-id="${c.id}"><div class="concprev">${concAd(c)}</div><div class="cadm"><b>${esc(c.dest)}</b><span class="muted">${esc(c.nome)} · no ar há ${c.dur} dias</span><span class="muted" style="font-size:12px">${c.dur>45?'Anúncio que dura costuma ser anúncio que funciona.':'Rodando há pouco tempo.'}</span></div></article>`).join('');
-  return `<div class="kpis">
+  return `${aviso}<div class="kpis">
     <div class="kpi"><div class="l">Share of voice da Spraytec ${EX}</div><div class="v">${sov}%</div><div class="l">${SPRAY.ads} de ${tot} anúncios ativos no grupo</div></div>
     <div class="kpi"><div class="l">Quem mais anuncia</div><div class="v" style="font-size:18px">${esc(lider.nome)}</div><div class="l">${lider.ads} anúncios · ${lider.novos} novos na semana</div></div>
     <div class="kpi"><div class="l">Anúncios novos na semana</div><div class="v">${nov}</div><div class="l">somando todas as marcas</div></div>
@@ -904,7 +917,7 @@ let GUIA={tom:[],evitar:[],termos:[],produtos:[],hashtags:[]};
 const GUIA_SEC=[['tom','Tom de voz'],['evitar','O que não dizer'],['termos','Termos (usar | evitar)'],['produtos','Produtos (nome | registro | o que podemos dizer)'],['hashtags','Hashtags padrão']];
 function acvGuia(){
   const sp=x=>x.split('|').map(t=>t.trim());
-  return `<div class="toolbar"><p class="sub" style="margin:0">A referência de quem produz conteúdo para a Spraytec. Logos, fontes e cores ficam na pasta Marca do Drive.</p><div class="actions"><a class="btn" href="https://drive.google.com/" target="_blank" rel="noopener" style="text-decoration:none">Pasta Marca no Drive</a>${isTeam()?'<button class="btn primary" data-act="guia-edit">Editar guia</button>':''}</div></div>
+  return `${MOSTRAR_EXEMPLO?exLinha('Guia de exemplo: o guia de marca da Spraytec entra quando o material dela for cadastrado.'):''}<div class="toolbar"><p class="sub" style="margin:0">A referência de quem produz conteúdo para a Spraytec. Logos, fontes e cores ficam em Materiais, na pasta Guia de marca.</p><div class="actions"><button class="btn" data-act="guia-arquivos">Arquivos da marca</button>${isTeam()?'<button class="btn primary" data-act="guia-edit">Editar guia</button>':''}</div></div>
   <div class="guiagrid">
    <section class="pcard"><div class="eyebrow" style="margin-bottom:8px">Tom de voz</div><ul class="gl ok">${GUIA.tom.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>
    <section class="pcard"><div class="eyebrow" style="margin-bottom:8px">O que não dizer</div><ul class="gl no">${GUIA.evitar.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>
@@ -938,7 +951,11 @@ function viewHoje(){
   const pz=pendingApprovals().map(prazoDe).concat(roteirosPend().map(v=>v.prazo).filter(Boolean)).sort()[0];
   const late=demandas.filter(d=>!d.feito&&d.data<TODAY);
   const num=(b,l,view,cls)=>{const tag=view?'button':'div';return `<${tag} class="hnum ${cls||''}" ${view?`data-view="${view}"`:''}><b>${b}</b><span>${l}</span></${tag}>`};
-  const nums=`<section class="hnums">
+  const meuLado=isM()?'spraytec':'cancha',minhas=isDir()?[]:acoes().filter(o=>o.quem===meuLado),pzM=minhas.map(o=>o.prazo).filter(Boolean).sort()[0],atr=minhas.filter(o=>o.late).length;
+  const nums=!isDir()?`<section class="hnums">
+    <button class="hnum" data-act="go-quem"><b>${minhas.length}</b><span>${isM()?(minhas.length===1?'item esperando você':'itens esperando você'):(minhas.length===1?'tarefa com a Cancha':'tarefas com a Cancha')}</span></button>
+    <button class="hnum ${pzM&&pzM<TODAY?'bad':''}" data-act="go-quem"><b>${pzM?fmt(pzM):'—'}</b><span>${pzM?(pzM<TODAY?'prazo vencido':'prazo mais próximo'):'nenhum prazo aberto'}</span></button>
+    <button class="hnum ${atr?'bad':''}" data-act="go-quem"><b>${atr}</b><span>${atr===1?'item atrasado':'itens atrasados'}</span></button></section>`:`<section class="hnums">
     ${num(n,isM()?(n===1?'item esperando você':'itens esperando você'):isDir()?'itens em aprovação':'itens com a Spraytec para aprovar',isDir()?'':'aprovacao')}
     ${num(pz?fmt(pz):'—',pz?(pz<TODAY?'prazo vencido':'prazo mais próximo'):'nenhum prazo aberto',isDir()?'':'aprovacao',pz&&pz<TODAY?'bad':'')}
     ${num(late.length,late.length===1?'demanda atrasada':'demandas atrasadas',isDir()?'':'calendario',late.length?'bad':'')}</section>`;
@@ -947,6 +964,7 @@ function viewHoje(){
   const linhaExec=exec?`<button class="hlinha" data-act="rel-ver" data-id="${exec.id}"><span class="eyebrow">Resumo executivo</span><span class="hl-obj">${esc(exec.frase||exec.t)}</span><span class="hl-meta">${esc(exec.t)}</span><span class="hl-ir">›</span></button>`:'';
   return `<div class="headrow hello"><div><div class="eyebrow">Spraytec Brasil · ${fmtLong(TODAY)}</div><h1>${'Olá, '+esc(EU.nome.split(' ')[0])}</h1></div></div>
   ${nums}
+  ${isDir()?'':cicloStrip(addMonth(TODAY.slice(0,7),1),true)}
   ${linhaEst}
   ${isDir()?linhaExec:chatSection()}
   ${novidadesBlock()}`;
@@ -962,7 +980,7 @@ function viewAprovacao(){
   return `${head('Aprovação',isM()?'Tudo o que espera por você numa tabela só. Marque e aprove de uma vez, ou abra o item para ver em tamanho real e pedir ajuste.':'Itens com a Spraytec: pautas e peças. Aprovação por WhatsApp ou e-mail é registrada dentro do item.')}
   <div class="toolbar"><div class="filters">${ATIPOS.filter(([k])=>k==='todos'||rows.some(r=>r.tipo===k)).map(([k,l])=>`<button class="chip" data-atipo="${k}" aria-pressed="${S.atipo===k}">${l} · ${cnt(k)}</button>`).join('')}</div>
    ${isM()?'<div class="actions"><button class="btn" data-act="rapida">Aprovar um por um</button><button class="btn primary" data-act="approve-sel">Aprovar selecionados'+(nSel?' ('+nSel+')':'')+'</button></div>':''}</div>
-  <div class="tablewrap"><table class="ap"><thead><tr>${isM()?`<th><input type="checkbox" data-selall="1" aria-label="Selecionar todos" ${all?'checked':''} ${keys.length?'':'disabled'}></th>`:''}<th>Item</th><th>Tipo</th><th>Publicação</th><th>Prazo</th><th>Status</th><th></th></tr></thead><tbody>
+  <div class="tablewrap"><table class="ap aprov"><thead><tr>${isM()?`<th><input type="checkbox" data-selall="1" aria-label="Selecionar todos" ${all?'checked':''} ${keys.length?'':'disabled'}></th>`:''}<th>Item</th><th>Tipo</th><th>Publicação</th><th>Prazo</th><th>Status</th><th></th></tr></thead><tbody>
   ${vis.map(r=>{
     if(r.v){const v=r.v;return `<tr>${isM()?`<td><input type="checkbox" data-selv="${v.id}" ${S.sel['v:'+v.id]?'checked':''} aria-label="Selecionar"></td>`:''}<td><div class="itemcell clickable" data-video="${v.id}"><div class="mini"><div class="pv doc"><span class="sm">ROTEIRO</span></div></div><div><div class="t">Roteiro: ${esc(v.titulo)}</div><div class="muted" style="font-size:12px">Para a produtora gravar</div></div></div></td><td>Vídeo</td><td class="due">gravação ${v.gravacao}</td><td class="due">${fmtLong(v.prazo)}</td><td>${tagPill('Roteiro em aprovação','--s-aprovacao')}</td><td>${isM()?`<button class="btn" data-act="v-next" data-id="${v.id}">Aprovar</button>`:''}</td></tr>`}
     const p=r.p,pz=prazoDe(p),hot=pz<=addDays(TODAY,1);
@@ -1006,10 +1024,10 @@ function viewCalendario(){
   <div class="toolbar">${monthNav('month')}
    <div class="filters" role="group" aria-label="Tipos">${TIPOS.map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
    <div class="actions">${isTeam()?'<button class="btn" data-act="marcos">Editar safra e eventos</button><button class="btn" data-act="importar">Planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>
-  ${cicloStrip(S.month)}
+  ${S.month===TODAY.slice(0,7)?cicloStrip(addMonth(S.month,1),true):''}${cicloStrip(S.month)}
   <div class="calwrap">
    ${calGrid(S.month,d=>vp.filter(p=>p.date===d).sort(byTime).map(calItem).join('')+(S.tipos.demanda?demandas.filter(x=>x.data===d).map(x=>demChip(x,!isDir())).join(''):''),true,'cal-add')}
-   <div class="calist"><section class="panel"><div class="eyebrow" style="margin-bottom:6px">Safra, comercial e eventos</div><div class="mkchips">${mk.map(x=>`<button class="band b-${x.tipo}" data-act="${isTeam()?'marcos':''}"><b>${MK_TIPO[x.tipo]}</b><span>${esc(x.nome)} · ${fmt(x.ini)}–${fmt(x.fim)}</span></button>`).join('')}</div></section>${list||'<p class="muted">Nada neste mês.</p>'}</div>
+   <div class="calist"><section class="panel"><div class="eyebrow" style="margin-bottom:6px">Safra, comercial e eventos</div><div class="mkchips">${mk.length?'':'<span class="muted" style="font-size:13px">Nenhum evento cadastrado neste mês.</span>'}${mk.map(x=>`<button class="band b-${x.tipo}" data-act="${isTeam()?'marcos':''}"><b>${MK_TIPO[x.tipo]}</b><span>${esc(x.nome)} · ${fmt(x.ini)}–${fmt(x.fim)}</span></button>`).join('')}</div></section>${list||'<p class="muted">Nada neste mês.</p>'}</div>
    ${espera.length?`<section class="espera" data-day="espera"><div class="eyebrow">Em espera, sem data · ${espera.length}</div><div class="items">${espera.map(calItem).join('')}</div></section>`:''}
   </div>`;
 }
@@ -1332,7 +1350,7 @@ function fase(p){const s=p.status,e=p.etapaAjuste;if(s==='pauta'||(s==='ajuste'&
   if(s==='ajuste'&&e==='texto')return 2;if(s==='texto_aprovacao')return 3;if(s==='ajuste')return 4;if(s==='aprovacao')return 5;if(s==='aprovado'||s==='agendado')return 6;if(s==='publicado')return 7;return -1}
 const pautasDe=m=>posts.filter(p=>p.date&&p.date.startsWith(m)&&temPauta(p)&&p.status!=='espera'&&p.rede!=='ads').sort((a,b)=>a.date.localeCompare(b.date));
 const quemNome=q=>q==='spraytec'&&isM()?'Você · Spraytec':q==='cancha'&&isTeam()?'Você · Cancha':q==='produtora'?'Produtora':q==='auto'?'Publicação':QUEM[q];
-function cicloStrip(m){if(m<CICLO_DESDE)return '';const c=cicloDe(m),z=prazosCiclo(m),ps=pautasDe(m),tot=ps.length,cnt=k=>ps.filter(p=>fase(p)>=k).length;
+function cicloStrip(m,prep){if(m<CICLO_DESDE)return '';const c=cicloDe(m),z=prazosCiclo(m),ps=pautasDe(m),tot=ps.length,cnt=k=>ps.filter(p=>fase(p)>=k).length;
   const em=st=>ps.some(p=>p.status===st);
   const S8=[
     {l:'Insumos do mês',q:'spraytec',done:!!c.ins,ate:z.ins,d:c.ins?'Recebidos em '+fmt(c.ins.ok):'Até '+fmtLong(z.ins),btn:[c.ins?'Ver insumos':isM()?'Enviar insumos':isTeam()?'Registrar recebidos':'Ver insumos','ins-open',!c.ins&&isM()]},
@@ -1344,7 +1362,7 @@ function cicloStrip(m){if(m<CICLO_DESDE)return '';const c=cicloDe(m),z=prazosCic
     {l:'Aprovação das peças',q:'spraytec',done:tot>0&&cnt(6)===tot,d:tot?cnt(6)+' de '+tot+' aprovadas':'2 dias úteis por peça',btn:em('aprovacao')&&isM()?['Aprovar agora','go-aprov',1]:null},
     {l:'Publicação',q:'auto',done:tot>0&&cnt(7)===tot,d:tot?cnt(7)+' de '+tot+' no ar':''}];
   const cur=S8.findIndex(x=>!x.done);
-  return `<section class="ciclobox"><div class="ciclohead"><h2>Ciclo de ${mesCiclo(m)}</h2><span class="muted" style="font-size:12px">Combinado: insumos até dia 1 · pautas até dia 10 · textos até dia 15 · peças até o fim do mês anterior · cada aprovação em até 2 dias úteis</span></div>
+  return `<section class="ciclobox"><div class="ciclohead"><h2>Ciclo de ${mesCiclo(m)}${prep?' · em preparo agora':''}</h2><span class="muted" style="font-size:12px">Combinado: insumos até dia 1 · pautas até dia 10 · textos até dia 15 · peças até o fim do mês anterior · cada aprovação em até 2 dias úteis</span></div>
   <div class="ciclo">${S8.map((x,i)=>{const late=!x.done&&x.ate&&x.ate<TODAY;return `<div class="cs ${x.done?'done':i===cur?'cur':''} ${late?'late':''}" style="--kc:var(--k-${x.q==='auto'?'post':x.q})"><span class="n">${x.done?'✓':i+1}</span><b>${x.l}</b><span class="q">${quemNome(x.q)+(x.sub?' '+x.sub:'')}</span><span class="d">${late?'Atrasado · ':''}${x.d}${x.ate&&!x.done&&!late&&!/^Até/.test(x.d)?' · até '+fmt(x.ate):''}</span>${x.btn?`<button class="btn ${x.btn[2]?'primary':''} sm" data-act="${x.btn[1]}" data-m="${m}">${x.btn[0]}</button>`:''}</div>`}).join('')}</div></section>`}
 function drawerIns(){const m=S.drawer.id,c=cicloDe(m),z=prazosCiclo(m),x=(c.ins&&c.ins.txt)||{},pode=isM()||isTeam();
   return `<header><div><div class="eyebrow">Ciclo de ${mesCiclo(m)} · etapa 1</div><h2>Insumos do mês</h2></div>${closeBtn()}</header>
@@ -1870,7 +1888,7 @@ function viewAtividade(){
 
 // ---------- cliques ----------
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-pessoa],[data-selall],[data-calv],[data-kgrp],[data-acat],[data-relcat],[data-per],[data-psort],[data-prede],[data-cord],[data-thread],[data-thread-go],[data-tab],[data-tipo],[data-atipo],[data-quem],[data-pasta],[data-view],[data-open],[data-video],[data-dem],[data-act],[data-month],[data-sel],[data-selv]');
+  const t=e.target.closest('[data-pessoa],[data-selall],[data-calv],[data-kgrp],[data-acat],[data-relcat],[data-per],[data-psort],[data-prede],[data-ytord],[data-cord],[data-thread],[data-thread-go],[data-tab],[data-tipo],[data-atipo],[data-quem],[data-pasta],[data-view],[data-open],[data-video],[data-dem],[data-act],[data-month],[data-sel],[data-selv]');
   if(!t)return;
   const d=t.dataset;
   if(d.pessoa){api('/api/entrar/demo',{usuarioId:d.pessoa}).then(iniciar).catch(err=>toast(err.message));return}
@@ -1882,6 +1900,7 @@ document.addEventListener('click',e=>{
   if(d.per){setPreset(d.per);render();return}
   if(d.psort){S.psort=d.psort;render();return}
   if(d.prede){S.prede=d.prede;render();return}
+  if(d.ytord){S.ytord=d.ytord;render();return}
   if(d.cord){S.cord=d.cord;render();return}
   if(d.thread){S.thread=d.thread;S.linkPick=false;render();return}
   if(d.threadGo){S.thread=d.threadGo;S.view='hoje';S.drawer=null;render();irChat();return}
@@ -1924,6 +1943,7 @@ document.addEventListener('click',e=>{
     case 'gads-desconectar':if(confirm('Desconectar o Google Ads? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/gads/desconectar',{}).then(()=>{toast('Google Ads desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'yt-desconectar':if(confirm('Desconectar o YouTube? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/yt/desconectar',{}).then(()=>{toast('YouTube desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'ga4-desconectar':if(confirm('Desconectar o Google Analytics? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/ga4/desconectar',{}).then(()=>{toast('Google Analytics desconectado.');iniciar()}).catch(err=>toast(err.message));break;
+    case 'guia-arquivos':S.asub='materiais';S.acat.materiais='Guia de marca';S.mpasta='Guia de marca';render();break;
     case 'm-nova-pasta':{const n=(prompt('Nome da nova pasta de materiais:')||'').trim().slice(0,60);if(n){S.mpasta=n;render()}break}
     case 'meta-atualizar':api('/api/integracoes/atualizar',{}).then(j=>{toast(j.jaRodando?'A coleta já está rodando. Os números novos aparecem em alguns minutos.':'Coleta iniciada. Os números novos aparecem em alguns minutos.');[60e3,180e3,360e3].forEach(t=>setTimeout(carregarMeta,t))}).catch(err=>toast(err.message));break;
     case 'demo-restaurar':if(!confirm('Recarregar os dados? Os itens voltam ao estado inicial.'))break;
@@ -2004,6 +2024,7 @@ document.addEventListener('click',e=>{
     case 'pau-env':acao('enviar-pautas',{ids:(t.dataset.ids||'').split(',').filter(Boolean)},()=>toast('Pautas enviadas para aprovação da Spraytec.'));break;
     case 'txt-env':acao('enviar-textos',{ids:(t.dataset.ids||'').split(',').filter(Boolean)},()=>toast('Textos enviados para aprovação da Spraytec.'));break;
     case 'lote-aprovar':acao('aprovar-lote',{ids:(t.dataset.ids||'').split(',').filter(Boolean)},()=>toast('Aprovado.'));break;
+    case 'go-quem':S.view='calendario';S.calv='kanban';S.kgrp='quem';closeDrawer();render();window.scrollTo(0,0);break;
     case 'go-aprov':S.view='aprovacao';closeDrawer();render();break;
     case 'external':acao('aprovacao-externa',{id,quem:val('#ext-quem'),canal:$('#ext-canal')?$('#ext-canal').value:'WhatsApp',evidencia:val('#ext-link')},()=>{S.needExt=null;render();toast('Aprovação externa registrada no histórico.')});break;
     case 'textos':acao('textos',{id,legenda:val('#tx-leg')},()=>toast('Textos adicionados. Foi para validação interna da Spraytec.'));break;
