@@ -496,7 +496,7 @@ function doneBtn(){return `<div class="actions"><button class="btn dark" data-ac
 // ===== QUADRO DA ESTRATÉGIA (matriz jornada × frentes, com verba e resultado por momento) =====
 const FRENTES_Q=[['social','Social'],['trafego','Tráfego pago'],['email','E-mail'],['design','Design'],['video','Vídeo']];
 const IND={alcance:'Alcance',cliques:'Cliques',contatos:'Contatos',interacoes:'Interações'};
-const indEx=k=>({alcance:!metaTem('ads')||!metaSocial(),cliques:!metaTem('ads'),contatos:true,interacoes:!metaSocial()}[k]?EX:'');
+const indEx=k=>({alcance:!metaTem('ads')||!metaSocial(),cliques:!metaTem('ads'),contatos:!funilReal(),interacoes:!metaSocial()}[k]?EX:'');
 function indValor(k){const r={de:TODAY.slice(0,8)+'01',ate:TODAY};const F=funilStats(r,true);const SC=socialStats(r);const A=metaTem('ads')?somaAds(adsTotais(r)):null;
   return {alcance:fk((A?A.im:F.impr)+SC.alc),cliques:fk(A?A.c:F.clk),contatos:String(metaMes().cont),interacoes:fk(SC.inter)}[k]||'—'}
 const edT=(k,attrs)=>isTeam()?`data-act="pop" data-pk="${k}" ${attrs||''} tabindex="0" role="button"`:'';
@@ -510,8 +510,8 @@ function planoVisual(){
   const hero=`<section class="qhero ${chObj?'qchg':''}" ${edT('tese')}>
     <div class="qtese"><span class="eyebrow">A aposta do período</span><h3>${esc(cur.objetivo)}</h3>${wasP('objetivo',cur.objetivo)}${cur.objItens.length?`<p class="muted">${cur.objItens.map(esc).join(' · ')}</p>`:''}</div>
     <div class="qmetas">
-     ${temMeta(cur.metas.contatos)?`<div class="qm"><span class="ql">Contatos no mês ${EX}</span><b>${m.cont}<small> / ${cur.metas.contatos}</small></b>${wasP('metas.contatos',cur.metas.contatos,v=>'meta '+v)}<div class="qbar"><i style="width:${Math.min(100,m.cont/cur.metas.contatos*100)}%"></i><u style="left:${Math.min(100,m.proj/Math.max(cur.metas.contatos,m.proj)*100)}%"></u></div><span class="ql">projeção ${m.proj} · ${m.proj>=cur.metas.contatos?'<em class="okt">no caminho</em>':'<em class="badt">abaixo</em>'}</span></div>`:`<div class="qm"><span class="ql">Meta de contatos no mês</span><b class="badt">Não definida</b><span class="ql">${isTeam()?'Clique no quadro para definir com a Spraytec':'A Cancha e a Spraytec vão definir'}</span></div>`}
-     <div class="qm"><span class="ql">Custo por contato ${EX}</span><b>R$ ${Math.round(m.cpl)}</b><span class="ql">${temMeta(cur.metas.cpl)?`meta até R$ ${cur.metas.cpl}${wasP('metas.cpl',cur.metas.cpl,v=>' (era R$ '+v+')')} · ${m.cpl<=cur.metas.cpl?'<em class="okt">dentro</em>':'<em class="badt">acima</em>'}`:'meta não definida'}</span></div>
+     ${temMeta(cur.metas.contatos)?`<div class="qm"><span class="ql">Contatos no mês ${m.real?'':EX}</span><b>${m.cont}<small> / ${cur.metas.contatos}</small></b>${wasP('metas.contatos',cur.metas.contatos,v=>'meta '+v)}<div class="qbar"><i style="width:${Math.min(100,m.cont/cur.metas.contatos*100)}%"></i><u style="left:${Math.min(100,m.proj/Math.max(cur.metas.contatos,m.proj)*100)}%"></u></div><span class="ql">projeção ${m.proj} · ${m.proj>=cur.metas.contatos?'<em class="okt">no caminho</em>':'<em class="badt">abaixo</em>'}</span></div>`:`<div class="qm"><span class="ql">Meta de contatos no mês</span><b class="badt">Não definida</b><span class="ql">${isTeam()?'Clique no quadro para definir com a Spraytec':'A Cancha e a Spraytec vão definir'}</span></div>`}
+     <div class="qm"><span class="ql">Custo por contato da mídia ${m.real?'':EX}</span><b>${m.cpl!=null?'R$ '+Math.round(m.cpl):'—'}</b><span class="ql">${temMeta(cur.metas.cpl)?`meta até R$ ${cur.metas.cpl}${wasP('metas.cpl',cur.metas.cpl,v=>' (era R$ '+v+')')} · ${m.cpl==null?'sem contatos da mídia':m.cpl<=cur.metas.cpl?'<em class="okt">dentro</em>':'<em class="badt">acima</em>'}`:'meta não definida'}</span></div>
     </div></section>`;
   // 2. matriz
   const cols=cur.jornada.length;
@@ -847,15 +847,86 @@ function funilStats(r,isCur){const f=daysOf(r)/30,a=isCur?1:r.ate<addDays(TODAY,
 const CAMP_RET=[['Remarketing · visitantes 60 dias','Meta',3820,58,7,152000],['Pesquisa · nutrição foliar','Google',6900,84,8,171000],['Prospecção · produtores de soja','Meta',2940,36,3,58000],['Florescimento (teste A/B)','Meta',3040,24,1,31000],['Vídeo · ensaio de campo','YouTube',1500,12,0,0]];
 // exemplo: ritmo de ~7,6 contatos e ~R$ 606 de mídia por dia
 const temMeta=v=>Number(v)>0;
-function metaMes(){const diasPass=Number(TODAY.slice(8)),diasMes=new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7),0)).getUTCDate(),cont=Math.max(1,Math.round(7.56*diasPass)),inv=Math.round(606*diasPass),mt=plano?plano.dados.metas:{contatos:220,cpl:90},metaC=Number(mt.contatos)||0,metaCpl=Number(mt.cpl)||0;const proj=Math.round(cont/diasPass*diasMes);const cpl=inv/cont;
-  return {diasPass,diasMes,cont,proj,metaC,cpl,metaCpl,ok:proj>=metaC,ritmo:Math.round(metaC*diasPass/diasMes)}}
+// ---------- CONTATOS REAIS ----------
+// Regra: um contato é (a) um formulário ou WhatsApp enviado no site, contado pelo GA4 (eventos-chave, de qualquer origem),
+// (b) um formulário instantâneo da Meta, preenchido dentro do Facebook ou Instagram, ou (c) uma conversa iniciada por anúncio
+// (WhatsApp, Direct, Messenger). O Lead do pixel da Meta e as conversões do Google Ads NÃO somam ao total: são os mesmos
+// envios do site, que o GA4 já contou. Entram só na tabela por campanha, que mostra a atribuição de cada plataforma.
+const funilReal=()=>metaTem('ads')||metaTem('ga4')||metaTem('gads');
+const CANAL_PAGO=c=>/^(Paid |Cross-network$|Display$)/.test(c||'');
+const CONV_META='onsite_conversion.messaging_conversation_started_7d';
+const formMeta=a=>{const v=a['onsite_conversion.lead_grouped']??a['leadgen_grouped'];return v!=null?Number(v)||0:Math.max(0,(Number(a.lead)||0)-(Number(a['offsite_conversion.fb_pixel_lead'])||0))};
+const EV_CONTATO={lead_formulario:'Formulário do site',lead_whatsapp:'WhatsApp do site'};
+function siteDesde(){const d=META.ga4.dias.filter(x=>x.sessoes>0).map(x=>x.d).sort();return d[0]||null}
+function contatosReal(r){const G=META.ga4,soma=(L,k)=>L.reduce((a,x)=>a+(Number(x[k])||0),0);
+  const ev=G.eventos.filter(x=>inR(r,x.d)),evs=new Map();ev.forEach(x=>evs.set(x.evento,(evs.get(x.evento)||0)+(x.eventosChave||0)));
+  const cn=G.canais.filter(x=>inR(r,x.d)),can=new Map();cn.forEach(x=>{if(x.eventosChave)can.set(x.canal,(can.get(x.canal)||0)+x.eventosChave)});
+  const site=soma(ev,'eventosChave'),sitePago=[...can].filter(([c])=>CANAL_PAGO(c)).reduce((a,[,v])=>a+v,0);
+  let mf=0,mc=0,inv=0,im=0,c=0;META.ads.dias.forEach(l=>{if(!inR(r,l.d))return;const a=l.acoes||{};mf+=formMeta(a);mc+=Number(a[CONV_META])||0;inv+=l.investido||0;im+=l.impressoes||0;c+=l.cliques||0});
+  const g=gadsTot(r);
+  return {inv:inv+g.i,invM:inv,invG:g.i,im:im+g.im,c:c+g.c,evs,can,site,sitePago,sesPago:soma(cn.filter(x=>CANAL_PAGO(x.canal)),'sessoes'),mf,mc,
+    total:site+mf+mc,midia:sitePago+mf+mc,gconv:g.ct}}
+// por campanha: atribuição de cada plataforma (a Meta inclui o Lead do pixel; o Google, as conversões dele)
+function contatosPorCampanha(r){const o=new Map();
+  META.ads.dias.forEach(l=>{if(!inR(r,l.d))return;const a=META.ads.anuncios.get(l.ad)||{},cp=a.campaign||{},k='m'+(cp.id||l.ad);
+    const t=o.get(k)||{nome:cp.name||a.name||'Campanha da Meta',plat:'Meta Ads',obj:OBJ[cp.objective]||'',inv:0,ct:0,conv:0,pix:0};
+    const ac=l.acoes||{};t.inv+=l.investido||0;t.ct+=contatosDe(ac);t.conv+=Number(ac[CONV_META])||0;t.pix+=Number(ac['offsite_conversion.fb_pixel_lead'])||0;o.set(k,t)});
+  const G=gadsPor(META.gads.dias,'campanha',r);Object.entries(G).forEach(([id,x])=>{const c=META.gads.campanhas.get(id)||{};o.set('g'+id,{nome:c.nome||'Campanha '+id,plat:'Google Ads',obj:CANAL_GADS[c.tipo]||'',inv:x.i,ct:x.ct,conv:0,pix:0})});
+  return [...o.values()].filter(x=>x.inv>0||x.ct>0).sort((a,b)=>b.ct-a.ct||b.inv-a.inv)}
+function metaMes(){const diasPass=Number(TODAY.slice(8)),diasMes=new Date(Date.UTC(+TODAY.slice(0,4),+TODAY.slice(5,7),0)).getUTCDate(),mt=plano&&plano.dados&&plano.dados.metas||{},metaC=Number(mt.contatos)||0,metaCpl=Number(mt.cpl)||0;
+  if(funilReal()){const K=contatosReal({de:TODAY.slice(0,8)+'01',ate:TODAY}),cont=K.total,proj=Math.round(cont/diasPass*diasMes),cpl=K.midia?K.inv/K.midia:null;
+    return {diasPass,diasMes,cont,proj,metaC,cpl,metaCpl,inv:K.inv,ok:proj>=metaC,ritmo:Math.round(metaC*diasPass/diasMes),real:true}}
+  // exemplo: ritmo de ~7,6 contatos e ~R$ 606 de mídia por dia
+  const cont=Math.max(1,Math.round(7.56*diasPass)),inv=Math.round(606*diasPass),proj=Math.round(cont/diasPass*diasMes);
+  return {diasPass,diasMes,cont,proj,metaC,cpl:inv/cont,metaCpl,inv,ok:proj>=metaC,ritmo:Math.round(metaC*diasPass/diasMes),real:false}}
 function metaBlock(compact){const m=metaMes();
   if(!m.metaC)return `<div class="metab ${compact?'compact':''}"><div class="mhead"><b>Meta de contatos · ${MONTHS[+TODAY.slice(5,7)-1].toLowerCase()}</b><span class="badt">Não definida</span></div><p class="muted" style="font-size:13px;margin:6px 0 0">A meta de contatos do mês ainda não foi definida com a Spraytec. ${isTeam()?'Defina em Estratégia › Plano atual.':''}</p></div>`;const w=v=>Math.min(100,v/Math.max(m.metaC,m.proj)*100);
-  return `<div class="metab ${compact?'compact':''}"><div class="mhead"><b>Meta de contatos · ${MONTHS[+TODAY.slice(5,7)-1].toLowerCase()} ${EX}</b><span class="${m.ok?'okt':'badt'}">${m.ok?'No caminho':'Abaixo do ritmo'}</span></div>
+  return `<div class="metab ${compact?'compact':''}"><div class="mhead"><b>Meta de contatos · ${MONTHS[+TODAY.slice(5,7)-1].toLowerCase()} ${m.real?'':EX}</b><span class="${m.ok?'okt':'badt'}">${m.ok?'No caminho':'Abaixo do ritmo'}</span></div>
    <div class="mbar"><span class="mfill" style="width:${w(m.cont)}%"></span><span class="mproj" style="width:${w(m.proj)}%"></span><i class="mmeta" style="left:${w(m.metaC)}%" title="Meta: ${m.metaC}"></i></div>
    <div class="mlegend"><span><b>${m.cont}</b> até hoje (dia ${m.diasPass} de ${m.diasMes})</span><span>projeção <b>${m.proj}</b></span><span>meta <b>${m.metaC}</b></span></div>
-   ${compact?'':`<div class="mlegend"><span>Custo por contato no mês <b>R$ ${Math.round(m.cpl)}</b> · ${m.metaCpl?'meta até R$ '+m.metaCpl:'meta não definida'}</span><span class="${m.cpl<=m.metaCpl?'okt':'badt'}">${m.cpl<=m.metaCpl?'dentro da meta':'acima da meta'}</span></div>`}</div>`}
+   ${compact?'':`<div class="mlegend"><span>Custo por contato da mídia no mês <b>${m.cpl!=null?'R$ '+Math.round(m.cpl):'—'}</b> · ${m.metaCpl?'meta até R$ '+m.metaCpl:'meta não definida'}</span>${m.metaCpl&&m.cpl!=null?`<span class="${m.cpl<=m.metaCpl?'okt':'badt'}">${m.cpl<=m.metaCpl?'dentro da meta':'acima da meta'}</span>`:''}</div>`}</div>`}
 function perfFunil(){
+  if(!funilReal())return perfFunilEx();
+  const r={de:S.per.de,ate:S.per.ate},cr=cmpRange(),K=contatosReal(r),P=cr?contatosReal(cr):null;
+  const rs=v=>brl(Math.round(v)),cpl=x=>x&&x.midia?x.inv/x.midia:null,pc=(a,b)=>b?Math.round(a/b*100)+'%':'—';
+  const desde=siteDesde(),antes=desde&&r.de<desde,semSite=!metaTem('ga4');
+  const k=kpisC([{l:'Investimento em mídia',v:rs(K.inv),s:[K.invM&&'Meta '+rs(K.invM),K.invG&&'Google '+rs(K.invG)].filter(Boolean).join(' · ')||'Meta Ads e Google Ads',cur:K.inv,prev:P&&P.inv,prevTxt:P&&rs(P.inv)},
+    {l:'Contatos',v:n(K.total),s:'site, formulários e conversas',cur:K.total,prev:P&&P.total,prevTxt:P&&n(P.total)},
+    {l:'Contatos da mídia paga',v:n(K.midia),s:K.total?pc(K.midia,K.total)+' do total':'vindos de anúncio',cur:K.midia,prev:P&&P.midia,prevTxt:P&&n(P.midia)},
+    {l:'Custo por contato da mídia',v:cpl(K)!=null?rs(cpl(K)):'—',s:'investimento ÷ contatos da mídia',cur:cpl(K),prev:cpl(P),prevTxt:cpl(P)!=null?rs(cpl(P)):null,low:true}],cr);
+  const aviso=semSite?'<p class="metaaviso" style="padding:10px 12px;border-radius:8px;font-size:13px;margin:0 0 10px">O Google Analytics ainda não trouxe dados: os contatos do site não estão entrando nesta conta.</p>'
+    :antes?`<p class="muted" style="font-size:13px;margin:0 0 10px">O site é medido desde ${fmt(desde)}, quando o Tag Manager foi instalado. Antes disso, só entram os contatos dos anúncios da Meta.</p>`:'';
+  const steps=[['Impressões',K.im],['Cliques',K.c],['Contatos da mídia',K.midia]];
+  const funil=K.im?`<div class="funil">${steps.map((st,i)=>{const w=Math.max(18,100-i*25);const conv=i&&steps[i-1][1]?st[1]/steps[i-1][1]*100:null;
+    return `<div class="fstep"><div class="fbar" style="width:${w}%"><span>${st[0]}</span><b>${fk(st[1])}</b></div><span class="fconv">${conv!=null?pct(conv)+' do passo anterior':''}</span></div>`}).join('')}</div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">Dos ${n(K.midia)} contatos da mídia: ${n(K.mc)} ${K.mc===1?'conversa iniciada':'conversas iniciadas'} pelo anúncio, ${n(K.mf)} ${K.mf===1?'formulário':'formulários'} da Meta e ${n(K.sitePago)} pelo site, vindos de anúncio.</p>`
+    :'<p class="muted">Nenhum anúncio veiculou no período.</p>';
+  // de onde vieram: o que é mídia paga primeiro, depois cada canal do site
+  const orig=[['Conversa iniciada por anúncio','WhatsApp, Direct ou Messenger',K.mc,true],['Formulário da Meta','preenchido dentro do Facebook ou Instagram',K.mf,true],
+    ...[...K.can].map(([c,v])=>['Site · '+canalPt(c),CANAL_PAGO(c)?'veio de anúncio':'',v,CANAL_PAGO(c)])].filter(x=>x[2]>0).sort((a,b)=>(b[3]-a[3])||b[2]-a[2]);
+  const tipos=[['Formulário do site',K.evs.get('lead_formulario')||0],['WhatsApp do site',K.evs.get('lead_whatsapp')||0],
+    ...[...K.evs].filter(([e])=>!EV_CONTATO[e]).map(([e,v])=>[e,v]),['Conversa iniciada por anúncio',K.mc],['Formulário da Meta',K.mf]].filter(x=>x[1]>0);
+  const tab=(cab,linhas)=>`<div class="tablewrap" style="border:0"><table class="ap" style="min-width:0"><thead><tr>${cab.map((c,i)=>`<th${i?' class="mono"':''}>${c}</th>`).join('')}</tr></thead><tbody>${linhas.join('')}</tbody></table></div>`;
+  const origens=K.total?`<div class="grid2"><div><h3 style="font-size:14px;margin:0 0 6px">De onde vieram</h3>${tab(['Origem','Contatos','%'],orig.map(([l,s2,v,pago])=>`<tr><td><b>${esc(l)}</b>${s2?`<div class="muted" style="font-size:12px">${pago?tagPill('Mídia paga','--k-trafego')+' ':''}${esc(s2)}</div>`:''}</td><td class="mono">${n(v)}</td><td class="mono">${pc(v,K.total)}</td></tr>`))}</div>
+    <div><h3 style="font-size:14px;margin:0 0 6px">Como chegaram</h3>${tab(['Tipo','Contatos','%'],tipos.map(([l,v])=>`<tr><td>${esc(l)}</td><td class="mono">${n(v)}</td><td class="mono">${pc(v,K.total)}</td></tr>`))}</div></div>`
+    :'<p class="muted">Nenhum contato no período.</p>';
+  const camps=contatosPorCampanha(r);
+  const campT=camps.length?`<div class="tablewrap" style="border:0"><table class="ap" style="min-width:620px"><thead><tr><th>Campanha</th><th>Investimento</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>
+   ${camps.map(c=>`<tr><td><b>${esc(c.nome)}</b><div class="muted" style="font-size:12px">${c.plat}${c.obj?' · '+esc(c.obj):''}${c.pix?' · '+n(c.pix)+' pelo site (pixel)':''}</div></td><td class="mono">${rs(c.inv)}</td><td class="mono">${n(Math.round(c.ct))}</td><td class="mono">${c.ct?rs(c.inv/c.ct):'—'}</td></tr>`).join('')}</tbody></table></div>
+   <p class="muted" style="font-size:12px;margin:6px 0 0">Nesta tabela, cada plataforma atribui os contatos às próprias campanhas, incluindo os envios do site que ela credita ao anúncio. Por isso a soma pode ser diferente do total acima, que conta cada contato uma vez.</p>`
+    :'<p class="muted">Nenhuma campanha veiculou no período.</p>';
+  return `<section class="panel">${metaBlock(false)}</section>
+  ${aviso}${k}
+  <section class="panel"><h2>Do anúncio ao contato</h2>${funil}</section>
+  <section class="panel"><h2>Contatos do período · ${n(K.total)}</h2>${origens}</section>
+  <section class="panel"><h2>Contatos por campanha</h2>${campT}</section>
+  <section class="panel"><h2 style="font-size:15px">Como contamos os contatos</h2><ul class="muted" style="font-size:13px;margin:6px 0 0;padding-left:18px;line-height:1.6">
+   <li><b>Site:</b> cada envio do formulário ou do WhatsApp do site, registrado pelo Google Analytics, venha a pessoa de onde vier.</li>
+   <li><b>Meta:</b> conversas iniciadas pelo anúncio (WhatsApp, Direct e Messenger) e formulários preenchidos dentro do Facebook ou do Instagram.</li>
+   <li><b>Sem contar duas vezes:</b> quando a pessoa clica no anúncio e preenche o formulário do site, a Meta (pelo pixel) e o Google Ads também registram. Esses registros não somam ao total, porque o site já contou.</li>
+   <li><b>Mídia paga:</b> conversas e formulários da Meta, mais os envios do site de quem chegou por anúncio.</li>
+   <li>Oportunidades e vendas entram quando o funil com o comercial estiver definido.</li></ul></section>`}
+function perfFunilEx(){
   const F=funilStats({de:S.per.de,ate:S.per.ate},true),cr=cmpRange(),P=cr?funilStats(cr,false):null;
   const steps=[['Impressões',F.impr],['Cliques',F.clk],['Contatos',F.cont]];
   return `<section class="panel">${metaBlock(false)}</section>
@@ -873,7 +944,7 @@ function novidadesBlock(){
   const its=[];
   if(plano&&plano.pendente)its.push({tag:['ESTRATÉGIA','--k-trafego'],t:'Nova versão do plano de mídia '+(isM()?'para aprovar':'enviada'),a:'data-view="plano"'});
   const rx=RELATORIOS.find(r=>r.tipo==='Executivo semanal'&&r.status==='entregue');if(rx)its.push({tag:['RELATÓRIO','--k-email'],t:rx.t+' disponível',a:`data-act="rel-ver" data-id="${rx.id}"`});
-  its.push({tag:['RESULTADO','--ok'],ex:true,t:'Contatos no mês: '+metaMes().cont+', projeção de '+metaMes().proj+(metaMes().metaC?' para a meta de '+metaMes().metaC:' (meta ainda não definida)'),a:'data-view="performance"'});
+  its.push({tag:['RESULTADO','--ok'],ex:!funilReal(),t:'Contatos no mês: '+metaMes().cont+', projeção de '+metaMes().proj+(metaMes().metaC?' para a meta de '+metaMes().metaC:' (meta ainda não definida)'),a:'data-view="performance"'});
   if(!isDir()){if(pubs.length)its.push({tag:['POSTS','--k-post'],t:pubs.length+(pubs.length>1?' posts publicados':' post publicado')+' desde então',a:'data-view="calendario"'});const un=unreadCount();if(un)its.push({tag:['CONVERSA','--k-spraytec'],t:un+(un>1?' mensagens novas':' mensagem nova')+(isM()?' com a Cancha':' da Spraytec'),a:'data-act="ir-chat"'});
     const late=demandas.filter(d=>!d.feito&&d.data<TODAY&&d.quem==='spraytec');if(late.length)its.push({tag:['DEMANDA','--bad'],t:late.length+(late.length>1?' demandas atrasadas':' demanda atrasada')+' com a Spraytec',a:`data-dem="${late[0].id}"`})}
   return `<section class="panel novid"><div class="mhead"><h2>Desde a sua última visita</h2><span class="muted" style="font-size:12px">${ULTIMA_VISITA?fmtVisita(ULTIMA_VISITA):'primeira visita'}</span></div><div class="list">${its.map(x=>`<button class="nrow" ${x.a}>${ktag(x.tag[0],x.tag[1])}<span>${esc(x.t)}${x.ex?' '+EX:''}</span><span class="muted">›</span></button>`).join('')}</div></section>`}
