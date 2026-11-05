@@ -31,7 +31,7 @@ const PRODUCAO = ['video', 'design'];
 const ehProducao = (p: any) => PRODUCAO.includes(p.rede);
 // Posts e e-mails passam pela aprovação da pauta; produção de design/vídeo e o plano têm fluxo próprio.
 const temPauta = (p: any) => !ehProducao(p) && p.formato !== 'plano';
-const EM_APROVACAO = ['pauta_aprovacao', 'aprovacao'];
+const EM_APROVACAO = ['pauta_aprovacao', 'texto_aprovacao', 'aprovacao'];
 function hist(c: Ctx, alvo: any, t: string) {
   alvo.hist = alvo.hist || [];
   alvo.hist.push({ q: c.agora, t, por: c.u.nome, em: new Date().toISOString() });
@@ -93,6 +93,12 @@ function aprovar(c: Ctx, p: any, quem: string, canal: string) {
     hist(c, p, `Pauta aprovada por ${quem} · ${canal}`);
     return;
   }
+  // Textos aprovados: o item volta para a Cancha produzir a arte (a legenda aprovada fica como está).
+  if (p.status === 'texto_aprovacao') {
+    p.status = 'producao'; p.textoOk = true; delete p.validacao;
+    hist(c, p, `Textos aprovados por ${quem} · ${canal}`);
+    return;
+  }
   p.status = inWindow(c, p) ? 'agendado' : 'aprovado'; delete p.validacao;
   hist(c, p, `Aprovado por ${quem} · ${canal}`);
   if (!pendingApprovals(c.e).length) c.e.demandas.filter((d) => d.quem === 'spraytec' && !d.feito && /^Aprovar calendário/.test(d.t)).forEach((d) => (d.feito = true));
@@ -133,6 +139,8 @@ function mudarStatus(c: Ctx, p: any, ns: string, link?: string) {
       throw new ErroAcao('Só a Spraytec aprova. Se aprovaram por WhatsApp ou e-mail, registre aqui.', 'precisa-registro');
     throw new ErroAcao('Só a Spraytec aprova. Envie para aprovação primeiro.');
   }
+  if (ns === 'producao' && p.status === 'texto_aprovacao')
+    throw new ErroAcao('Os textos precisam ser aprovados pela Spraytec. Se aprovaram por WhatsApp ou e-mail, registre aqui.', 'precisa-registro');
   if (temPauta(p) && ns === 'producao' && ['pauta', 'pauta_aprovacao'].includes(p.status)) {
     if (p.status === 'pauta_aprovacao')
       throw new ErroAcao('A pauta precisa ser aprovada pela Spraytec. Se aprovaram por WhatsApp ou e-mail, registre aqui.', 'precisa-registro');
@@ -166,6 +174,14 @@ function enviarPauta(c: Ctx, p: any) {
   if (!String(p.pauta || '').trim()) throw new ErroAcao('Escreva a pauta antes de enviar para aprovação.');
   p.status = 'pauta_aprovacao'; p.prazo = addBiz(c.hoje, 2); hist(c, p, 'Pauta enviada para aprovação');
 }
+// Calendário do mês: a legenda de cada post vai para aprovação antes da arte.
+function enviarTextos(c: Ctx, p: any) {
+  if (!temPauta(p)) throw new ErroAcao(`"${p.titulo}" não tem etapa de textos.`);
+  if (p.status !== 'producao') throw new ErroAcao(`"${p.titulo}" não está em produção.`);
+  if (p.textoOk) throw new ErroAcao(`Os textos de "${p.titulo}" já foram aprovados.`);
+  if (!String(p.legenda || '').trim()) throw new ErroAcao(`Escreva a legenda de "${p.titulo}" antes de enviar.`);
+  p.status = 'texto_aprovacao'; p.prazo = addBiz(c.hoje, 3); hist(c, p, 'Textos enviados para aprovação');
+}
 function enviarPeca(c: Ctx, p: any) {
   if (p.status !== 'producao' || ehProducao(p)) throw new ErroAcao('Só posts e e-mails em produção vão para aprovação.');
   p.status = 'aprovacao'; p.prazo = addBiz(c.hoje, 2); hist(c, p, 'Enviado para aprovação');
@@ -175,6 +191,11 @@ function reenviar(c: Ctx, p: any) {
   if (p.status !== 'ajuste') throw new ErroAcao('Só itens com ajuste pedido recebem nova versão.');
   if (p.formato === 'plano') throw new ErroAcao('Para o plano, edite o quadro e envie de novo.');
   const pauta = p.etapaAjuste === 'pauta';
+  if (p.etapaAjuste === 'texto') {
+    p.status = 'texto_aprovacao'; p.prazo = addBiz(c.hoje, 3); delete p.etapaAjuste;
+    hist(c, p, 'Textos ajustados e reenviados para aprovação');
+    return false;
+  }
   p.status = pauta ? 'pauta_aprovacao' : 'aprovacao'; p.prazo = addBiz(c.hoje, 2); delete p.etapaAjuste;
   if (!pauta) { p.rodada = Math.min(3, (p.rodada || 1) + 1); marcarVersaoEnviada(p); }
   hist(c, p, pauta ? 'Pauta ajustada e reenviada para aprovação' : `Nova versão (rodada ${p.rodada}) enviada para aprovação`);
@@ -258,7 +279,8 @@ function atualizarItem(c: Ctx, p: any, l: any, arquivo: string): boolean {
   if (etapa && etapa !== p.status) {
     if (etapa === 'pauta_aprovacao' && p.status === 'pauta') enviarPauta(c, p);
     else if (etapa === 'aprovacao' && p.status === 'producao' && !ehProducao(p)) enviarPeca(c, p);
-    else if (p.status === 'ajuste' && etapa === (p.etapaAjuste === 'pauta' ? 'pauta_aprovacao' : 'aprovacao')) reenviar(c, p);
+    else if (etapa === 'texto_aprovacao' && p.status === 'producao') enviarTextos(c, p);
+    else if (p.status === 'ajuste' && etapa === ({ pauta: 'pauta_aprovacao', texto: 'texto_aprovacao' } as any)[p.etapaAjuste] || (p.status === 'ajuste' && !['pauta', 'texto'].includes(p.etapaAjuste) && etapa === 'aprovacao')) reenviar(c, p);
     else throw new ErroAcao(`"${p.titulo}" está em "${STATUS[p.status]}" e não vai para "${STATUS[etapa] || etapa}" pela planilha. Faça essa mudança no portal.`);
     mud.push('etapa');
   }
@@ -336,11 +358,12 @@ export const ACOES: Record<string, Def> = {
         if (!c.e.plano.pendente) throw new ErroAcao('Não há versão do plano esperando aprovação.');
         c.e.plano.pendente.ajuste = { txt, q: c.agora };
       } else if (!EM_APROVACAO.includes(p.status)) throw new ErroAcao('Este item não está esperando aprovação.');
-      const naPauta = p.status === 'pauta_aprovacao';
-      p.status = 'ajuste'; p.etapaAjuste = naPauta ? 'pauta' : 'peca'; delete p.validacao;
+      const naPauta = p.status === 'pauta_aprovacao', noTexto = p.status === 'texto_aprovacao';
+      p.status = 'ajuste'; p.etapaAjuste = naPauta ? 'pauta' : noTexto ? 'texto' : 'peca'; delete p.validacao;
       p.comments.push({ who: c.u.nome, text: txt, interno: false, quando: c.agora });
-      hist(c, p, `Ajuste ${naPauta ? 'na pauta ' : ''}pedido por ${c.u.nome}`);
-      return { resumo: `Pediu ajuste ${naPauta ? 'na pauta ' : ''}em "${p.titulo}"` };
+      const onde = naPauta ? 'na pauta ' : noTexto ? 'nos textos ' : '';
+      hist(c, p, `Ajuste ${onde}pedido por ${c.u.nome}`);
+      return { resumo: `Pediu ajuste ${onde}em "${p.titulo}"` };
     },
   },
   // Validação interna: o item continua em aprovação, só ganha a marca (o prazo segue correndo).
@@ -361,9 +384,9 @@ export const ACOES: Record<string, Def> = {
       const quem = c.pessoas.find((x) => x.id === c.d.quem && x.papel === 'operacao');
       if (!quem) throw new ErroAcao('Escolha quem da Spraytec aprovou.');
       const ev = linkUrl(c.d.evidencia, 'Link do print');
-      const pauta = p.status === 'pauta_aprovacao';
+      const pauta = p.status === 'pauta_aprovacao', textos = p.status === 'texto_aprovacao';
       aprovar(c, p, quem.nome, `${canal}, registrado por ${c.u.nome}${ev ? ' · comprovante: ' + ev : ''}`);
-      return { resumo: `Registrou aprovação ${pauta ? 'da pauta ' : ''}de "${p.titulo}" por ${quem.nome} (${canal})` };
+      return { resumo: `Registrou aprovação ${pauta ? 'da pauta ' : textos ? 'dos textos ' : ''}de "${p.titulo}" por ${quem.nome} (${canal})` };
     },
   },
   'plano-ajuste': {
@@ -396,6 +419,47 @@ export const ACOES: Record<string, Def> = {
         dm.t = `Aprovar alterações do plano de mídia (versão ${v})`; dm.det = nota;
       }
       return { resumo: `Enviou a versão ${v} do plano para aprovação` };
+    },
+  },
+
+  // Ciclo do mês: insumos da Spraytec, e pautas e textos enviados de uma vez pela Cancha
+  'insumos-salvar': {
+    papeis: MC,
+    fn: (c) => {
+      const m = String(c.d.m || '');
+      if (!/^\d{4}-\d{2}$/.test(m)) throw new ErroAcao('Mês inválido.');
+      const campos = ['foco', 'eventos', 'lanc', 'fotos', 'obs'];
+      const txt: any = {};
+      for (const k of campos) txt[k] = texto(c.d.txt?.[k], 'insumos', 3000, false);
+      if (!campos.some((k) => txt[k])) throw new ErroAcao('Preencha pelo menos um campo.');
+      let ci = c.e.ciclos.find((x) => x.id === m);
+      if (!ci) { ci = { id: m }; c.e.ciclos.push(ci); }
+      const primeira = !ci.ins;
+      ci.ins = { txt, ok: ci.ins?.ok || c.hoje, por: ci.ins?.por || c.u.nome, editado: c.agora };
+      return { resumo: `${primeira ? (c.u.papel === 'operacao' ? 'Enviou' : 'Registrou') : 'Atualizou'} os insumos de ${m}` };
+    },
+  },
+  'enviar-pautas': {
+    papeis: C,
+    fn: (c) => {
+      const ids: string[] = Array.isArray(c.d.ids) ? c.d.ids.filter((x: unknown) => typeof x === 'string') : [];
+      if (!ids.length) throw new ErroAcao('Nenhuma pauta para enviar.');
+      // Confere todas antes de mudar alguma: o lote vai inteiro ou nada vai.
+      const ps = ids.map((id) => post(c, id));
+      ps.forEach((p) => enviarPauta(c, structuredClone(p)));
+      ps.forEach((p) => enviarPauta(c, p));
+      return { resumo: `Enviou ${ids.length} pautas para aprovação` };
+    },
+  },
+  'enviar-textos': {
+    papeis: C,
+    fn: (c) => {
+      const ids: string[] = Array.isArray(c.d.ids) ? c.d.ids.filter((x: unknown) => typeof x === 'string') : c.d.id ? [c.d.id] : [];
+      if (!ids.length) throw new ErroAcao('Nenhum texto para enviar.');
+      const ps = ids.map((id) => post(c, id));
+      ps.forEach((p) => enviarTextos(c, structuredClone(p)));
+      ps.forEach((p) => enviarTextos(c, p));
+      return { resumo: ids.length === 1 ? `Enviou os textos de "${post(c, ids[0]).titulo}" para aprovação` : `Enviou os textos de ${ids.length} posts para aprovação` };
     },
   },
 

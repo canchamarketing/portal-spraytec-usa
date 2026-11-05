@@ -16,7 +16,7 @@ export function visaoPara(e0: Estado, u: Usuario) {
     return {
       videos: e.videos.map((v: any) => ({ ...v, postId: undefined, arquivos: vivos(v.arquivos) })),
       links: e.links.filter((l: string[]) => l[0].startsWith('v:') && l[1].startsWith('v:')),
-      posts: [], demandas: [], threads: [], marcos: [], ano: [], conc: [], aprendizados: [], relatorios: [], materiais: [],
+      posts: [], demandas: [], threads: [], marcos: [], ano: [], conc: [], aprendizados: [], relatorios: [], materiais: [], ciclos: [],
       plano: null, guia: e.guia, lanes: [], concAcoes: [],
     };
   }
@@ -26,7 +26,7 @@ export function visaoPara(e0: Estado, u: Usuario) {
     const x = { ...p, comments: (p.comments || []).filter((c: any) => !c.interno), arquivos: vivos(p.arquivos) };
     // Pauta ainda sendo escrita: nada aparece. Em produção: a pauta aprovada aparece; legenda e arte, só na aprovação.
     if (temPauta(p) && p.status === 'pauta') { x.pauta = ''; x.legenda = ''; delete x.drive; delete x.arquivos; }
-    if (temPauta(p) && p.status === 'producao') { x.legenda = ''; delete x.drive; delete x.arquivos; }
+    if (temPauta(p) && p.status === 'producao') { if (!p.textoOk) x.legenda = ''; delete x.drive; delete x.arquivos; }
     // Ajuste pedido: a versão nova da peça só aparece para a Spraytec quando for reenviada.
     if (p.status === 'ajuste' && x.arquivos) x.arquivos = x.arquivos.filter((a: any) => (a.v || 1) <= (p.vEnviada || 0));
     return x;

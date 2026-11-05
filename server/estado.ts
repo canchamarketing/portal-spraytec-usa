@@ -1,12 +1,12 @@
 // Estado do portal: carregado do banco, alterado pelas ações e gravado de volta só no que mudou.
 import type { Consulta } from './db.ts';
 
-export const LISTAS = ['posts', 'videos', 'demandas', 'threads', 'marcos', 'ano', 'conc', 'aprendizados', 'relatorios', 'materiais'] as const;
+export const LISTAS = ['posts', 'videos', 'demandas', 'threads', 'marcos', 'ano', 'conc', 'aprendizados', 'relatorios', 'materiais', 'ciclos'] as const;
 export const CONFIGS = ['plano', 'guia', 'lanes', 'concAcoes', 'links'] as const;
 
 export type Estado = {
   posts: any[]; videos: any[]; demandas: any[]; threads: any[]; marcos: any[]; ano: any[]; conc: any[];
-  aprendizados: any[]; relatorios: any[]; materiais: any[];
+  aprendizados: any[]; relatorios: any[]; materiais: any[]; ciclos: any[];
   plano: any; guia: any; lanes: any[]; concAcoes: any[]; links: [string, string][];
 };
 

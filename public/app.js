@@ -2,7 +2,7 @@
 let TODAY='';
 const ROLES={operacao:'Operação Spraytec',diretoria:'Diretoria Spraytec',cancha:'Cancha',produtora:'Produtora de vídeo',leitor:'Leitor'};
 const STATUS={
-  pauta:{l:'Pauta',c:'--s-pauta'}, pauta_aprovacao:{l:'Pauta em aprovação',c:'--s-validacao'}, producao:{l:'Em produção',c:'--s-producao'}, aprovacao:{l:'Em aprovação',c:'--s-aprovacao'},
+  pauta:{l:'Pauta',c:'--s-pauta'}, pauta_aprovacao:{l:'Pauta em aprovação',c:'--s-validacao'}, producao:{l:'Em produção',c:'--s-producao'}, texto_aprovacao:{l:'Textos em aprovação',c:'--s-validacao'}, aprovacao:{l:'Em aprovação',c:'--s-aprovacao'},
   ajuste:{l:'Ajuste',c:'--s-ajuste'}, aprovado:{l:'Aprovado',c:'--s-aprovado'},
   agendado:{l:'Agendado',c:'--s-agendado'}, publicado:{l:'Publicado',c:'--s-publicado'}, espera:{l:'Em espera',c:'--s-espera'}
 };
@@ -662,11 +662,11 @@ function tagPill(txt,c){return `<span class="pill" style="color:var(${c})"><i></
 function hiddenForClient(p){return isCliente()&&(p.status==='pauta'||p.status==='producao')&&!['video','design'].includes(p.rede)}
 function toast(msg){const t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
 function tipoCal(p){return {email:'email',design:'design',video:'video',ads:'midia'}[p.rede]||'post'}
-function tipoAprov(p){if(p.status==='pauta_aprovacao'||(p.status==='ajuste'&&p.etapaAjuste==='pauta'))return'Pauta';if(p.rede==='email')return'E-mail marketing';if(p.formato==='plano')return'Plano de mídia';if(p.rede==='design')return'Peça de anúncio';if(p.formato==='story')return'Story';if(['reel','video','short'].includes(p.formato))return'Vídeo';return'Post'}
-const EM_APROVACAO=['pauta_aprovacao','aprovacao'];
+function tipoAprov(p){if(p.status==='pauta_aprovacao'||(p.status==='ajuste'&&p.etapaAjuste==='pauta'))return'Pauta';if(p.status==='texto_aprovacao'||(p.status==='ajuste'&&p.etapaAjuste==='texto'))return'Textos';if(p.rede==='email')return'E-mail marketing';if(p.formato==='plano')return'Plano de mídia';if(p.rede==='design')return'Peça de anúncio';if(p.formato==='story')return'Story';if(['reel','video','short'].includes(p.formato))return'Vídeo';return'Post'}
+const EM_APROVACAO=['pauta_aprovacao','texto_aprovacao','aprovacao'];
 const temPauta=p=>!['video','design'].includes(p.rede)&&p.formato!=='plano';
 function pendingApprovals(){return posts.filter(p=>EM_APROVACAO.includes(p.status)&&!p.faltaTexto)}
-function marcas(p){return (p.validacao?'<span class="tag">validação interna</span>':'')+(p.status==='ajuste'?`<span class="tag">${p.etapaAjuste==='pauta'?'na pauta':'na peça'}</span>`:'')}
+function marcas(p){return (p.validacao?'<span class="tag">validação interna</span>':'')+(p.status==='ajuste'?`<span class="tag">${p.etapaAjuste==='pauta'?'na pauta':p.etapaAjuste==='texto'?'nos textos':'na peça'}</span>`:'')}
 function roteirosPend(){return videos.filter(v=>v.stage==='roteiro')}
 function badgeCount(){return pendingApprovals().length+roteirosPend().length}
 function inWindow(p){return p.date&&p.date>=TODAY&&p.date<=addDays(TODAY,7)}
@@ -953,9 +953,9 @@ function viewHoje(){
 }
 
 // APROVAÇÃO
-const ATIPOS=[['todos','Todos'],['Post','Posts'],['Story','Stories'],['Vídeo','Vídeos'],['E-mail marketing','E-mail marketing'],['Plano de mídia','Plano de mídia'],['Peça de anúncio','Peças de anúncio']];
+const ATIPOS=[['todos','Todos'],['Pauta','Pautas'],['Textos','Textos'],['Post','Posts'],['Story','Stories'],['Vídeo','Vídeos'],['E-mail marketing','E-mail marketing'],['Plano de mídia','Plano de mídia'],['Peça de anúncio','Peças de anúncio']];
 function viewAprovacao(){
-  const rows=[...posts.filter(p=>['pauta_aprovacao','aprovacao','ajuste'].includes(p.status)).sort((a,b)=>(a.date||'9').localeCompare(b.date||'9')).map(p=>({p,tipo:tipoAprov(p)})),...roteirosPend().map(v=>({v,tipo:'Vídeo'}))];
+  const rows=[...posts.filter(p=>['pauta_aprovacao','texto_aprovacao','aprovacao','ajuste'].includes(p.status)).sort((a,b)=>(a.date||'9').localeCompare(b.date||'9')).map(p=>({p,tipo:tipoAprov(p)})),...roteirosPend().map(v=>({v,tipo:'Vídeo'}))];
   const vis=rows.filter(r=>S.atipo==='todos'||r.tipo===S.atipo);
   const cnt=t=>rows.filter(r=>(t==='todos'||r.tipo===t)&&!(r.p&&r.p.status==='ajuste')).length;
   const keys=vis.filter(r=>!(r.p&&r.p.status==='ajuste')).map(r=>r.p?r.p.id:'v:'+r.v.id);S.selKeys=keys;const nSel=keys.filter(k=>S.sel[k]).length;const all=keys.length&&nSel===keys.length;
@@ -967,7 +967,7 @@ function viewAprovacao(){
     if(r.v){const v=r.v;return `<tr>${isM()?`<td><input type="checkbox" data-selv="${v.id}" ${S.sel['v:'+v.id]?'checked':''} aria-label="Selecionar"></td>`:''}<td><div class="itemcell clickable" data-video="${v.id}"><div class="mini"><div class="pv doc"><span class="sm">ROTEIRO</span></div></div><div><div class="t">Roteiro: ${esc(v.titulo)}</div><div class="muted" style="font-size:12px">Para a produtora gravar</div></div></div></td><td>Vídeo</td><td class="due">gravação ${v.gravacao}</td><td class="due">${fmtLong(v.prazo)}</td><td>${tagPill('Roteiro em aprovação','--s-aprovacao')}</td><td>${isM()?`<button class="btn" data-act="v-next" data-id="${v.id}">Aprovar</button>`:''}</td></tr>`}
     const p=r.p,pz=prazoDe(p),hot=pz<=addDays(TODAY,1);
     return `<tr>${isM()?`<td>${p.status!=='ajuste'?`<input type="checkbox" data-sel="${p.id}" ${S.sel[p.id]?'checked':''} aria-label="Selecionar">`:''}</td>`:''}<td><div class="itemcell clickable" data-open="${p.id}"><div class="mini">${preview(p)}</div><div style="min-width:0"><div class="t">${esc(p.titulo)}</div><div class="muted" style="font-size:12px">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div></div></div></td><td>${r.tipo}</td><td class="due">${fmtLong(p.date)}${p.time?' '+p.time:''}</td><td class="due ${hot&&p.status!=='ajuste'?'hot':''}">${p.status==='ajuste'?'com a Cancha':fmtLong(pz)}</td><td>${pill(p.status)} ${marcas(p)}</td>
-    <td>${isM()&&p.status!=='ajuste'?`<div class="actions" style="flex-wrap:nowrap"><button class="btn primary" data-act="approve" data-id="${p.id}">${p.status==='pauta_aprovacao'?'Aprovar pauta':'Aprovar'}</button><button class="btn" data-open="${p.id}">Ajuste</button></div>`:`<button class="btn" data-open="${p.id}">Abrir</button>`}</td></tr>`}).join('')||`<tr><td colspan="7" class="muted">Nada para aprovar.</td></tr>`}
+    <td>${isM()&&p.status!=='ajuste'?`<div class="actions" style="flex-wrap:nowrap"><button class="btn primary" data-act="approve" data-id="${p.id}">${p.status==='pauta_aprovacao'?'Aprovar pauta':p.status==='texto_aprovacao'?'Aprovar textos':'Aprovar'}</button><button class="btn" data-open="${p.id}">Ajuste</button></div>`:`<button class="btn" data-open="${p.id}">Abrir</button>`}</td></tr>`}).join('')||`<tr><td colspan="7" class="muted">Nada para aprovar.</td></tr>`}
   </tbody></table></div>`;
 }
 
@@ -997,14 +997,16 @@ function viewCalendario(){
   const list=Array.from({length:days},(_,i)=>S.month+'-'+String(i+1).padStart(2,'0')).filter(d=>vp.some(p=>p.date===d)).map(d=>`<section class="panel"><div class="eyebrow">${fmtLong(d)}</div><div class="items">${vp.filter(p=>p.date===d).sort(byTime).map(calItem).join('')}</div></section>`).join('');
   const mk=MARCOS.filter(x=>x.ini<=S.month+'-31'&&x.fim>=S.month+'-01');
   const espera=vp.filter(p=>p.status==='espera');
-  const sw=`<div class="seg" role="group" aria-label="Visão"><button data-calv="mes" aria-pressed="${(S.calv||'mes')==='mes'}">Calendário</button>${isTeam()||isM()?`<button data-calv="kanban" aria-pressed="${S.calv==='kanban'}">Kanban</button>`:''}<button data-calv="video" aria-pressed="${S.calv==='video'}">Roteiros de vídeo</button></div>`;
-  if(S.calv==='video')return `${head('Calendário','',sw)}${viewVideoKanban()}`;
-  if(S.calv==='kanban'&&isTeam())return `${head('Calendário','',sw)}${viewStatusKanban()}`;
-  if(S.calv==='kanban'&&isM())return `${head('Calendário','',sw)}${viewClientKanban()}`;
+  if(S.calv==='video')S.calv='kanban';
+  const sw=`<div class="seg" role="group" aria-label="Visão"><button data-calv="mes" aria-pressed="${(S.calv||'mes')==='mes'}">Calendário</button>${isTeam()||isM()?`<button data-calv="kanban" aria-pressed="${S.calv==='kanban'}">Kanban</button>`:''}</div>`;
+  if(S.calv==='kanban'&&(isTeam()||isM())){const g=S.kgrp||'quem';
+    const grp=`<div class="toolbar">${quemBar()}<div class="seg" role="group" aria-label="Agrupar por"><button data-kgrp="quem" aria-pressed="${g==='quem'}">Com quem está</button><button data-kgrp="etapa" aria-pressed="${g==='etapa'}">Etapa</button></div></div>`;
+    return `${head('Calendário','O que vai ao ar, o que cada time precisa fazer e até quando.',sw)}${grp}${g==='quem'?viewQuem():isTeam()?viewStatusKanban():viewClientKanban()}`}
   return `${head('Calendário','Posts, e-mail, produção de design e vídeo e as demandas, tudo ligado. Clique num item para ver os detalhes e o que está ligado a ele.',sw)}
   <div class="toolbar">${monthNav('month')}
    <div class="filters" role="group" aria-label="Tipos">${TIPOS.map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
    <div class="actions">${isTeam()?'<button class="btn" data-act="marcos">Editar safra e eventos</button><button class="btn" data-act="importar">Planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>
+  ${cicloStrip(S.month)}
   <div class="calwrap">
    ${calGrid(S.month,d=>vp.filter(p=>p.date===d).sort(byTime).map(calItem).join('')+(S.tipos.demanda?demandas.filter(x=>x.data===d).map(x=>demChip(x,!isDir())).join(''):''),true,'cal-add')}
    <div class="calist"><section class="panel"><div class="eyebrow" style="margin-bottom:6px">Safra, comercial e eventos</div><div class="mkchips">${mk.map(x=>`<button class="band b-${x.tipo}" data-act="${isTeam()?'marcos':''}"><b>${MK_TIPO[x.tipo]}</b><span>${esc(x.nome)} · ${fmt(x.ini)}–${fmt(x.fim)}</span></button>`).join('')}</div></section>${list||'<p class="muted">Nada neste mês.</p>'}</div>
@@ -1303,34 +1305,128 @@ function acvDark(){
 // PRODUÇÃO DE VÍDEO (kanban para Cancha e Spraytec, dentro do Calendário)
 const VCOLS=[['pauta','Pauta','Cancha'],['viabilidade','Viabilidade','Produtora'],['roteiro','Roteiro','Spraytec aprova'],['gravacao','Gravação e edição','Produtora'],['entregue','Entregue','Cancha publica']];
 function vidStatusTxt(v){if(v.stage==='pauta')return v.viavel===false?'Voltou da produtora: inviável':'Cancha escrevendo a pauta';if(v.stage==='viabilidade')return 'Aguardando a produtora';if(v.stage==='roteiro')return 'Aguardando aprovação da Spraytec';if(v.stage==='gravacao')return v.gravacao&&v.gravacao!=='—'?'Gravação em '+v.gravacao:'Produtora agendando';const p=v.postId&&posts.find(x=>x.id===v.postId);return p?(p.faltaTexto?'Cancha escrevendo os textos':STATUS[p.status].l):'Pronto para publicar'}
+// Vídeos da produtora no mesmo kanban: cada etapa do vídeo cai na coluna equivalente.
+const VSK={pauta:'pauta',viabilidade:'producao',roteiro:'aprovacao',gravacao:'producao'};
+const VCK={pauta:'plan',viabilidade:'prod',gravacao:'prod',roteiro:'voce'};
+const VSTXT={pauta:'pauta',viabilidade:'viabilidade',roteiro:'roteiro',gravacao:'gravação'};
+const vidsAbertos=()=>S.tipos.video?videos.filter(v=>VSK[v.stage]):[];
+function vidCard(v,client){return `<div class="card" data-video="${v.id}" style="border-left:3px solid var(--k-video)"><div class="meta"><span class="kt" style="--kc:var(--k-video)">VÍDEO · ${VSTXT[v.stage].toUpperCase()}</span>${v.prazo&&v.stage==='roteiro'?`<span class="mono">até ${fmt(v.prazo)}</span>`:v.stage==='gravacao'&&v.gravacao&&v.gravacao!=='—'?`<span class="mono">grava ${v.gravacao}</span>`:''}</div><span class="t">${esc(v.titulo)}</span><span class="muted" style="font-size:12px">${esc(vidStatusTxt(v))}</span>${client&&isM()&&v.stage==='roteiro'?`<button class="btn primary sm" data-act="v-next" data-id="${v.id}">Aprovar roteiro</button>`:''}</div>`}
 function viewVideoKanban(){
   return `<div class="toolbar"><p class="sub" style="margin:0">Cada vídeo do pedido da pauta até a publicação, e com quem ele está agora. ${isTeam()?'Arraste para mudar a etapa.':''}</p>${isTeam()?'<button class="btn primary" data-act="vk-novo">+ Pauta</button>':''}</div>
   <div class="kanban vk">${VCOLS.map(([k,l,quem])=>{const it=videos.filter(v=>v.stage===k);return `<div class="col" data-vcol="${k}"><h3>${l}<span class="mono muted">${it.length}</span></h3><span class="vkq">com ${quem}</span>${it.map(v=>`<div class="card" data-video="${v.id}" ${isTeam()?`draggable="true" data-vdrag="${v.id}"`:''}><span class="t">${esc(v.titulo)}</span><div class="meta">${v.viavel===false?tagPill('Inviável','--bad'):''}<span>${esc(vidStatusTxt(v))}</span></div>${v.prazo&&k==='roteiro'?`<div class="meta"><span class="mono">aprovar até ${fmt(v.prazo)}</span></div>`:''}</div>`).join('')}</div>`}).join('')}</div>`}
 
+// CICLO DO MÊS (combinado na reunião de 05/11): insumos até dia 1, pautas até 10, aprovação até 12,
+// calendário com os textos até 15, aprovação até 20 e peças até o fim do mês anterior ao da publicação.
+let CICLOS=[];
+const INS_F=[['foco','Foco comercial do mês','Produtos e mensagens que o comercial quer reforçar'],['eventos','Eventos e datas','Feiras, dias de campo, visitas, datas da empresa'],['lanc','Lançamentos e novidades','Produtos novos, registros, mudanças de linha'],['fotos','Fotos e materiais','O que tem de foto e material novo, e onde está'],['obs','Observações','O que a Cancha deve evitar ou priorizar']];
+function addMonth(m,k){return new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7)-1+k,1)).toISOString().slice(0,7)}
+const mesCiclo=m=>MONTHS[+m.slice(5)-1].toLowerCase();
+const fimMes=m=>new Date(Date.UTC(+m.slice(0,4),+m.slice(5,7),0)).toISOString().slice(0,10);
+function addBiz(iso,k){let d=iso;const sn=k<0?-1:1;let c=Math.abs(k);while(c>0){d=addDays(d,sn);if(isBiz(d))c--}return d}
+function prazosCiclo(m){const a=addMonth(m,-1);return {ins:a+'-01',pau:a+'-10',aprP:a+'-12',txt:a+'-15',aprT:a+'-20',pec:fimMes(a)}}
+const cicloDe=m=>CICLOS.find(x=>x.id===m)||{id:m};
+const CICLO_DESDE='2026-12';
+// Em que ponto do caminho está cada item: 0 pauta, 1 pauta em aprovação, 2 textos, 3 textos em aprovação,
+// 4 arte, 5 peça em aprovação, 6 aprovado, 7 publicado.
+function fase(p){const s=p.status,e=p.etapaAjuste;if(s==='pauta'||(s==='ajuste'&&e==='pauta'))return 0;if(s==='pauta_aprovacao')return 1;if(s==='producao')return temPauta(p)&&!p.textoOk?2:4;
+  if(s==='ajuste'&&e==='texto')return 2;if(s==='texto_aprovacao')return 3;if(s==='ajuste')return 4;if(s==='aprovacao')return 5;if(s==='aprovado'||s==='agendado')return 6;if(s==='publicado')return 7;return -1}
+const pautasDe=m=>posts.filter(p=>p.date&&p.date.startsWith(m)&&temPauta(p)&&p.status!=='espera'&&p.rede!=='ads').sort((a,b)=>a.date.localeCompare(b.date));
+const quemNome=q=>q==='spraytec'&&isM()?'Você · Spraytec':q==='cancha'&&isTeam()?'Você · Cancha':q==='produtora'?'Produtora':q==='auto'?'Publicação':QUEM[q];
+function cicloStrip(m){if(m<CICLO_DESDE)return '';const c=cicloDe(m),z=prazosCiclo(m),ps=pautasDe(m),tot=ps.length,cnt=k=>ps.filter(p=>fase(p)>=k).length;
+  const em=st=>ps.some(p=>p.status===st);
+  const S8=[
+    {l:'Insumos do mês',q:'spraytec',done:!!c.ins,ate:z.ins,d:c.ins?'Recebidos em '+fmt(c.ins.ok):'Até '+fmtLong(z.ins),btn:[c.ins?'Ver insumos':isM()?'Enviar insumos':isTeam()?'Registrar recebidos':'Ver insumos','ins-open',!c.ins&&isM()]},
+    {l:'Pautas',q:'cancha',done:tot>0&&cnt(1)===tot,ate:z.pau,d:tot?cnt(1)+' de '+tot+' enviadas':'Nenhuma pauta ainda',btn:isTeam()?['Revisar e enviar','pau-open',tot>0&&cnt(1)<tot]:null},
+    {l:'Aprovação das pautas',q:'spraytec',done:tot>0&&cnt(2)===tot,ate:z.aprP,d:tot?cnt(2)+' de '+tot+' aprovadas':'Depois do envio',btn:em('pauta_aprovacao')?[isM()?'Revisar e aprovar':'Ver pautas','pau-open',isM()]:null},
+    {l:'Calendário com os textos',q:'cancha',done:tot>0&&cnt(3)===tot,ate:z.txt,d:tot?cnt(3)+' de '+tot+' enviados':'Depois das pautas',btn:isTeam()&&cnt(2)>cnt(3)?['Revisar e enviar','txt-open',1]:null},
+    {l:'Aprovação dos textos',q:'spraytec',done:tot>0&&cnt(4)===tot,ate:z.aprT,d:tot?cnt(4)+' de '+tot+' aprovados':'Depois do envio',btn:em('texto_aprovacao')?[isM()?'Revisar e aprovar':'Ver textos','txt-open',isM()]:null},
+    {l:'Peças',q:'cancha',sub:'e produtora',done:tot>0&&cnt(5)===tot,ate:z.pec,d:tot?cnt(5)+' de '+tot+' enviadas':'Depois dos textos'},
+    {l:'Aprovação das peças',q:'spraytec',done:tot>0&&cnt(6)===tot,d:tot?cnt(6)+' de '+tot+' aprovadas':'2 dias úteis por peça',btn:em('aprovacao')&&isM()?['Aprovar agora','go-aprov',1]:null},
+    {l:'Publicação',q:'auto',done:tot>0&&cnt(7)===tot,d:tot?cnt(7)+' de '+tot+' no ar':''}];
+  const cur=S8.findIndex(x=>!x.done);
+  return `<section class="ciclobox"><div class="ciclohead"><h2>Ciclo de ${mesCiclo(m)}</h2><span class="muted" style="font-size:12px">Combinado: insumos até dia 1 · pautas até dia 10 · textos até dia 15 · peças até o fim do mês anterior · cada aprovação em até 2 dias úteis</span></div>
+  <div class="ciclo">${S8.map((x,i)=>{const late=!x.done&&x.ate&&x.ate<TODAY;return `<div class="cs ${x.done?'done':i===cur?'cur':''} ${late?'late':''}" style="--kc:var(--k-${x.q==='auto'?'post':x.q})"><span class="n">${x.done?'✓':i+1}</span><b>${x.l}</b><span class="q">${quemNome(x.q)+(x.sub?' '+x.sub:'')}</span><span class="d">${late?'Atrasado · ':''}${x.d}${x.ate&&!x.done&&!late&&!/^Até/.test(x.d)?' · até '+fmt(x.ate):''}</span>${x.btn?`<button class="btn ${x.btn[2]?'primary':''} sm" data-act="${x.btn[1]}" data-m="${m}">${x.btn[0]}</button>`:''}</div>`}).join('')}</div></section>`}
+function drawerIns(){const m=S.drawer.id,c=cicloDe(m),z=prazosCiclo(m),x=(c.ins&&c.ins.txt)||{},pode=isM()||isTeam();
+  return `<header><div><div class="eyebrow">Ciclo de ${mesCiclo(m)} · etapa 1</div><h2>Insumos do mês</h2></div>${closeBtn()}</header>
+  <div class="content"><p class="muted" style="margin:0">O que a Cancha precisa saber da Spraytec para montar as pautas de ${mesCiclo(m)}. Prazo: ${fmtLong(z.ins)}.</p>
+  ${INS_F.map(([k,l,ph])=>pode?`<label for="in-${k}">${l}</label><textarea id="in-${k}" class="pe" rows="2" placeholder="${ph}">${esc(x[k]||'')}</textarea>`:`<dt>${l}</dt><dd>${esc(x[k]||'—')}</dd>`).join('')}
+  ${pode?`<div class="actions"><button class="btn primary" data-act="ins-salvar" data-m="${m}">${c.ins?'Salvar':isM()?'Enviar para a Cancha':'Registrar como recebidos'}</button></div>`:''}
+  ${c.ins?`<p class="muted" style="font-size:12px;margin:0">Recebidos em ${fmt(c.ins.ok)} · ${esc(c.ins.por||'')}.</p>`:''}</div>`}
+function cicloLista(ps,txt){return `<div class="list">${ps.map(p=>`<div class="pr" data-open="${p.id}"><span class="mono muted" style="font-size:12px;min-width:40px">${fmt(p.date)}</span><span class="kt" style="--kc:var(--k-${tipoCal(p)});min-width:46px">${KTAG[tipoCal(p)](p)}</span><div style="min-width:0;flex:1"><b style="font-size:14px">${esc(p.titulo)}</b><div class="muted" style="font-size:12px">${STATUS[p.status].l}${p.textoOk?' · textos aprovados':''}</div>${txt&&p.legenda?`<div style="font-size:13px;margin-top:4px;white-space:pre-line">${esc(p.legenda.slice(0,280))}${p.legenda.length>280?'…':''}</div>`:!txt&&p.pauta?`<div class="muted" style="font-size:13px;margin-top:4px">${esc(p.pauta.slice(0,220))}</div>`:''}</div></div>`).join('')||'<p class="muted">Nada aqui ainda.</p>'}</div>`}
+function insResumo(m){const c=cicloDe(m);return c.ins?`<details><summary class="linkbtn">Ver os insumos que a Spraytec enviou</summary><dl class="kv" style="margin-top:8px">${INS_F.map(([k,l])=>c.ins.txt[k]?`<dt>${l}</dt><dd>${esc(c.ins.txt[k])}</dd>`:'').join('')}</dl></details>`:`<p class="muted" style="font-size:13px;margin:0">Os insumos da Spraytec ainda não chegaram (prazo ${fmt(prazosCiclo(m).ins)}).</p>`}
+function drawerPautas(){const m=S.drawer.id,ps=pautasDe(m),z=prazosCiclo(m);
+  const env=ps.filter(p=>p.status==='pauta'&&(p.pauta||'').trim()),semTxt=ps.filter(p=>p.status==='pauta'&&!(p.pauta||'').trim()),apr=ps.filter(p=>p.status==='pauta_aprovacao');
+  let acts='';
+  if(isTeam())acts=`<div class="actions"><button class="btn" data-act="cal-add" data-date="${m}-01">+ Pauta</button><button class="btn" data-act="importar">Importar planilha</button>${env.length?`<button class="btn primary" data-act="pau-env" data-ids="${env.map(p=>p.id).join(',')}">Enviar ${env.length} pauta${env.length>1?'s':''} para a Spraytec</button>`:''}</div>${semTxt.length?`<p class="muted" style="font-size:12px;margin:0">${semTxt.length} sem o texto da pauta: abra o item e escreva antes de enviar.</p>`:''}`;
+  if(isM()&&apr.length)acts=`<div class="actions"><button class="btn primary" data-act="lote-aprovar" data-ids="${apr.map(p=>p.id).join(',')}">Aprovar ${apr.length} pauta${apr.length>1?'s':''}</button></div><p class="muted" style="font-size:12px;margin:0">Para pedir mudança numa pauta, abra o item e use "Pedir ajuste".</p>`;
+  return `<header><div><div class="eyebrow">Ciclo de ${mesCiclo(m)} · pautas até ${fmt(z.pau)}</div><h2>Pautas de ${mesCiclo(m)} · ${ps.length}</h2></div>${closeBtn()}</header>
+  <div class="content">${insResumo(m)}${cicloLista(ps,false)}${acts}</div>`}
+function drawerTextos(){const m=S.drawer.id,ps=pautasDe(m).filter(p=>fase(p)>=2),z=prazosCiclo(m);
+  const env=ps.filter(p=>p.status==='producao'&&!p.textoOk&&(p.legenda||'').trim()),semTxt=ps.filter(p=>p.status==='producao'&&!p.textoOk&&!(p.legenda||'').trim()),apr=ps.filter(p=>p.status==='texto_aprovacao');
+  let acts='';
+  if(isTeam())acts=`<div class="actions">${env.length?`<button class="btn primary" data-act="txt-env" data-ids="${env.map(p=>p.id).join(',')}">Enviar os textos de ${env.length} post${env.length>1?'s':''} para a Spraytec</button>`:''}</div>${semTxt.length?`<p class="muted" style="font-size:12px;margin:0">${semTxt.length} ainda sem legenda: abra o item, escreva em "Editar conteúdo" e envie.</p>`:''}`;
+  if(isM()&&apr.length)acts=`<div class="actions"><button class="btn primary" data-act="lote-aprovar" data-ids="${apr.map(p=>p.id).join(',')}">Aprovar os textos de ${apr.length} post${apr.length>1?'s':''}</button></div><p class="muted" style="font-size:12px;margin:0">Para pedir mudança num texto, abra o item e use "Pedir ajuste".</p>`;
+  return `<header><div><div class="eyebrow">Ciclo de ${mesCiclo(m)} · textos até ${fmt(z.txt)}, aprovação até ${fmt(z.aprT)}</div><h2>Calendário com os textos · ${ps.length}</h2></div>${closeBtn()}</header>
+  <div class="content"><p class="muted" style="margin:0">A legenda de cada post, para a Spraytec aprovar antes de a Cancha produzir a arte.</p>${cicloLista(ps,true)}${acts}</div>`}
+// COM QUEM ESTÁ: o próximo passo de cada item, de quem é e até quando
+const tagOf=p=>{const k=tipoCal(p);return [KTAG[k]?KTAG[k](p):'POST','--k-'+(k==='midia'?'post':k)]};
+function passo(p){const s=p.status,z=p.date?prazosCiclo(p.date.slice(0,7)):{};
+  if(p.formato==='plano'||s==='publicado'||s==='agendado')return null;
+  if(p.faltaTexto)return {quem:'cancha',acao:'Escrever os textos do vídeo',prazo:addBiz(TODAY,1)};
+  if(s==='espera')return {quem:'cancha',acao:'Definir a data',prazo:null};
+  if(s==='pauta'||(s==='ajuste'&&p.etapaAjuste==='pauta'))return temPauta(p)?{quem:'cancha',acao:s==='ajuste'?'Ajustar a pauta e reenviar':'Escrever e enviar a pauta',prazo:s==='ajuste'?addBiz(TODAY,1):z.pau}:{quem:p.rede==='video'?'produtora':'cancha',acao:'Começar a produção',prazo:p.date};
+  if(s==='pauta_aprovacao')return {quem:'spraytec',acao:'Aprovar a pauta',prazo:prazoDe(p)};
+  if(s==='texto_aprovacao')return {quem:'spraytec',acao:'Aprovar os textos',prazo:prazoDe(p)};
+  if(s==='aprovacao')return {quem:'spraytec',acao:p.validacao?'Validação interna (agronomia e comercial)':'Aprovar',prazo:prazoDe(p)};
+  if(s==='ajuste')return {quem:'cancha',acao:p.etapaAjuste==='texto'?'Ajustar os textos e reenviar':'Fazer o ajuste pedido',prazo:addBiz(TODAY,1)};
+  if(s==='producao'){if(!temPauta(p))return {quem:p.rede==='video'?'produtora':'cancha',acao:p.rede==='video'?'Gravar e entregar':'Produzir as peças',prazo:p.date};
+    if(!p.textoOk)return {quem:'cancha',acao:'Escrever os textos e enviar',prazo:z.txt};
+    return {quem:'cancha',acao:'Produzir a arte e enviar',prazo:z.pec&&z.pec<p.date?z.pec:addBiz(p.date,-5)}}
+  if(s==='aprovado')return {quem:'cancha',acao:'Agendar a publicação',prazo:addDays(p.date,-1)};
+  return null}
+function acoes(){const out=[];const lim=addDays(TODAY,45);const push=o=>{if(o.prazo&&o.prazo>lim)return;out.push(o)};
+  const m0=TODAY.slice(0,7);[m0,addMonth(m0,1),addMonth(m0,2)].filter(m=>m>=CICLO_DESDE).forEach(m=>{if(!cicloDe(m).ins)push({quem:'spraytec',acao:'Enviar os insumos de '+mesCiclo(m),t:'Foco comercial, eventos, lançamentos e fotos',prazo:prazosCiclo(m).ins,tag:['CICLO','--accent-ink'],attr:`data-act="ins-open" data-m="${m}"`})});
+  posts.forEach(p=>{if(p.date&&p.date<addDays(TODAY,-60))return;const ps=passo(p);if(ps)push({...ps,t:p.titulo,tag:tagOf(p),attr:`data-open="${p.id}"`})});
+  demandas.filter(d=>!d.feito).forEach(d=>push({quem:d.quem,acao:d.t,t:d.det||'',prazo:d.data,tag:['DEMANDA','--k-'+d.quem],attr:`data-dem="${d.id}"`}));
+  videos.forEach(v=>{const m={pauta:['cancha','Escrever a pauta do vídeo'],viabilidade:['produtora','Dar o parecer de viabilidade'],roteiro:['spraytec','Aprovar o roteiro'],gravacao:['produtora','Gravar e entregar editado']}[v.stage];if(m)push({quem:m[0],acao:m[1],t:v.titulo,prazo:v.stage==='roteiro'?v.prazo||null:null,tag:['VÍDEO','--k-video'],attr:`data-video="${v.id}"`})});
+  return out.map(o=>({...o,late:!!o.prazo&&o.prazo<TODAY}))}
+function quemBar(){const A=acoes();
+  return `<div class="wbar">${['cancha','spraytec','produtora'].map(q=>{const a=A.filter(o=>o.quem===q),l=a.filter(o=>o.late).length;
+    return `<button class="wb-i" data-kgrp="quem" style="--kc:var(--k-${q})"><i></i><span>${q==='spraytec'&&isM()?'Com você':'Com a '+(q==='produtora'?'produtora':QUEM[q])}</span><b>${a.length}</b>${l?`<span class="bad">${l} atrasad${l>1?'os':'o'}</span>`:''}</button>`}).join('')}</div>`}
+function acCard(o){return `<div class="wc ${o.late?'late':''}" ${o.attr} tabindex="0" role="button"><div class="meta"><span class="kt" style="--kc:var(${o.tag[1]})">${o.tag[0]}</span><span class="mono ${o.late?'bad':''}">${o.prazo?(o.late?'venceu '+fmt(o.prazo):'até '+fmtLong(o.prazo)):'sem prazo'}</span></div><b class="wa">${esc(o.acao)}</b>${o.t?`<span class="wt">${esc(o.t)}</span>`:''}</div>`}
+function viewQuem(){const A=acoes();const me=isM()?'spraytec':'cancha';const ord=['cancha','spraytec','produtora'].sort((a,b)=>(b===me)-(a===me));
+  const fimSem=addDays(TODAY,6-((dow(TODAY)+6)%7));
+  const grp=a=>[['Atrasado',a.filter(o=>o.late)],['Esta semana',a.filter(o=>!o.late&&o.prazo&&o.prazo<=fimSem)],['Próximas semanas',a.filter(o=>!o.late&&(!o.prazo||o.prazo>fimSem))]];
+  return `<p class="muted" style="font-size:13px;margin:0">O que está esperando cada time nas próximas semanas, por prazo. Clique para abrir.</p>
+  <div class="wboard">${ord.map(q=>{const a=A.filter(o=>o.quem===q).sort((x,y)=>(x.prazo||'9').localeCompare(y.prazo||'9'));
+    return `<section class="wcol" style="--kc:var(--k-${q})"><h3><i></i>${q===me?'Com você':'Com a '+(q==='produtora'?'produtora':QUEM[q])}<span class="mono muted">${a.length}</span></h3>
+    ${grp(a).filter(g=>g[1].length).map(([l,it])=>`<div class="wg"><div class="eyebrow ${l==='Atrasado'?'bad':''}">${l} · ${it.length}</div>${it.map(acCard).join('')}</div>`).join('')||'<p class="muted" style="font-size:13px;margin:0">Nada pendente.</p>'}</section>`}).join('')}</div>`}
+
 // STATUS EDITÁVEL E KANBAN DE STATUS (visão de processo da Cancha)
-const SKCOLS=['pauta','pauta_aprovacao','producao','aprovacao','ajuste','aprovado','agendado','publicado','espera'];
+const SKCOLS=['pauta','pauta_aprovacao','producao','texto_aprovacao','aprovacao','ajuste','aprovado','agendado','publicado','espera'];
 function statusEditor(p){if(p.formato==='plano')return '';const ok=['aprovado','agendado'].includes(p.status);
   return `<div class="stedit"><div class="ler" style="align-items:flex-end"><div style="flex:1"><label for="st-sel" class="muted" style="font-size:12px">Status</label><select id="st-sel" class="pe">${SKCOLS.map(k=>`<option value="${k}" ${p.status===k?'selected':''}>${STATUS[k].l}</option>`).join('')}</select></div><button class="btn" data-act="st-save" data-id="${p.id}">Salvar</button></div>
    ${ok?`<div class="ler"><input id="pub-link" class="pe" placeholder="Link do post publicado (opcional)" aria-label="Link do post publicado"><button class="btn primary" data-act="st-pub" data-id="${p.id}">Marcar como publicado</button></div>`:''}
    <span class="muted" style="font-size:12px">Toda mudança fica no histórico.</span></div>`}
 function kanbanBarra(){return `<div class="toolbar">${monthNav('month')}<div class="filters" role="group" aria-label="Tipos">${TIPOS.filter(t=>t[0]!=='demanda').map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
-   <div class="actions">${isTeam()?'<button class="btn" data-act="importar">Importar planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>`}
+   <div class="actions">${isTeam()?'<button class="btn" data-act="vk-novo">+ Pauta de vídeo</button><button class="btn" data-act="importar">Importar planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>`}
 const KTAG={post:p=>NET[p.rede],email:()=>'E-MAIL',design:()=>'DESIGN',video:()=>'VÍDEO'};
 function viewStatusKanban(){
   const vp=posts.filter(p=>tipoCal(p)!=='midia'&&S.tipos[tipoCal(p)]&&((p.date&&p.date.startsWith(S.month))||!p.date));
   return `${kanbanBarra()}
   <p class="muted" style="font-size:13px;margin:0">Arraste para mudar o status. Para tirar um item de "Pauta em aprovação" ou "Em aprovação", o portal pede o registro da aprovação da Spraytec.</p>
-  <div class="kanban sk">${SKCOLS.map(c=>{const it=vp.filter(p=>p.status===c);return `<div class="col" data-scol="${c}"><h3>${STATUS[c].l}<span class="mono muted">${it.length}</span></h3>${it.map(p=>{const k=tipoCal(p);return `<div class="card" data-open="${p.id}" draggable="true" data-sdrag="${p.id}" style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${c==='publicado'?`<span class="tag">${p.anterior?'agência anterior':'manual'}</span>`:''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>${p.faltaTexto?'<span class="flag">Faltam textos</span>':''}</div>`}).join('')}</div>`}).join('')}</div>`}
+  <div class="kanban sk">${SKCOLS.map(c=>{const it=vp.filter(p=>p.status===c),iv=vidsAbertos().filter(v=>VSK[v.stage]===c);return `<div class="col" data-scol="${c}"><h3>${STATUS[c].l}<span class="mono muted">${it.length+iv.length}</span></h3>${iv.map(v=>vidCard(v)).join('')}${it.map(p=>{const k=tipoCal(p);return `<div class="card" data-open="${p.id}" draggable="true" data-sdrag="${p.id}" style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${c==='publicado'?`<span class="tag">${p.anterior?'agência anterior':'manual'}</span>`:''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>${p.faltaTexto?'<span class="flag">Faltam textos</span>':''}</div>`}).join('')}</div>`}).join('')}</div>`}
 
 // Kanban simplificado da Operação Spraytec: sem arrastar; aprova pauta e peça direto na coluna "Com você".
-const CKCOLS=[['plan','Planejado',['pauta']],['voce','Com você',['pauta_aprovacao','aprovacao']],['prod','Com a Cancha',['producao','ajuste']],['pronto','Pronto',['aprovado','agendado']],['pub','Publicado',['publicado']]];
+const CKCOLS=[['plan','Planejado',['pauta']],['voce','Com você',['pauta_aprovacao','texto_aprovacao','aprovacao']],['prod','Com a Cancha',['producao','ajuste']],['pronto','Pronto',['aprovado','agendado']],['pub','Publicado',['publicado']]];
 function viewClientKanban(){
   const vp=posts.filter(p=>p.formato!=='plano'&&tipoCal(p)!=='midia'&&S.tipos[tipoCal(p)]&&p.date&&p.date.startsWith(S.month));
   return `${kanbanBarra()}
   <div class="kanban ck">${CKCOLS.map(([c,l,sts])=>{const it=vp.filter(p=>sts.includes(p.status)).sort((a,b)=>a.date.localeCompare(b.date));
-    return `<div class="col ${c==='voce'?'voce':''}"><h3>${l}<span class="mono muted">${it.length}</span></h3>${it.map(p=>{const k=tipoCal(p);const draft=hiddenForClient(p);
-      return `<div class="card ${draft?'draft':''}" ${draft?'':`data-open="${p.id}"`} style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${p.status==='pauta_aprovacao'?'<span class="tag">pauta</span>':''}${p.status==='agendado'?'<span class="tag">agendado</span>':''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>
-      ${draft?'<span class="muted" style="font-size:12px">A Cancha está produzindo</span>':''}${c==='voce'?`<button class="btn primary sm" data-act="approve" data-id="${p.id}">${p.status==='pauta_aprovacao'?'Aprovar pauta':'Aprovar'}</button>`:''}${c==='pub'&&p.pubLink?`<a class="linkbtn" href="${esc(p.pubLink)}" target="_blank" rel="noopener">Ver post</a>`:''}</div>`}).join('')||'<p class="muted" style="font-size:13px;margin:4px 0">Nada aqui.</p>'}</div>`}).join('')}</div>`}
+    const iv=vidsAbertos().filter(v=>VCK[v.stage]===c);
+    return `<div class="col ${c==='voce'?'voce':''}"><h3>${l}<span class="mono muted">${it.length+iv.length}</span></h3>${iv.map(v=>vidCard(v,true)).join('')}${it.map(p=>{const k=tipoCal(p);const draft=hiddenForClient(p);
+      return `<div class="card ${draft?'draft':''}" ${draft?'':`data-open="${p.id}"`} style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${p.status==='pauta_aprovacao'?'<span class="tag">pauta</span>':p.status==='texto_aprovacao'?'<span class="tag">textos</span>':''}${p.status==='agendado'?'<span class="tag">agendado</span>':''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>
+      ${draft?'<span class="muted" style="font-size:12px">A Cancha está produzindo</span>':''}${c==='voce'?`<button class="btn primary sm" data-act="approve" data-id="${p.id}">${p.status==='pauta_aprovacao'?'Aprovar pauta':p.status==='texto_aprovacao'?'Aprovar textos':'Aprovar'}</button>`:''}${c==='pub'&&p.pubLink?`<a class="linkbtn" href="${esc(p.pubLink)}" target="_blank" rel="noopener">Ver post</a>`:''}</div>`}).join('')||'<p class="muted" style="font-size:13px;margin:4px 0">Nada aqui.</p>'}</div>`}).join('')}</div>`}
 // ACERVO
 function viewAcervo(){
   const tabs=S.role==='produtora'?[['materiais','Materiais (Drive)']]:isDir()?[['relatorios','Relatórios'],['aprendizados','Aprendizados']]:[['materiais','Materiais (Drive)'],['posts','Posts'],['stories','Stories'],['dark','Dark posts'],['relatorios','Relatórios'],['aprendizados','Aprendizados'],['guia','Guia de marca']];
@@ -1439,7 +1535,7 @@ function impDiff(p,d){const eq=(a,b)=>String(a??'').replace(/\r\n?/g,'\n').trim(
   ct('título',p.titulo,d.titulo);ct('pauta',p.pauta,pauta,etapaPautaCli(p));ct('legenda',p.legenda,leg);ct('link do Drive',p.drive,d.drive);if(!['video','design'].includes(p.rede))ct('horário',p.time,d.hora);
   if(d.pilar&&d.pilar!==p.pilar)campos.push('pilar');if(d.produto&&d.produto!==p.produto)campos.push('produto');
   if(d.data&&d.data!==p.date){if(p.status==='publicado')erro=erro||'já publicado: a data não muda';else campos.push('data')}
-  if(d.etapa&&d.etapa!==p.status){const ok=(d.etapa==='pauta_aprovacao'&&p.status==='pauta')||(d.etapa==='aprovacao'&&p.status==='producao'&&!['video','design'].includes(p.rede))||(p.status==='ajuste'&&d.etapa===(p.etapaAjuste==='pauta'?'pauta_aprovacao':'aprovacao'));
+  if(d.etapa&&d.etapa!==p.status){const ok=(d.etapa==='texto_aprovacao'&&p.status==='producao'&&temPauta(p)&&!p.textoOk)||(p.status==='ajuste'&&p.etapaAjuste==='texto'&&d.etapa==='texto_aprovacao')||(d.etapa==='pauta_aprovacao'&&p.status==='pauta')||(d.etapa==='aprovacao'&&p.status==='producao'&&!['video','design'].includes(p.rede))||(p.status==='ajuste'&&d.etapa===(p.etapaAjuste==='pauta'?'pauta_aprovacao':'aprovacao'));
     if(!ok)erro=erro||'etapa: de "'+st(p.status)+'" para "'+st(d.etapa)+'" só pelo portal';
     else if(d.etapa==='pauta_aprovacao'&&p.status==='pauta'&&!(pauta||p.pauta))erro=erro||'sem pauta para enviar para aprovação';
     else campos.push('enviar para '+st(d.etapa).toLowerCase())}
@@ -1551,14 +1647,15 @@ function drawerPost(p){
   let acts='';
   if(p.faltaTexto){acts=`<div class="notice">Vídeo entregue pela produtora. Faltam título, descrição e legenda.</div>${team?`<label for="tx-leg">Descrição e legenda</label><textarea id="tx-leg" placeholder="Texto que vai com o vídeo"></textarea><div class="actions"><button class="btn primary" data-act="textos" data-id="${p.id}">Adicionar textos e enviar para validação interna</button></div>`:''}`}
   else{
-    const ehPauta=p.status==='pauta_aprovacao';
-    if(isM()&&p.formato!=='plano'&&EM_APROVACAO.includes(p.status))acts=`${ehPauta?'<div class="notice">Esta é a pauta: o tema e a ideia do conteúdo. Aprovando, a Cancha começa a produzir a peça.</div>':''}<div class="actions"><button class="btn primary" data-act="approve" data-id="${p.id}">${ehPauta?'Aprovar pauta':'Aprovar'}</button>${p.status==='aprovacao'&&!p.validacao?`<button class="btn" data-act="validacao" data-id="${p.id}">Levar para validação interna</button>`:''}</div>
-      <label for="adj">Pedir ajuste${ehPauta?' na pauta':''} (comentário obrigatório)</label><textarea id="adj" placeholder="O que precisa mudar?"></textarea><div class="actions"><button class="btn danger" data-act="adjust" data-id="${p.id}">Pedir ajuste</button></div>`;
+    const ehPauta=p.status==='pauta_aprovacao',ehTexto=p.status==='texto_aprovacao';
+    if(isM()&&p.formato!=='plano'&&EM_APROVACAO.includes(p.status))acts=`${ehPauta?'<div class="notice">Esta é a pauta: o tema e a ideia do conteúdo. Aprovando, a Cancha escreve os textos.</div>':ehTexto?'<div class="notice">Estes são os textos (legenda) do post. Aprovando, a Cancha produz a arte.</div>':''}<div class="actions"><button class="btn primary" data-act="approve" data-id="${p.id}">${ehPauta?'Aprovar pauta':ehTexto?'Aprovar textos':'Aprovar'}</button>${p.status==='aprovacao'&&!p.validacao?`<button class="btn" data-act="validacao" data-id="${p.id}">Levar para validação interna</button>`:''}</div>
+      <label for="adj">Pedir ajuste${ehPauta?' na pauta':ehTexto?' nos textos':''} (comentário obrigatório)</label><textarea id="adj" placeholder="O que precisa mudar?"></textarea><div class="actions"><button class="btn danger" data-act="adjust" data-id="${p.id}">Pedir ajuste</button></div>`;
     if(team){const b=[];
       if(p.status==='pauta')b.push(temPauta(p)?`<button class="btn primary" data-act="enviar-pauta" data-id="${p.id}">Enviar pauta para aprovação</button>`:`<button class="btn dark" data-act="to-prod" data-id="${p.id}">Mover para produção</button>`);
-      if(p.status==='producao')b.push(`<button class="btn primary" data-act="send" data-id="${p.id}">${['video','design'].includes(p.rede)?'Marcar como concluído':'Enviar peça para aprovação'}</button>`);
-      if(p.status==='ajuste')b.push(`<button class="btn primary" data-act="newver" data-id="${p.id}">${p.etapaAjuste==='pauta'?'Reenviar pauta ajustada':'Subir nova versão e reenviar'}</button>`);
-      const ext=EM_APROVACAO.includes(p.status)?`<details class="padj" ${S.needExt===p.id?'open':''}><summary class="btn ${S.needExt===p.id?'primary':''}">Registrar aprovação por WhatsApp/e-mail</summary><div class="extbox"><label class="muted" for="ext-quem">Quem da Spraytec aprovou</label><select id="ext-quem" class="pe">${APROVADORES.map(a=>`<option value="${esc(a.id)}">${esc(a.nome)}</option>`).join('')||'<option value="">Nenhuma pessoa da Operação cadastrada</option>'}</select><label class="muted" for="ext-canal">Por onde aprovou</label><select id="ext-canal" class="pe"><option>WhatsApp</option><option>E-mail</option><option>Reunião</option></select><label class="muted" for="ext-link">Link do print ou do e-mail no Drive (recomendado)</label><input id="ext-link" class="pe" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="external" data-id="${p.id}">Registrar aprovação${ehPauta?' da pauta':''}</button><span class="muted" style="font-size:12px">Fica no histórico com o nome de quem aprovou, o seu e o comprovante.</span></div></details>`:'';
+      if(p.status==='producao'&&temPauta(p)&&!p.textoOk)b.push(`<button class="btn primary" data-act="enviar-textos" data-id="${p.id}">Enviar textos para aprovação</button>`);
+      if(p.status==='producao')b.push(`<button class="btn ${temPauta(p)&&!p.textoOk?'':'primary'}" data-act="send" data-id="${p.id}">${['video','design'].includes(p.rede)?'Marcar como concluído':temPauta(p)&&!p.textoOk?'Enviar peça completa (textos e arte)':'Enviar peça para aprovação'}</button>`);
+      if(p.status==='ajuste')b.push(`<button class="btn primary" data-act="newver" data-id="${p.id}">${p.etapaAjuste==='pauta'?'Reenviar pauta ajustada':p.etapaAjuste==='texto'?'Reenviar textos ajustados':'Subir nova versão e reenviar'}</button>`);
+      const ext=EM_APROVACAO.includes(p.status)?`<details class="padj" ${S.needExt===p.id?'open':''}><summary class="btn ${S.needExt===p.id?'primary':''}">Registrar aprovação por WhatsApp/e-mail</summary><div class="extbox"><label class="muted" for="ext-quem">Quem da Spraytec aprovou</label><select id="ext-quem" class="pe">${APROVADORES.map(a=>`<option value="${esc(a.id)}">${esc(a.nome)}</option>`).join('')||'<option value="">Nenhuma pessoa da Operação cadastrada</option>'}</select><label class="muted" for="ext-canal">Por onde aprovou</label><select id="ext-canal" class="pe"><option>WhatsApp</option><option>E-mail</option><option>Reunião</option></select><label class="muted" for="ext-link">Link do print ou do e-mail no Drive (recomendado)</label><input id="ext-link" class="pe" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="external" data-id="${p.id}">Registrar aprovação${ehPauta?' da pauta':ehTexto?' dos textos':''}</button><span class="muted" style="font-size:12px">Fica no histórico com o nome de quem aprovou, o seu e o comprovante.</span></div></details>`:'';
       const edita=['pauta','producao','ajuste','espera'].includes(p.status)&&p.formato!=='plano'?`<details class="padj"><summary class="btn">Editar conteúdo</summary><div class="extbox"><label class="muted" for="pe-titulo">Título</label><input id="pe-titulo" class="pe" value="${esc(p.titulo)}">${etapaPautaCli(p)?`<label class="muted" for="pe-pauta">Pauta (tema, ideia e abordagem)</label><textarea id="pe-pauta" class="pe" rows="4">${esc(p.pauta||'')}</textarea>`:''}${temPauta(p)&&(p.status==='pauta'||(p.status==='ajuste'&&p.etapaAjuste==='pauta'))?'':`<label class="muted" for="pe-leg">${({email:'Assunto e texto',design:'Descrição',video:'Descrição'}[p.rede]||'Legenda')}</label><textarea id="pe-leg" class="pe" rows="5">${esc(p.legenda)}</textarea>`}${['video','design'].includes(p.rede)?'':`<label class="muted" for="pe-hora">Horário</label><input id="pe-hora" type="time" class="pe" value="${p.time||''}">`}<label class="muted" for="pe-drive">Link do material no Google Drive</label><input id="pe-drive" class="pe" value="${esc(p.drive||'')}" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="post-editar" data-id="${p.id}">Salvar conteúdo</button></div></details>`:'';
       acts=`<div class="actions">${b.join('')}</div>${ext}${edita}${statusEditor(p)}`;}
   }
@@ -1657,6 +1754,9 @@ function renderDrawer(){
   else if(k==='rel')html=drawerRel();
   else if(k==='relview')html=drawerRelView();
   else if(k==='mes')html=drawerMes();
+  else if(k==='ins')html=drawerIns();
+  else if(k==='pau')html=drawerPautas();
+  else if(k==='txt')html=drawerTextos();
   else if(k==='conc')html=drawerConc();
   else if(k==='cacoes')html=drawerAcoes();
   else if(k==='apr')html=drawerApr();
@@ -1696,6 +1796,7 @@ function aplicar(j){
   APRENDIZADOS=d.aprendizados||[];RELATORIOS=d.relatorios||[];plano=d.plano||null;GUIA=d.guia||GUIA;LANES=d.lanes||[];CONC_ACOES=d.concAcoes||[];LINKS=d.links||[];
   planoItem=posts.find(p=>p.formato==='plano')||null;
   S.role=EU.papel;
+  CICLOS=d.ciclos||[];
   DRIVE=j.drive||{conectado:false,configurado:false};GA4=j.ga4||{conectado:false,configurado:false};YT=j.yt||{conectado:false,configurado:false};GADS=j.gads||{conectado:false,configurado:false};materiais=d.materiais||[];
   if(primeira){if(EU.papel==='produtora')META=null;else{META=undefined;carregarMeta()}}
   if(primeira||novoDia){carregarFonteExemplo();if(!S.month){S.month=(Number(TODAY.slice(8))>=15?addDays(TODAY.slice(0,8)+'01',40):TODAY).slice(0,7);S.dmonth=TODAY.slice(0,7)}setPreset(S.per.preset&&S.per.preset!=='custom'?S.per.preset:'30')}
@@ -1769,12 +1870,13 @@ function viewAtividade(){
 
 // ---------- cliques ----------
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-pessoa],[data-selall],[data-calv],[data-acat],[data-relcat],[data-per],[data-psort],[data-prede],[data-cord],[data-thread],[data-thread-go],[data-tab],[data-tipo],[data-atipo],[data-quem],[data-pasta],[data-view],[data-open],[data-video],[data-dem],[data-act],[data-month],[data-sel],[data-selv]');
+  const t=e.target.closest('[data-pessoa],[data-selall],[data-calv],[data-kgrp],[data-acat],[data-relcat],[data-per],[data-psort],[data-prede],[data-cord],[data-thread],[data-thread-go],[data-tab],[data-tipo],[data-atipo],[data-quem],[data-pasta],[data-view],[data-open],[data-video],[data-dem],[data-act],[data-month],[data-sel],[data-selv]');
   if(!t)return;
   const d=t.dataset;
   if(d.pessoa){api('/api/entrar/demo',{usuarioId:d.pessoa}).then(iniciar).catch(err=>toast(err.message));return}
   if(!EU){if(d.act==='esqueci')telaEntrar(null,'esqueci');else if(d.act==='voltar-entrar')telaEntrar();return}
   if(d.calv){S.calv=d.calv;render();return}
+  if(d.kgrp){S.kgrp=d.kgrp;render();return}
   if(d.acat){const [sb,k]=d.acat.split('|');S.acat[sb]=k;render();return}
   if(d.relcat){S.relCat=d.relcat;render();return}
   if(d.per){setPreset(d.per);render();return}
@@ -1834,7 +1936,7 @@ document.addEventListener('click',e=>{
     case 'novo-tema':S.novoTema=true;render();setTimeout(()=>{const x=$('#nt');if(x)x.focus()},0);break;
     case 'criar-tema':{const tt=val('#nt');if(!tt){toast('Dê um tema para a conversa.');return}acao('conversa-nova',{tema:tt},j=>{S.thread=j.criado;S.novoTema=false;render();setTimeout(()=>{const x=$('#cm');if(x)x.focus()},0)});break}
     case 'enviar-msg':{const tx=val('#cm');if(!tx)return;acao('mensagem',{id:S.thread,txt:tx});break}
-    case 'approve':{const isPl=p&&p.formato==='plano',isPa=p&&p.status==='pauta_aprovacao';if(S.drawer&&S.drawer.kind==='mud')S.drawer=null;acao('aprovar',{id},()=>toast(isPl?'Alterações do plano aprovadas. A versão '+plano.versao+' passa a valer.':isPa?'Pauta aprovada. A Cancha começa a produzir.':'Aprovado.'));break}
+    case 'approve':{const isPl=p&&p.formato==='plano',isPa=p&&p.status==='pauta_aprovacao',isTx=p&&p.status==='texto_aprovacao';if(S.drawer&&S.drawer.kind==='mud')S.drawer=null;acao('aprovar',{id},()=>toast(isPl?'Alterações do plano aprovadas. A versão '+plano.versao+' passa a valer.':isPa?'Pauta aprovada. A Cancha escreve os textos.':isTx?'Textos aprovados. A Cancha produz a arte.':'Aprovado.'));break}
     case 'pe-edit':readPlanoForm();if(S.pdraft)prune(S.pdraft);if(!S.pdraft){S.pdraft=clone(plano.pendente?plano.pendente.dados:plano.dados);S.pnota=plano.pendente?plano.pendente.nota:''}S.pedit=d.card;render();break;
     case 'pe-done':readPlanoForm();prune(S.pdraft);S.pedit=null;render();break;
     case 'pa-add':readPlanoForm();getPath(S.pdraft,d.path).push(clone(TPL[d.tpl]));render();break;
@@ -1894,6 +1996,15 @@ document.addEventListener('click',e=>{
     case 'send':{const prod=p&&['video','design'].includes(p.rede);acao('enviar',{id},()=>toast(prod?'Marcado como concluído.':'Enviado para aprovação.'));break}
     case 'newver':acao('nova-versao',{id},()=>toast('Nova versão enviada para aprovação.'));break;
     case 'enviar-pauta':acao('enviar-pauta',{id},()=>toast('Pauta enviada para aprovação da Spraytec.'));break;
+    case 'enviar-textos':acao('enviar-textos',{id},()=>toast('Textos enviados para aprovação da Spraytec.'));break;
+    case 'ins-open':openDrawer('ins',t.dataset.m);break;
+    case 'pau-open':openDrawer('pau',t.dataset.m);break;
+    case 'txt-open':openDrawer('txt',t.dataset.m);break;
+    case 'ins-salvar':{const txt={};INS_F.forEach(([k])=>{const x=$('#in-'+k);txt[k]=x?x.value:''});acao('insumos-salvar',{m:t.dataset.m,txt},()=>{closeDrawer();toast(isM()?'Insumos enviados para a Cancha.':'Insumos registrados.')});break}
+    case 'pau-env':acao('enviar-pautas',{ids:(t.dataset.ids||'').split(',').filter(Boolean)},()=>toast('Pautas enviadas para aprovação da Spraytec.'));break;
+    case 'txt-env':acao('enviar-textos',{ids:(t.dataset.ids||'').split(',').filter(Boolean)},()=>toast('Textos enviados para aprovação da Spraytec.'));break;
+    case 'lote-aprovar':acao('aprovar-lote',{ids:(t.dataset.ids||'').split(',').filter(Boolean)},()=>toast('Aprovado.'));break;
+    case 'go-aprov':S.view='aprovacao';closeDrawer();render();break;
     case 'external':acao('aprovacao-externa',{id,quem:val('#ext-quem'),canal:$('#ext-canal')?$('#ext-canal').value:'WhatsApp',evidencia:val('#ext-link')},()=>{S.needExt=null;render();toast('Aprovação externa registrada no histórico.')});break;
     case 'textos':acao('textos',{id,legenda:val('#tx-leg')},()=>toast('Textos adicionados. Foi para validação interna da Spraytec.'));break;
     case 'p-classif':acao('post-classificar',{id,produto:val('#pc-prod'),pilar:val('#pc-pilar')},()=>toast('Classificação salva.'));break;

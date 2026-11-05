@@ -10,7 +10,7 @@ export const NOME_PAPEL: Record<string, string> = {
 // Fluxo de um post ou e-mail: a Spraytec aprova a pauta antes da produção e a peça depois.
 // "Validação interna" não é uma etapa: é uma marca no item em aprovação (continua com a Spraytec).
 export const STATUS: Record<string, string> = {
-  pauta: 'Pauta', pauta_aprovacao: 'Pauta em aprovação', producao: 'Em produção', aprovacao: 'Em aprovação',
+  pauta: 'Pauta', pauta_aprovacao: 'Pauta em aprovação', producao: 'Em produção', texto_aprovacao: 'Textos em aprovação', aprovacao: 'Em aprovação',
   ajuste: 'Ajuste', aprovado: 'Aprovado', agendado: 'Agendado', publicado: 'Publicado', espera: 'Em espera',
 };
 export const ETAPAS_VIDEO = ['pauta', 'viabilidade', 'roteiro', 'gravacao', 'entregue'];
