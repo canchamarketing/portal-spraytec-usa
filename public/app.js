@@ -119,9 +119,9 @@ function metaCarregando(t,sub){return `${head(t,sub)}<p class="muted">Carregando
 function metaRodape(fontes,origem='Meta'){if(!META||!fontes.length)return '';const sit=META.situacao,agora=Date.now();
   const velho=f=>{const s=sit[f];return !s||!s.ultimoOk||agora-Date.parse(s.ultimoOk)>864e5};
   const atencao=fontes.filter(f=>velho(f)||(isTeam()&&sit[f].erro));
-  const btn=isTeam()?'<button class="linkbtn" data-act="meta-atualizar">Atualizar agora</button>':'';
+  const btn='';
   const oks=fontes.map(f=>sit[f]&&sit[f].ultimoOk).filter(Boolean).sort();
-  if(!atencao.length)return `<p class="muted metaok">Dados ${origem==='Meta'?'do Meta':'do '+origem}, atualizados ${fmtVisita(oks[0])}. ${btn}</p>`;
+  if(!atencao.length)return `<p class="muted metaok">Dados ${origem==='Meta'?'do Meta':'do '+origem}, atualizados ${fmtVisita(oks[0])}. Atualização automática a cada hora.</p>`;
   const li=atencao.map(f=>{const s=sit[f]||{};return `<li><b>${FONTE_NOME[f]}</b>: ${!s.ultimoOk?'ainda sem dados':velho(f)?'sem dados novos desde '+fmtVisita(s.ultimoOk)+'. Os números abaixo podem estar desatualizados.':'a última coleta falhou; os números são de '+fmtVisita(s.ultimoOk)+'.'}${s.erro&&isTeam()?`<div class="muted" style="font-size:12px">${esc(s.erro)}</div>`:''}</li>`}).join('');
   return `<section class="panel metaaviso" role="status"><b>Integração com o ${origem==='Meta'?'Meta':origem} precisa de atenção</b><ul>${li}</ul>${btn}</section>`}
 
@@ -132,16 +132,16 @@ function redesIG(){const P=META.ig.perfil||{};const ps=META.posts.filter(x=>x.re
   const lg=P.profile_picture_url;
   return `<div class="prof"><span class="avbig">S${lg?`<img src="${esc(lg)}" alt="Logo da Spraytec" referrerpolicy="no-referrer" data-falha>`:''}</span><div style="display:flex;flex-direction:column;gap:8px"><b style="font-size:18px">${esc(P.username||'')}</b><div class="cnts"><span><b>${n(P.media_count||0)}</b> publicações</span><span><b>${fk(P.followers_count||0)}</b> seguidores</span><span><b>${n(P.follows_count||0)}</b> seguindo</span></div><span class="muted" style="font-size:13px">${esc(P.name||'')}${bio?' · '+esc(bio):''}</span></div></div>
    <section class="panel"><div class="headrow" style="margin-bottom:8px"><h2 style="margin:0">Stories no ar agora · ${noAr.length}</h2><span class="muted" style="font-size:12px">Depois de 24 h, ficam guardados no Acervo › Stories.</span></div>
-    ${noAr.length?`<div class="rings">${noAr.map(s=>`<div class="ring" ${s.drive?`data-arq="${esc(s.drive)}" role="button" tabindex="0" title="Ver o story"`:''}><span><i>${imgTag(s.img,'ringimg')}</i></span>${s.hora}${s.alc!=null?' · '+fk(s.alc)+' de alcance':''}</div>`).join('')}</div>`:'<p class="muted" style="margin:0">Nenhum story no ar.</p>'}
+    ${noAr.length?`<div class="rings">${noAr.map(s=>`<div class="ring" ${s.drive?`data-arq="${esc(s.drive)}" role="button" tabindex="0" title="Ver o story"`:''}><span><i>${imgTag(s.img,'ringimg')}</i></span><b class="rh">${s.hora}</b><span class="ra">${s.alc!=null?fk(s.alc)+' de alcance':''}</span></div>`).join('')}</div>`:'<p class="muted" style="margin:0">Nenhum story no ar.</p>'}
     ${META.stories.length?`<p style="margin:8px 0 0;font-size:13px">${META.stories.length} stories guardados pelo portal desde ${fmt(desde)}.</p>`:''}</section>
    <div class="iggrid">${ps.slice(0,30).map(x=>{const c=calDe(x);const tag=c?'div':'a';const at=c?`data-open="${c.id}"`:`href="${esc(x.link)}" target="_blank" rel="noopener"`;
      return `<${tag} class="igt" style="background:${PILAR_HUE[c&&c.pilar]||'#E3E4D3'}" ${at} title="${esc(x.titulo)}">${imgTag(x.img,'igimg')}${x.formato==='carrossel'?'<small>Carrossel</small>':x.formato==='reel'?'<small>▶ Reel</small>':x.formato==='video'?'<small>▶ Vídeo</small>':''}<span class="igcap">${esc(x.titulo.slice(0,70))}</span></${tag}>`}).join('')}</div>
    ${ps.length>30?'<p class="muted" style="font-size:12px">Os 30 posts mais recentes. O histórico completo, com os números, está em Performance › Social.</p>':''}`}
 function redesFB(){const P=META.fb.perfil||{};const ps=META.posts.filter(x=>x.rede==='fb').sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,20);
   const lg=P.picture&&P.picture.data&&P.picture.data.url,capa=P.cover&&P.cover.source;
-  const ag=posts.filter(p=>p.rede==='fb'&&p.status==='agendado'&&p.date).sort((a,b)=>a.date.localeCompare(b.date));const nome=esc(P.name||'Spraytec Brasil');
+  const nome=esc(P.name||'Spraytec Brasil');
   return `<div class="cover">${capa?`<img src="${esc(capa)}" alt="Capa da Página" referrerpolicy="no-referrer" data-falha>`:''}</div><div class="prof" style="margin-top:-40px;padding:0 16px"><span class="avbig" style="box-shadow:0 0 0 4px var(--surface)">S${lg?`<img src="${esc(lg)}" alt="Logo da Spraytec" referrerpolicy="no-referrer" data-falha>`:''}</span><div><b style="font-size:18px">${nome}</b><div class="muted" style="font-size:13px">${n(P.fan_count||0)} curtidas · ${n(P.followers_count||0)} seguidores</div></div></div>
-   <div class="fbfeed">${ag.map(p=>`<div data-open="${p.id}"><div class="muted" style="font-size:12px;margin-bottom:4px">Agendado para ${fmtLong(p.date)}</div>${preview(p)}</div>`).join('')}
+   <div class="fbfeed">
     ${ps.map(x=>{const c=calDe(x);const txt=x.legenda.split('\n').filter(l=>l.trim()).slice(0,4).map(l=>esc(l.slice(0,200))).join('<br>')||'<span class="muted">(sem texto)</span>';
       return `<div ${c?`data-open="${c.id}"`:''}><div class="pv"><div class="hd">${avS()}<span style="min-width:0"><b>${nome}</b><br><span class="sm">${fmtLong(x.date)} · ${x.hora}</span></span></div><div class="txt">${txt}</div>${x.img?`<div class="fbimg">${imgTag(x.img)}</div>`:''}<div class="ft row3"><span>${n(x.curt)} reações</span><span>${n(x.com)} comentários</span><span>${n(x.comp)} compart.</span></div></div>${c?'':`<a class="linkbtn" href="${esc(x.link)}" target="_blank" rel="noopener">Ver no Facebook ›</a>`}</div>`}).join('')||'<p class="muted">Nenhum post na Página.</p>'}</div>`}
 
@@ -164,8 +164,11 @@ function perfSocialReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();cons
   const linha=(f,l)=>{const ps=pub.filter(x=>x.rede===f),P=META[f].perfil||{},a=ps.reduce((s,x)=>s+(x.alc||0),0),ce=ps.filter(x=>x.eng!=null),e=ce.length?ce.reduce((s,x)=>s+x.eng,0)/ce.length:null;
     return [l,P.followers_count!=null?fk(P.followers_count):'—',segTxt(novosSeg([f],r)),a?fk(a):'—',e!=null?pct(e):'—',ps.length+(f==='ig'?' · '+st.length+' stories':'')]};
   const redes=[linha('ig','Instagram'),linha('fb','Facebook'),metaTem('yt')?(()=>{const Y=ytStats(r),P=META.yt.perfil||{};return ['YouTube',P.inscritos!=null?fk(P.inscritos):'—',segTxt(Y.ins),fk(Y.v)+' visualiz.','—',String(Y.pub)]})():['YouTube','—','—','—','—','integração pendente']];
-  const eg=x=>x.eng??-1;const ord={alc:(a,b)=>(b.alc||0)-(a.alc||0),eng:(a,b)=>eg(b)-eg(a),recent:(a,b)=>b.ts.localeCompare(a.ts)}[S.psort||'alc'];
-  const list=pub.slice().sort(ord),MAX=60;const topA=pub.filter(x=>x.alc).sort((a,b)=>b.alc-a.alc)[0],topE=pub.filter(x=>x.eng!=null&&x.alc>=100).sort((a,b)=>b.eng-a.eng)[0];
+  const eg=x=>x.eng??-1;const ord={alc:(a,b)=>(b.alc??b.views??0)-(a.alc??a.views??0),eng:(a,b)=>eg(b)-eg(a),recent:(a,b)=>b.ts.localeCompare(a.ts)}[S.psort||'alc'];
+  const ytp=metaTem('yt')?META.yt.videos.filter(v=>v.publico&&inR(r,v.date)).map(v=>({...v,rede:'yt',alc:null})):[];
+  const RDF=[['todas','Todas'],['ig','Instagram'],['fb','Facebook'],['yt','YouTube']],rf=S.prede||'todas';
+  const todos=[...pub,...ytp].filter(x=>rf==='todas'||x.rede===rf);
+  const list=todos.slice().sort(ord),MAX=60;const topA=pub.filter(x=>x.alc).sort((a,b)=>b.alc-a.alc)[0],topE=pub.filter(x=>x.eng!=null&&x.alc>=100).sort((a,b)=>b.eng-a.eng)[0];
   return `<div class="actions" style="align-items:center"><span class="eyebrow">Produto</span>${prodFiltro()}</div>${kpisC([
     {l:'Alcance',v:fk(SC.alc),s:pub.length+' publicações (soma por post)',cur:SC.alc,prev:has?SP.alc:null,prevTxt:has?fk(SP.alc):null},
     {l:'Interações',v:fk(SC.inter),s:'curtidas, comentários, salvos e compartilhamentos',cur:SC.inter,prev:has?SP.inter:null,prevTxt:has?fk(SP.inter):null},
@@ -175,11 +178,15 @@ function perfSocialReal(){const r={de:S.per.de,ate:S.per.ate},cr=cmpRange();cons
     {l:'Novos seguidores',v:segTxt(SC.seg),s:SC.seg==null?'histórico começa em '+(desdeSeg?fmt(desdeSeg):fmt(TODAY)):'Instagram e Facebook',cur:SC.seg,prev:SP&&SP.seg,prevTxt:SP&&SP.seg!=null?segTxt(SP.seg):null}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Rede</th><th>Seguidores</th><th>Novos</th><th>Alcance</th><th>Engajamento</th><th>Publicações</th></tr></thead><tbody>${redes.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   ${ytPerf(r,cr)}
-  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${pub.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">Instagram e Facebook${S.prod?' · '+(S.prod==='—'?'sem produto':esc(S.prod)):''}. O produto vem do calendário, quando o post publicado tem o link colado lá.</p></div>
-   <div class="filters"><span class="muted" style="font-size:12px;align-self:center">Ordenar por</span>${[['alc','Alcance'],['eng','Engajamento'],['recent','Mais recentes']].map(([k,l])=>`<button class="chip" data-psort="${k}" aria-pressed="${(S.psort||'alc')===k}">${l}</button>`).join('')}</div></div>
-   ${pub.length?`<div class="crgrid">${list.slice(0,MAX).map(x=>cardReal(x,x===topA?tagPill('Maior alcance do período','--ok'):x===topE?tagPill('Maior engajamento do período','--ok'):'')).join('')}</div>${list.length>MAX?`<p class="muted" style="font-size:12px">Mostrando ${MAX} de ${list.length}. Encurte o período para ver os demais.</p>`:''}`:'<p class="muted">Nenhum post publicado nesse período.</p>'}</section>`}
+  <section class="panel"><div class="headrow" style="margin-bottom:10px"><div><h2 style="margin:0">Posts do período · ${todos.length}</h2><p class="muted" style="margin:4px 0 0;font-size:13px">${rf==='todas'?'Instagram, Facebook'+(ytp.length?' e YouTube':''):NETNAME[rf]}${S.prod?' · '+(S.prod==='—'?'sem produto':esc(S.prod)):''}. O produto vem do calendário, quando o post publicado tem o link colado lá.</p></div>
+   <div class="filters">${RDF.map(([k,l])=>`<button class="chip" data-prede="${k}" aria-pressed="${rf===k}">${l}</button>`).join('')}<span class="muted" style="font-size:12px;align-self:center;margin-left:8px">Ordenar por</span>${[['alc','Alcance'],['eng','Engajamento'],['recent','Mais recentes']].map(([k,l])=>`<button class="chip" data-psort="${k}" aria-pressed="${(S.psort||'alc')===k}">${l}</button>`).join('')}</div></div>
+   ${list.length?`<div class="crgrid">${list.slice(0,MAX).map(x=>x.rede==='yt'?cardYT(x):cardReal(x,x===topA?tagPill('Maior alcance do período','--ok'):x===topE?tagPill('Maior engajamento do período','--ok'):'')).join('')}</div>${list.length>MAX?`<p class="muted" style="font-size:12px">Mostrando ${MAX} de ${list.length}. Encurte o período para ver os demais.</p>`:''}`:'<p class="muted">Nenhum post publicado nesse período.</p>'}</section>`}
 
 // YouTube com os dados reais
+function cardYT(v){const sh=v.formato==='short';
+  return `<article class="crcard"><div class="crprev"><a class="ytprev${sh?' vert':''}" href="${ytLink(v)}" target="_blank" rel="noopener">${imgTag(v.img,'ytimg')}<small>${sh?'Short':v.formato==='live'?'AO VIVO':durTxt(v.duracao)}</small></a></div><div class="crbody"><div><b>${esc(v.titulo)}</b><div class="muted" style="font-size:12px">YouTube · ${sh?'Short':'Vídeo'} · ${fmtLong(v.date)}</div></div>
+    <div class="crm"><div><span>Visualizações</span><b>${fk(v.views)}</b></div><div><span>Curtidas</span><b>${n(v.curt)}</b></div><div><span>Comentários</span><b>${n(v.com)}</b></div><div><span>Visto em média</span><b>${v.pctVisto!=null?Math.round(v.pctVisto)+'%':'—'}</b></div></div>
+    <a class="linkbtn" href="${ytLink(v)}" target="_blank" rel="noopener">Ver no YouTube ›</a></div></article>`}
 const durTxt=s=>{s=Math.round(s||0);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=String(s%60).padStart(2,'0');return h?h+':'+String(m).padStart(2,'0')+':'+x:m+':'+x};
 const ytLink=v=>'https://www.youtube.com/'+(v.formato==='short'?'shorts/':'watch?v=')+encodeURIComponent(v.id);
 function ytCard(v){const ret=v.pctVisto!=null?' · '+Math.round(v.pctVisto)+'% visto em média':'';
@@ -293,12 +300,13 @@ function acvStoriesReal(){const old=META.stories.filter(s=>Date.parse(s.ts)<=Dat
     :`<p class="muted">${old.length?'Nenhum story com esse filtro.':'Os stories aparecem aqui 24 h depois de publicados, quando saem do ar.'+(META.stories.length?' A captura começou em '+fmt(desde)+'.':'')}</p>`}
    <p class="muted" style="font-size:12px;margin:0">O portal guarda os números de cada story enquanto ele está no ar (o Instagram apaga depois de 24 h). As imagens ficam na pasta Stories do Drive.</p>`}
 function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(null);
-  const L=[...META.ads.anuncios.values()].filter(a=>tot[a.id]||a.effective_status==='ACTIVE').filter(a=>{const u=(a.creative||{}).instagram_permalink_url;return !(u&&org.has(normLink(u)))&&!/^(post|publica[cç][aã]o) do (instagram|facebook)/i.test(a.name||'')});
+  const seis=addDays(TODAY,-183);
+  const L=[...META.ads.anuncios.values()].filter(a=>a.effective_status==='ACTIVE'||(tot[a.id]&&tot[a.id].ate>=seis)).filter(a=>{const u=(a.creative||{}).instagram_permalink_url;return !(u&&org.has(normLink(u)))&&!/^(post|publica[cç][aã]o) do (instagram|facebook)/i.test(a.name||'')});
   const st=a=>a.effective_status==='ACTIVE'?'Ativo':'Encerrado';
   const cats=[['Ativo','Ativos',L.filter(a=>st(a)==='Ativo').length],['Encerrado','Encerrados',L.filter(a=>st(a)!=='Ativo').length]];
-  const vis=L.filter(a=>acvMatch('dark',st(a),(a.name||'')+' '+((a.campaign||{}).name||'')+' '+((a.creative||{}).body||'')));const camps=[...new Set(vis.map(a=>(a.campaign||{}).name||'Sem campanha'))];
-  return `${acvToolbar('dark',cats)}${vis.length?gridGroups(camps.map(c=>({t:c,items:vis.filter(a=>((a.campaign||{}).name||'Sem campanha')===c).map(a=>{const t=tot[a.id];
-    return acard(adRealPreview(a),ktag(st(a).toUpperCase(),st(a)==='Ativo'?'--ok':'--muted'),esc(a.name),t?`${fk(t.im)} impressões · ${n(t.c)} cliques`:'sem veiculação registrada',t?fmt(t.de)+' a '+fmt(t.ate):'')})}))):`<p class="muted">${L.length?'Nenhum anúncio com esse filtro.':'Nenhum dark post nos últimos 6 meses: os anúncios foram posts do perfil impulsionados.'}</p>`}
+  const vis=L.filter(a=>acvMatch('dark',st(a),(a.name||'')+' '+((a.campaign||{}).name||'')+' '+((a.creative||{}).body||'')));const ult=a=>(tot[a.id]&&tot[a.id].ate)||a.created_time||'';vis.sort((x,y)=>String(ult(y)).localeCompare(String(ult(x))));
+  return `${acvToolbar('dark',cats)}${vis.length?`<div class="agrid">${vis.map(a=>{const t=tot[a.id];
+    return acard(adRealPreview(a),ktag(st(a).toUpperCase(),st(a)==='Ativo'?'--ok':'--muted'),esc(a.name),(t?`${fk(t.im)} impressões · ${n(t.c)} cliques`:'sem veiculação registrada')+((a.campaign||{}).name?' · '+esc(a.campaign.name):''),t?fmt(t.de)+' a '+fmt(t.ate):'')}).join('')}</div>`:`<p class="muted">${L.length?'Nenhum anúncio com esse filtro.':'Nenhum dark post nos últimos 6 meses: os anúncios foram posts do perfil impulsionados.'}</p>`}
    <p class="muted" style="font-size:12px;margin:0">Anúncios que rodam só como mídia paga, do Gerenciador de Anúncios da Meta (últimos 6 meses).</p>`}
 
 // ARQUIVOS NO GOOGLE DRIVE: enviados pelo portal, guardados no Drive da Spraytec e vistos aqui dentro.
@@ -1258,12 +1266,25 @@ function acvMateriais(){
   return `${exm}${acvToolbar('materiais',cats,drive)}${gridGroups(PASTAS.map(f=>({t:f,items:vis.filter(a=>a.pasta===f).map(a=>`<a class="acard" href="https://drive.google.com/" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><div class="athumb"><div class="mthumb" style="background:${a.cor}">${a.tipo==='vídeo'?'<span class="mplay">▶</span>':''}<span>${esc(a.titulo)}</span></div></div><div class="ainfo"><div class="arow">${ktag(a.tipo==='vídeo'?'VÍDEO':'FOTO',a.tipo==='vídeo'?'--k-video':'--k-design')}<span class="mono muted">${a.mod}</span></div><b>${esc(a.arquivo)}</b><span class="muted">${esc(a.safra)}${a.produto!=='—'?' · '+esc(a.produto):''} · ${esc(a.origem)}</span></div></a>`)})))}
    <p class="muted" style="font-size:12px;margin:0">Os arquivos ficam no Google Drive da Spraytec. Clique para abrir no Drive.</p>`}
 function acvPosts(){
+  if(metaTem('ig')||metaTem('fb'))return acvPostsReal();
   const RD=[['ig','Instagram'],['fb','Facebook'],['yt','YouTube'],['email','E-mail marketing']];
   const pub=posts.filter(p=>RD.some(r=>r[0]===p.rede)&&p.status==='publicado').sort((a,b)=>b.date.localeCompare(a.date));
   const cats=RD.map(([k,l])=>[k,l,pub.filter(p=>p.rede===k).length]);
   const vis=pub.filter(p=>prodOk(p.produto)&&acvMatch('posts',p.rede,p.titulo+' '+p.pilar+' '+p.produto));
   return `${acvToolbar('posts',cats,prodFiltro())}${gridGroups(RD.map(([k,l])=>({t:l,items:vis.filter(p=>p.rede===k).map(p=>{const m=k!=='email'?metricsOf(p):null;
     return acard(preview(p),ktag(FORMATO[p.formato].toUpperCase(),'--k-'+(k==='email'?'email':'post')),esc(p.titulo),(semProd(p.produto)?'':esc(p.produto)+' · ')+(m?`alcance ${fk(m.alc)} · ${pct(m.eng)}`:esc(p.pilar)),fmt(p.date),`data-open="${p.id}" tabindex="0" role="button"`)})})))}`}
+function acvPostsReal(){
+  const RD=[['ig','Instagram'],['fb','Facebook'],['yt','YouTube']];
+  const yt=metaTem('yt')?META.yt.videos.filter(v=>v.publico).map(v=>({...v,rede:'yt',link:ytLink(v),formato:v.formato==='short'?'short':'video'})):[];
+  const pub=[...META.posts,...yt].filter(x=>x.date).sort((a,b)=>(b.ts||b.date).localeCompare(a.ts||a.date));
+  const cats=RD.map(([k,l])=>[k,l,pub.filter(x=>x.rede===k).length]);
+  const vis=pub.filter(x=>acvMatch('posts',x.rede,(x.titulo||'')+' '+(x.legenda||'')));const meses=[...new Set(vis.map(x=>x.date.slice(0,7)))];
+  const fmtN={reel:'REEL',carrossel:'CARROSSEL',video:'VÍDEO',short:'SHORT',post:'POST'};
+  const card=x=>{const c=calDe&&x.rede!=='yt'?calDe(x):null;const num=x.rede==='yt'?fk(x.views)+' visualizações':x.alc!=null?'alcance '+fk(x.alc)+(x.eng!=null?' · '+pct(x.eng):''):n(x.curt||0)+' curtidas';
+    return acard(`<a class="apost" href="${esc(x.link||'#')}" target="_blank" rel="noopener">${imgTag(x.img,'apimg')}<span class="apcap">${esc((x.titulo||'').slice(0,60))}</span></a>`,ktag((fmtN[x.formato]||'POST')+' · '+NETNAME[x.rede].toUpperCase(),'--k-post'),esc(x.titulo||'(sem legenda)'),num,fmt(x.date),c?`data-open="${c.id}" tabindex="0" role="button"`:'')};
+  const mesN=m=>MONTHS[+m.slice(5)-1]+' de '+m.slice(0,4);
+  return `${acvToolbar('posts',cats)}${gridGroups(meses.slice(0,12).map(m=>({t:mesN(m),items:vis.filter(x=>x.date.startsWith(m)).map(card)})))}
+   <p class="muted" style="font-size:12px;margin:0">Tudo o que foi publicado no Instagram, no Facebook e no YouTube da Spraytec, dos últimos 12 meses com publicação. Clique na imagem para abrir na rede.</p>`}
 function acvStories(){
   if(metaTem('ig'))return acvStoriesReal();
   const exm=exLinha('Stories de exemplo: entram com a integração do Meta.');
@@ -1748,7 +1769,7 @@ function viewAtividade(){
 
 // ---------- cliques ----------
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-pessoa],[data-selall],[data-calv],[data-acat],[data-relcat],[data-per],[data-psort],[data-cord],[data-thread],[data-thread-go],[data-tab],[data-tipo],[data-atipo],[data-quem],[data-pasta],[data-view],[data-open],[data-video],[data-dem],[data-act],[data-month],[data-sel],[data-selv]');
+  const t=e.target.closest('[data-pessoa],[data-selall],[data-calv],[data-acat],[data-relcat],[data-per],[data-psort],[data-prede],[data-cord],[data-thread],[data-thread-go],[data-tab],[data-tipo],[data-atipo],[data-quem],[data-pasta],[data-view],[data-open],[data-video],[data-dem],[data-act],[data-month],[data-sel],[data-selv]');
   if(!t)return;
   const d=t.dataset;
   if(d.pessoa){api('/api/entrar/demo',{usuarioId:d.pessoa}).then(iniciar).catch(err=>toast(err.message));return}
@@ -1758,6 +1779,7 @@ document.addEventListener('click',e=>{
   if(d.relcat){S.relCat=d.relcat;render();return}
   if(d.per){setPreset(d.per);render();return}
   if(d.psort){S.psort=d.psort;render();return}
+  if(d.prede){S.prede=d.prede;render();return}
   if(d.cord){S.cord=d.cord;render();return}
   if(d.thread){S.thread=d.thread;S.linkPick=false;render();return}
   if(d.threadGo){S.thread=d.threadGo;S.view='hoje';S.drawer=null;render();irChat();return}
