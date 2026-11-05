@@ -8,3 +8,6 @@ ACESSO-DEMO.txt
 
 # credenciais locais (scripts do GTM etc.), nunca no git
 .segredos/
+
+# configurações locais do Claude Code (permissões desta máquina)
+.claude/settings.local.json
