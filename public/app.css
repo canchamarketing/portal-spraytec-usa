@@ -1142,3 +1142,11 @@ details.acc[open]>summary::after{transform:rotate(180deg)}
 .prodl{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:4px}
 .pchip{font-size:11px;border-radius:999px;padding:1px 8px;background:var(--b-safra-bg);color:var(--b-safra-fg)}
 .prodl .cprod{font-size:12px;padding:2px 6px;width:auto;max-width:100%;margin-left:auto}
+/* reunião 06/11 */
+details.accmini{margin:2px 2px 0}
+details.accmini>summary{cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+details.accmini>summary::-webkit-details-marker{display:none}
+details.accmini>summary::after{content:"▾";transition:transform .15s}
+details.accmini[open]>summary::after{transform:rotate(180deg)}
+details.accmini>summary:hover{color:var(--ink)}
+.apmnav{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0 -4px}

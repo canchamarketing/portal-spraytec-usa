@@ -325,7 +325,7 @@ function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(
   const cats=[['Ativo','Ativos',L.filter(a=>st(a)==='Ativo').length],['Encerrado','Encerrados',L.filter(a=>st(a)!=='Ativo').length]];
   const ult=a=>String((tot[a.id]&&tot[a.id].ate)||a.created_time||'').slice(0,10),txtA=a=>(a.name||'')+' '+((a.campaign||{}).name||'')+' '+((a.creative||{}).body||'')+' '+((a.creative||{}).title||''),PA=new Map(L.map(a=>[a.id,prodDe('ad:'+a.id,txtA(a),null)]));
   const vis=L.filter(a=>prodOkL(PA.get(a.id).l)&&perOkA(ult(a))&&acvMatch('dark',st(a),txtA(a)+' '+PA.get(a.id).l.join(' ')));vis.sort((x,y)=>ult(y).localeCompare(ult(x)));
-  return `${acvToolbar('dark',cats,prodFiltro()+perFiltro(L.map(ult)))}${vis.length?`<div class="agrid">${vis.map(a=>{const t=tot[a.id];
+  return `${acvToolbar('dark',cats,prodFiltro()+perFiltro(L.map(ult))+prodToggle())}${vis.length?`<div class="agrid">${vis.map(a=>{const t=tot[a.id];
     return acard(adRealPreview(a),ktag(st(a).toUpperCase(),st(a)==='Ativo'?'--ok':'--muted'),esc(a.name),(t?`${fk(t.im)} impressões · ${n(t.c)} cliques`:'sem veiculação registrada')+((a.campaign||{}).name?' · '+esc(a.campaign.name):''),t?fmt(t.de)+' a '+fmt(t.ate):'','',prodLinha('ad:'+a.id,PA.get(a.id)))}).join('')}</div>`:`<p class="muted">${L.length?'Nenhum anúncio com esse filtro.':'Nenhum dark post nos últimos 6 meses: os anúncios foram posts do perfil impulsionados.'}</p>`}
    <p class="muted" style="font-size:12px;margin:0">Anúncios que rodam só como mídia paga, do Gerenciador de Anúncios da Meta (últimos 6 meses).</p>`}
 
@@ -928,7 +928,7 @@ function perfFunil(){
   <section class="panel"><h2>Do anúncio ao contato</h2>${funil}</section>
   <section class="panel"><h2>Contatos do período · ${n(K.total)}</h2>${origens}</section>
   <section class="panel"><h2>Contatos por campanha</h2>${campT}</section>
-  <details class="panel acc"><summary><h2 style="font-size:15px;margin:0">Como contamos os contatos</h2></summary><ul class="muted" style="font-size:13px;margin:6px 0 0;padding-left:18px;line-height:1.6">
+  <details class="accmini"><summary>Como contamos os contatos</summary><ul class="muted" style="font-size:13px;margin:6px 0 0;padding-left:18px;line-height:1.6">
    <li><b>Site:</b> cada envio do formulário ou do WhatsApp do site, registrado pelo Google Analytics, venha a pessoa de onde vier.</li>
    <li><b>Meta:</b> conversas iniciadas pelo anúncio (WhatsApp, Direct e Messenger) e formulários preenchidos dentro do Facebook ou do Instagram.</li>
    <li><b>Sem contar duas vezes:</b> quando a pessoa clica no anúncio e preenche o formulário do site, a Meta (pelo pixel) e o Google Ads também registram. Esses registros não somam ao total, porque o site já contou.</li>
@@ -1052,7 +1052,11 @@ function viewHoje(){
 // APROVAÇÃO
 const ATIPOS=[['todos','Todos'],['Pauta','Pautas'],['Textos','Textos'],['Post','Posts'],['Story','Stories'],['Vídeo','Vídeos'],['E-mail marketing','E-mail marketing'],['Plano de mídia','Plano de mídia'],['Peça de anúncio','Peças de anúncio']];
 // Na Aprovação: a preparação em andamento (mês seguinte) e a do mês atual enquanto não terminou.
-function cicloAprov(){if(isDir())return '';const m0=TODAY.slice(0,7),a=m0>=CICLO_DESDE&&!cicloEtapas(m0).S8.slice(0,7).every(x=>x.done)?cicloStrip(m0):'';return a+cicloStrip(addMonth(m0,1))}
+// Na Aprovação: a preparação do mês seguinte e, se quiser adiantar (insumos de janeiro, por exemplo), a dos meses depois.
+function cicloAprov(){if(isDir())return '';const m0=TODAY.slice(0,7),prox=addMonth(m0,1),a=m0>=CICLO_DESDE&&!cicloEtapas(m0).S8.slice(0,7).every(x=>x.done)?cicloStrip(m0):'';
+  const ms=[0,1,2,3,4,5].map(k=>addMonth(prox,k)).filter(m=>m>=CICLO_DESDE),sel=ms.includes(S.apm)?S.apm:ms[0];if(!sel)return a;
+  const nav=`<div class="filters apmnav" role="group" aria-label="Mês da preparação"><span class="muted" style="font-size:12px">Preparar o calendário de</span>${ms.map(m=>`<button class="chip" data-act="apm" data-m="${m}" aria-pressed="${m===sel}">${MONTHS[+m.slice(5)-1]}${m.slice(0,4)!==m0.slice(0,4)?' '+m.slice(0,4):''}</button>`).join('')}</div>`;
+  return a+nav+cicloStrip(sel)}
 function viewAprovacao(){
   const rows=[...posts.filter(p=>['pauta_aprovacao','texto_aprovacao','aprovacao','ajuste'].includes(p.status)).sort((a,b)=>(a.date||'9').localeCompare(b.date||'9')).map(p=>({p,tipo:tipoAprov(p)})),...roteirosPend().map(v=>({v,tipo:'Vídeo'}))];
   const vis=rows.filter(r=>S.atipo==='todos'||r.tipo===S.atipo);
@@ -1205,14 +1209,7 @@ function perfTrafego(){
   ${metaTem('ads')||metaTem('gads')?midiaReal():`${gadsConexao()}<h2 style="font-size:16px;margin:4px 0 0">Mídia paga ${EX}</h2>
   ${kpisC([{l:'Investimento',v:rs(T.i),s:'3 plataformas',cur:T.i,prev:C&&C.i,prevTxt:C&&rs(C.i)},{l:'Impressões',v:fk(T.im),cur:T.im,prev:C&&C.im,prevTxt:C&&fk(C.im)},{l:'Cliques',v:fk(T.c),s:'CTR '+pct(T.c/T.im*100),cur:T.c,prev:C&&C.c,prevTxt:C&&fk(C.c)},{l:'Contatos',v:T.ct,s:'formulário e WhatsApp',cur:T.ct,prev:C&&C.ct,prevTxt:C&&String(C.ct)},{l:'Custo por contato',v:T.ct?rs(T.i/T.ct):'—',s:plano&&temMeta(plano.dados.metas.cpl)?'meta: até R$ '+plano.dados.metas.cpl:'',cur:T.ct?T.i/T.ct:null,prev:C&&C.ct?C.i/C.ct:null,prevTxt:C&&C.ct?rs(C.i/C.ct):null,low:true}],cr)}
   <div class="tablewrap"><table class="ap" style="min-width:640px"><thead><tr><th>Plataforma</th><th>Investimento</th><th>Impressões</th><th>Cliques</th><th>Custo por clique</th><th>Contatos</th><th>Custo por contato</th></tr></thead><tbody>${pl.map(r=>`<tr>${r.map((c,i)=>`<td class="${i?'mono':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-  ${secCriativos()}`}
-  <div class="grid2">
-   <section class="panel"><h2>Otimizações da semana ${EX}</h2><div class="list">
-    <div class="row"><span class="mono muted" style="font-size:12px">${fmt(addDays(TODAY,-3))}</span><div class="grow">Pausados 3 termos com custo alto e sem clique</div></div>
-    <div class="row"><span class="mono muted" style="font-size:12px">${fmt(addDays(TODAY,-3))}</span><div class="grow">Teste A/B no Meta: carrossel educativo × reel de campo</div></div>
-    <div class="row"><span class="mono muted" style="font-size:12px">${fmt(addDays(TODAY,-10))}</span><div class="grow">Verba movida do Display para Pesquisa (+R$ 800)</div></div></div></section>
-   <section class="panel"><h2>Rastreamento ${EX}</h2><div class="list">${[['Pixel e API de Conversões da Meta',1],[metaTem('ga4')?'GA4 no site (visitas nos últimos 7 dias)':'GA4 e Tag Manager no site',metaTem('ga4')?siteStats({de:addDays(TODAY,-6),ate:TODAY}).ses>0:1],['UTM padronizado nos links',1],['Cruzamento com vendas do comercial',0]].map(r=>`<div class="row">${tagPill(r[1]?'OK':'Pendente',r[1]?'--ok':'--warn')}<div class="grow">${r[0]}</div></div>`).join('')}</div></section>
-  </div>`;
+  ${secCriativos()}`}`;
 }
 // SITE (Google Analytics 4)
 const CANAL_PT={'Organic Search':'Busca orgânica','Direct':'Direto','Organic Social':'Social orgânico','Paid Social':'Social pago','Paid Search':'Busca paga','Referral':'Outros sites','Email':'E-mail','Unassigned':'Não identificado','Display':'Display','Organic Video':'Vídeo orgânico','Paid Video':'Vídeo pago','Cross-network':'Várias redes do Google','Paid Other':'Outros pagos','Organic Shopping':'Shopping orgânico','Paid Shopping':'Shopping pago','Affiliates':'Afiliados','SMS':'SMS','Mobile Push Notifications':'Notificações','Audio':'Áudio'};
@@ -1345,7 +1342,9 @@ let CLASSIF=[];
 function prodDe(key,txt,cal){const m=CLASSIF.find(c=>c.id===key);if(m)return {l:m.produto==='—'?[]:[m.produto],fonte:'manual',v:m.produto};
   if(cal&&!semProd(cal.produto))return {l:[cal.produto],fonte:'calendario',v:''};const l=sugereProdutos(txt);return {l,fonte:l.length?'auto':'',v:''}}
 const prodOkL=l=>!S.prod||(S.prod==='—'?!l.length:l.includes(S.prod));
-function prodLinha(key,P){const chips=P.l.map(x=>`<span class="pchip">${esc(x)}</span>`).join('')||'<span class="muted" style="font-size:12px">sem produto</span>';
+// O produto fica oculto nos cards (usa-se o filtro); "Mostrar produtos" abre para conferir e corrigir.
+const prodToggle=()=>`<button class="linkbtn" data-act="acv-prod" style="font-size:12px">${S.aprod?'Ocultar produtos':'Mostrar produtos'}</button>`;
+function prodLinha(key,P){if(!S.aprod)return '';const chips=P.l.map(x=>`<span class="pchip">${esc(x)}</span>`).join('')||'<span class="muted" style="font-size:12px">sem produto</span>';
   const ed=isTeam()||isM();if(!ed)return `<div class="prodl">${chips}</div>`;const l=produtosLista();if(P.v&&P.v!=='—'&&!l.includes(P.v))l.push(P.v);
   return `<div class="prodl">${chips}${P.fonte==='auto'?'<span class="muted" style="font-size:11px">sugerido</span>':''}<select class="pe cprod" data-cprod="${esc(key)}" aria-label="Produto"><option value="">${P.fonte==='manual'?'Voltar à sugestão':'Mudar produto…'}</option>${l.map(x=>`<option value="${esc(x)}" ${P.v===x?'selected':''}>${esc(x)}</option>`).join('')}<option value="—" ${P.v==='—'?'selected':''}>Sem produto</option></select></div>`}
 // período do acervo
@@ -1404,8 +1403,8 @@ function acvPostsReal(){
   const fmtN={reel:'REEL',carrossel:'CARROSSEL',video:'VÍDEO',short:'SHORT',post:'POST'};
   const card=({x,cal,key,P})=>{const num=x.rede==='yt'?fk(x.views)+' visualizações':x.alc!=null?'alcance '+fk(x.alc)+(x.eng!=null?' · '+pct(x.eng):''):n(x.curt||0)+' curtidas';
     return acard(`<a class="apost" href="${esc(x.link||'#')}" target="_blank" rel="noopener">${imgTag(x.img,'apimg')}<span class="apcap">${esc((x.titulo||'').slice(0,60))}</span></a>`,ktag((fmtN[x.formato]||'POST')+' · '+NETNAME[x.rede].toUpperCase(),'--k-post'),esc(x.titulo||'(sem legenda)'),num,fmt(x.date),cal?`data-open="${cal.id}" tabindex="0" role="button"`:'',prodLinha(key,P))};
-  return `${acvToolbar('posts',cats,prodFiltro()+perFiltro(pub.map(o=>o.x.date)))}${gradeA(vis.map(card))}
-   <p class="muted" style="font-size:12px;margin:0">Tudo o que foi publicado no Instagram, no Facebook e no YouTube da Spraytec. O produto vem do texto do post quando aparece o nome dele ("sugerido"); a Cancha e a Operação podem corrigir. Clique na imagem para abrir na rede.</p>`}
+  return `${acvToolbar('posts',cats,prodFiltro()+perFiltro(pub.map(o=>o.x.date))+prodToggle())}${gradeA(vis.map(card))}
+   <p class="muted" style="font-size:12px;margin:0">Tudo o que foi publicado no Instagram, no Facebook e no YouTube da Spraytec. O produto vem do texto do post quando aparece o nome dele; para conferir ou corrigir, use "Mostrar produtos". Clique na imagem para abrir na rede.</p>`}
 function acvStories(){
   if(metaTem('ig'))return acvStoriesReal();
   const exm=exLinha('Stories de exemplo: entram com a integração do Meta.');
@@ -1466,14 +1465,10 @@ function cicloEtapas(m){const c=cicloDe(m),z=prazosCiclo(m),ps=pautasDe(m),tot=p
     {l:'Publicação',q:'auto',done:tot>0&&cnt(7)===tot,d:tot?cnt(7)+' de '+tot+' no ar':''}];
   return {S8,cur:S8.findIndex(x=>!x.done),z}}
 const cicloTit=m=>'Preparação do calendário de '+mesCiclo(m);
-function cicloQuando(m){const a=addMonth(m,-1),t=TODAY.slice(0,7),ma=mesCiclo(a);return a===t?'agora, em '+ma:a<t?'feita em '+ma:'acontece em '+ma}
 function cicloStrip(m){if(m<CICLO_DESDE)return '';const {S8,cur}=cicloEtapas(m);
   if(S8.slice(0,7).every(x=>x.done))return `<section class="ciclobox ciclook"><div class="ciclohead"><h2>✓ ${cicloTit(m)} concluída</h2><span class="muted" style="font-size:12px">Pautas, textos e peças aprovados · ${S8[7].d}</span></div></section>`;
-  return `<section class="ciclobox"><div class="ciclohead"><h2>${cicloTit(m)} <span class="cq">· ${cicloQuando(m)}</span></h2><span class="muted" style="font-size:12px">Combinado: insumos até dia 1 · pautas até dia 10 · textos até dia 15 · peças até o fim do mês · cada aprovação em até 2 dias úteis · prazo que cai em fim de semana ou feriado passa para o dia útil seguinte</span></div>
+  return `<section class="ciclobox"><div class="ciclohead"><h2>${cicloTit(m)}</h2><span class="muted" style="font-size:12px">Combinado: insumos até dia 1 · pautas até dia 10 · textos até dia 15 · peças até o fim do mês · cada aprovação em até 2 dias úteis · prazo que cai em fim de semana ou feriado passa para o dia útil seguinte</span></div>
   <div class="ciclo">${S8.map((x,i)=>{const late=!x.done&&x.ate&&x.ate<TODAY;return `<div class="cs ${x.done?'done':i===cur?'cur':''} ${late?'late':''}" style="--kc:var(--k-${x.q==='auto'?'post':x.q})"><span class="n">${x.done?'✓':i+1}</span><b>${x.l}</b><span class="q">${quemNome(x.q)+(x.sub?' '+x.sub:'')}</span><span class="d">${late?'Atrasado · ':''}${x.d}${x.ate&&!x.done&&!late&&!/^Até/.test(x.d)?' · até '+fmt(x.ate):''}</span>${x.btn?`<button class="btn ${x.btn[2]?'primary':''} sm" data-act="${x.btn[1]}" data-m="${m}">${x.btn[0]}</button>`:''}</div>`}).join('')}</div></section>`}
-// No mês atual, o calendário mostra só um aviso da preparação do mês seguinte, com o atalho para ele.
-function cicloAviso(m){if(m<CICLO_DESDE)return '';const {S8,cur}=cicloEtapas(m),x=cur<0?null:S8[cur],late=x&&x.ate&&x.ate<TODAY;
-  return `<section class="cicloaviso"><div><span class="eyebrow">${cicloQuando(m).replace(/^./,c=>c.toUpperCase())}</span><b>${cicloTit(m)}</b><span class="muted" style="font-size:13px">${x?`Etapa ${cur+1} de 8: ${x.l} · ${quemNome(x.q)}${x.ate?' · '+(late?'<span class="badt">atrasado, era até '+fmtLong(x.ate)+'</span>':'até '+fmtLong(x.ate)):''}`:'Preparação concluída'}</span></div><button class="btn primary sm" data-act="cal-mes" data-m="${m}">Abrir ${mesCiclo(m)} ›</button></section>`}
 function drawerIns(){const m=S.drawer.id,c=cicloDe(m),z=prazosCiclo(m),x=(c.ins&&c.ins.txt)||{},pode=isM()||isTeam();
   return `<header><div><div class="eyebrow">Ciclo de ${mesCiclo(m)} · etapa 1</div><h2>Insumos do mês</h2></div>${closeBtn()}</header>
   <div class="content"><p class="muted" style="margin:0">O que a Cancha precisa saber da Spraytec para montar as pautas de ${mesCiclo(m)}. Prazo: ${fmtLong(z.ins)}.</p>
@@ -2055,6 +2050,8 @@ document.addEventListener('click',e=>{
     case 'yt-desconectar':if(confirm('Desconectar o YouTube? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/yt/desconectar',{}).then(()=>{toast('YouTube desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'ga4-desconectar':if(confirm('Desconectar o Google Analytics? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/ga4/desconectar',{}).then(()=>{toast('Google Analytics desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'acv-mais':S.alim=(S.alim||48)+48;render();break;
+    case 'acv-prod':S.aprod=!S.aprod;render();break;
+    case 'apm':S.apm=t.dataset.m;render();break;
     case 'guia-arquivos':S.asub='materiais';S.acat.materiais='Guia de marca';S.mpasta='Guia de marca';render();break;
     case 'm-nova-pasta':{const n=(prompt('Nome da nova pasta de materiais:')||'').trim().slice(0,60);if(n){S.mpasta=n;render()}break}
     case 'meta-atualizar':api('/api/integracoes/atualizar',{}).then(j=>{toast(j.jaRodando?'A coleta já está rodando. Os números novos aparecem em alguns minutos.':'Coleta iniciada. Os números novos aparecem em alguns minutos.');[60e3,180e3,360e3].forEach(t=>setTimeout(carregarMeta,t))}).catch(err=>toast(err.message));break;
