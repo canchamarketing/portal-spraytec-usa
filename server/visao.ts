@@ -16,7 +16,7 @@ export function visaoPara(e0: Estado, u: Usuario) {
     return {
       videos: e.videos.map((v: any) => ({ ...v, postId: undefined, arquivos: vivos(v.arquivos) })),
       links: e.links.filter((l: string[]) => l[0].startsWith('v:') && l[1].startsWith('v:')),
-      posts: [], demandas: [], threads: [], marcos: [], ano: [], conc: [], aprendizados: [], relatorios: [], materiais: [], ciclos: [],
+      posts: [], demandas: [], threads: [], marcos: [], ano: [], conc: [], aprendizados: [], relatorios: [], materiais: [], ciclos: [], classif: [],
       plano: null, guia: e.guia, lanes: [], concAcoes: [],
     };
   }

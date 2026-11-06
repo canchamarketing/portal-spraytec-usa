@@ -602,6 +602,25 @@ export const ACOES: Record<string, Def> = {
       return { resumo: `Editou o conteúdo de "${p.titulo}"` };
     },
   },
+  // Produto de um post já publicado (Instagram, Facebook, YouTube) ou de um anúncio, no Acervo.
+  // Sem registro, o portal sugere pelo texto; "—" marca que não fala de produto nenhum.
+  'acervo-produto': {
+    papeis: MC,
+    fn: (c) => {
+      const id = typeof c.d.id === 'string' && /^(ig|fb|yt|ad):[\w.-]{1,80}$/.test(c.d.id) ? c.d.id : '';
+      if (!id) throw new ErroAcao('Item do acervo inválido.');
+      const produto = texto(c.d.produto, 'produto', 80, false);
+      const i = c.e.classif.findIndex((x) => x.id === id);
+      if (!produto) {
+        if (i < 0) return { resumo: 'Sem mudança' };
+        c.e.classif.splice(i, 1);
+        return { resumo: 'Voltou o produto de ' + id + ' para a sugestão automática' };
+      }
+      const novo = { id, produto, por: c.u.nome, em: c.hoje };
+      if (i < 0) c.e.classif.push(novo); else if (c.e.classif[i].produto === produto) return { resumo: 'Sem mudança' }; else c.e.classif[i] = novo;
+      return { resumo: 'Classificou ' + id + ' como ' + (produto === '—' ? 'sem produto' : produto) };
+    },
+  },
   'post-classificar': {
     papeis: MC,
     fn: (c) => {

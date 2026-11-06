@@ -323,9 +323,10 @@ function acvDarkReal(){const org=new Set(META.posts.map(x=>x.nl)),tot=adsTotais(
   const L=[...META.ads.anuncios.values()].filter(a=>a.effective_status==='ACTIVE'||(tot[a.id]&&tot[a.id].ate>=seis)).filter(a=>{const u=(a.creative||{}).instagram_permalink_url;return !(u&&org.has(normLink(u)))&&!/^(post|publica[cç][aã]o) do (instagram|facebook)/i.test(a.name||'')});
   const st=a=>a.effective_status==='ACTIVE'?'Ativo':'Encerrado';
   const cats=[['Ativo','Ativos',L.filter(a=>st(a)==='Ativo').length],['Encerrado','Encerrados',L.filter(a=>st(a)!=='Ativo').length]];
-  const vis=L.filter(a=>acvMatch('dark',st(a),(a.name||'')+' '+((a.campaign||{}).name||'')+' '+((a.creative||{}).body||'')));const ult=a=>(tot[a.id]&&tot[a.id].ate)||a.created_time||'';vis.sort((x,y)=>String(ult(y)).localeCompare(String(ult(x))));
-  return `${acvToolbar('dark',cats)}${vis.length?`<div class="agrid">${vis.map(a=>{const t=tot[a.id];
-    return acard(adRealPreview(a),ktag(st(a).toUpperCase(),st(a)==='Ativo'?'--ok':'--muted'),esc(a.name),(t?`${fk(t.im)} impressões · ${n(t.c)} cliques`:'sem veiculação registrada')+((a.campaign||{}).name?' · '+esc(a.campaign.name):''),t?fmt(t.de)+' a '+fmt(t.ate):'')}).join('')}</div>`:`<p class="muted">${L.length?'Nenhum anúncio com esse filtro.':'Nenhum dark post nos últimos 6 meses: os anúncios foram posts do perfil impulsionados.'}</p>`}
+  const ult=a=>String((tot[a.id]&&tot[a.id].ate)||a.created_time||'').slice(0,10),txtA=a=>(a.name||'')+' '+((a.campaign||{}).name||'')+' '+((a.creative||{}).body||'')+' '+((a.creative||{}).title||''),PA=new Map(L.map(a=>[a.id,prodDe('ad:'+a.id,txtA(a),null)]));
+  const vis=L.filter(a=>prodOkL(PA.get(a.id).l)&&perOkA(ult(a))&&acvMatch('dark',st(a),txtA(a)+' '+PA.get(a.id).l.join(' ')));vis.sort((x,y)=>ult(y).localeCompare(ult(x)));
+  return `${acvToolbar('dark',cats,prodFiltro()+perFiltro(L.map(ult)))}${vis.length?`<div class="agrid">${vis.map(a=>{const t=tot[a.id];
+    return acard(adRealPreview(a),ktag(st(a).toUpperCase(),st(a)==='Ativo'?'--ok':'--muted'),esc(a.name),(t?`${fk(t.im)} impressões · ${n(t.c)} cliques`:'sem veiculação registrada')+((a.campaign||{}).name?' · '+esc(a.campaign.name):''),t?fmt(t.de)+' a '+fmt(t.ate):'','',prodLinha('ad:'+a.id,PA.get(a.id)))}).join('')}</div>`:`<p class="muted">${L.length?'Nenhum anúncio com esse filtro.':'Nenhum dark post nos últimos 6 meses: os anúncios foram posts do perfil impulsionados.'}</p>`}
    <p class="muted" style="font-size:12px;margin:0">Anúncios que rodam só como mídia paga, do Gerenciador de Anúncios da Meta (últimos 6 meses).</p>`}
 
 // ARQUIVOS NO GOOGLE DRIVE: enviados pelo portal, guardados no Drive da Spraytec e vistos aqui dentro.
@@ -765,9 +766,9 @@ const SPRAY={nome:'Spraytec',cor:'var(--accent)',ads:9,novos:3,dur:31,fmt:[45,35
 const TEMAS_C=[['prod','Produtividade'],['foliar','Nutrição foliar'],['bio','Manejo de estresse'],['prova','Prova de campo e depoimento'],['preco','Preço e condição'],['tec','Conteúdo técnico com agrônomo']];
 let CONC_ACOES=[];
 function viewPlano(){
-  const tabs=[['plano','Plano atual'],['ano','Eventos e ano safra'],['conc','Concorrência']];const sb=S.esub||'plano';
-  const body=sb==='ano'?estAno():sb==='conc'?estConc():planoSection();
-  return `${head('Estratégia','O plano de mídia, os eventos e o ano safra, e a leitura da concorrência.')}${subtabs(tabs,'esub','Estratégia')}${body}`}
+  const tabs=[['plano','Plano atual'],['ano','Eventos e ano safra']];const sb=S.esub==='ano'?'ano':'plano';
+  const body=sb==='ano'?estAno():planoSection();
+  return `${head('Estratégia','O plano de mídia, os eventos e o ano safra.')}${subtabs(tabs,'esub','Estratégia')}${body}`}
 function estAno(){
   const aviso=MOSTRAR_EXEMPLO?'<section class="panel metaaviso" role="note"><b>Exemplo: este quadro ainda não é o calendário da Spraytec</b><p style="margin:6px 0 0">Ele mostra como vai ficar. A Spraytec vai enviar o calendário real do ano: safra das culturas, janelas comerciais, feiras, dias de campo e demais eventos.</p></section>':'';
   if(!ANO.length)return aviso+'<p class="muted">Os eventos e o ano safra ainda não foram cadastrados.</p>';
@@ -927,12 +928,12 @@ function perfFunil(){
   <section class="panel"><h2>Do anúncio ao contato</h2>${funil}</section>
   <section class="panel"><h2>Contatos do período · ${n(K.total)}</h2>${origens}</section>
   <section class="panel"><h2>Contatos por campanha</h2>${campT}</section>
-  <section class="panel"><h2 style="font-size:15px">Como contamos os contatos</h2><ul class="muted" style="font-size:13px;margin:6px 0 0;padding-left:18px;line-height:1.6">
+  <details class="panel acc"><summary><h2 style="font-size:15px;margin:0">Como contamos os contatos</h2></summary><ul class="muted" style="font-size:13px;margin:6px 0 0;padding-left:18px;line-height:1.6">
    <li><b>Site:</b> cada envio do formulário ou do WhatsApp do site, registrado pelo Google Analytics, venha a pessoa de onde vier.</li>
    <li><b>Meta:</b> conversas iniciadas pelo anúncio (WhatsApp, Direct e Messenger) e formulários preenchidos dentro do Facebook ou do Instagram.</li>
    <li><b>Sem contar duas vezes:</b> quando a pessoa clica no anúncio e preenche o formulário do site, a Meta (pelo pixel) e o Google Ads também registram. Esses registros não somam ao total, porque o site já contou.</li>
    <li><b>Mídia paga:</b> conversas e formulários da Meta, mais os envios do site de quem chegou por anúncio.</li>
-   <li>Oportunidades e vendas entram quando o funil com o comercial estiver definido.</li></ul></section>`}
+   <li>Oportunidades e vendas entram quando o funil com o comercial estiver definido.</li></ul></details>`}
 function perfFunilEx(){
   const F=funilStats({de:S.per.de,ate:S.per.ate},true),cr=cmpRange(),P=cr?funilStats(cr,false):null;
   const steps=[['Impressões',F.impr],['Cliques',F.clk],['Contatos',F.cont]];
@@ -1050,12 +1051,15 @@ function viewHoje(){
 
 // APROVAÇÃO
 const ATIPOS=[['todos','Todos'],['Pauta','Pautas'],['Textos','Textos'],['Post','Posts'],['Story','Stories'],['Vídeo','Vídeos'],['E-mail marketing','E-mail marketing'],['Plano de mídia','Plano de mídia'],['Peça de anúncio','Peças de anúncio']];
+// Na Aprovação: a preparação em andamento (mês seguinte) e a do mês atual enquanto não terminou.
+function cicloAprov(){if(isDir())return '';const m0=TODAY.slice(0,7),a=m0>=CICLO_DESDE&&!cicloEtapas(m0).S8.slice(0,7).every(x=>x.done)?cicloStrip(m0):'';return a+cicloStrip(addMonth(m0,1))}
 function viewAprovacao(){
   const rows=[...posts.filter(p=>['pauta_aprovacao','texto_aprovacao','aprovacao','ajuste'].includes(p.status)).sort((a,b)=>(a.date||'9').localeCompare(b.date||'9')).map(p=>({p,tipo:tipoAprov(p)})),...roteirosPend().map(v=>({v,tipo:'Vídeo'}))];
   const vis=rows.filter(r=>S.atipo==='todos'||r.tipo===S.atipo);
   const cnt=t=>rows.filter(r=>(t==='todos'||r.tipo===t)&&!(r.p&&r.p.status==='ajuste')).length;
   const keys=vis.filter(r=>!(r.p&&r.p.status==='ajuste')).map(r=>r.p?r.p.id:'v:'+r.v.id);S.selKeys=keys;const nSel=keys.filter(k=>S.sel[k]).length;const all=keys.length&&nSel===keys.length;
   return `${head('Aprovação',isM()?'Tudo o que espera por você numa tabela só. Marque e aprove de uma vez, ou abra o item para ver em tamanho real e pedir ajuste.':'Itens com a Spraytec: pautas e peças. Aprovação por WhatsApp ou e-mail é registrada dentro do item.')}
+  ${cicloAprov()}
   <div class="toolbar"><div class="filters">${ATIPOS.filter(([k])=>k==='todos'||rows.some(r=>r.tipo===k)).map(([k,l])=>`<button class="chip" data-atipo="${k}" aria-pressed="${S.atipo===k}">${l} · ${cnt(k)}</button>`).join('')}</div>
    ${isM()?'<div class="actions"><button class="btn" data-act="rapida">Aprovar um por um</button><button class="btn primary" data-act="approve-sel">Aprovar selecionados'+(nSel?' ('+nSel+')':'')+'</button></div>':''}</div>
   <div class="tablewrap"><table class="ap aprov"><thead><tr>${isM()?`<th><input type="checkbox" data-selall="1" aria-label="Selecionar todos" ${all?'checked':''} ${keys.length?'':'disabled'}></th>`:''}<th>Item</th><th>Tipo</th><th>Publicação</th><th>Prazo</th><th>Status</th><th></th></tr></thead><tbody>
@@ -1102,8 +1106,6 @@ function viewCalendario(){
   <div class="toolbar">${monthNav('month')}
    <div class="filters" role="group" aria-label="Tipos">${TIPOS.map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
    <div class="actions">${isTeam()?'<button class="btn" data-act="marcos">Editar safra, eventos e feriados</button><button class="btn" data-act="importar">Planilha</button>':''}<button class="btn primary" data-act="cal-add" data-date="">+ Adicionar</button></div></div>
-  ${S.month===TODAY.slice(0,7)?cicloAviso(addMonth(S.month,1)):''}${cicloStrip(S.month)}
-  <h2 class="calh">Publicações de ${mesCiclo(S.month)}</h2>
   <div class="calwrap">
    ${calGrid(S.month,d=>vp.filter(p=>p.date===d).sort(byTime).map(calItem).join('')+(S.tipos.demanda?demandas.filter(x=>x.data===d).map(x=>demChip(x,!isDir())).join(''):''),true,'cal-add')}
    <div class="calist"><section class="panel"><div class="eyebrow" style="margin-bottom:6px">Safra, comercial e eventos</div><div class="mkchips">${mk.length?'':'<span class="muted" style="font-size:13px">Nenhum evento cadastrado neste mês.</span>'}${mk.map(x=>`<button class="band b-${x.tipo}" data-act="${isTeam()?'marcos':''}"><b>${MK_TIPO[x.tipo]}</b><span>${esc(x.nome)} · ${fmt(x.ini)}–${fmt(x.fim)}</span></button>`).join('')}</div></section>${list||'<p class="muted">Nada neste mês.</p>'}</div>
@@ -1334,8 +1336,27 @@ function readRelDest(){S.relDest=(S.relDest||[]).map((_,i)=>{const e=document.ge
 function lerRel(){readRelDest();const t=$('#rl-t').value.trim();if(!t){toast('Dê um título ao relatório.');$('#rl-t').focus();return null}
   return {t,tipo:$('#rl-tipo').value,capa:$('#rl-capa').value.trim()||t,per:$('#rl-per').value.trim(),status:$('#rl-st').value,entrega:$('#rl-dt').value||TODAY,link:$('#rl-link').value.trim(),dest:S.relDest.map(x=>x.trim()).filter(Boolean),nota:$('#rl-nota').value.trim()}}
 
-// PRODUTOS: os do guia de marca primeiro, depois os que já aparecem nos posts
-function produtosLista(){const g=GUIA.produtos.map(x=>x.split('|')[0].trim()).filter(Boolean);const usados=[...new Set(posts.map(p=>p.produto).filter(x=>x&&x!=='—'))].filter(x=>!g.includes(x)).sort((a,b)=>a.localeCompare(b,'pt-BR'));return g.concat(usados)}
+// PRODUTOS: nomes que aparecem nas legendas da Spraytec (levantados em 06/11/2026), do mais específico ao mais geral.
+// A sugestão automática procura esses nomes no texto do post; quem classifica pode corrigir.
+const CATALOGO=[['Twin Pack Max',/twin\s*pack\s*max/],['Pack Max',/(^|[^a-z])pack\s*max/],['Packseed',/pack\s*seed/],['Carbonseed',/carbon\s*seed/],['Cubo IR',/cubo\s*ir/],['Arrow IR',/arrow\s*ir/],['Absortec',/absortec/],['Fulltec Max',/full\s*tec/],['Emultec Max',/emultec/],['Nutrol Max',/nutrol/],['Compative Max',/compative/],['Ultra K Max',/ultra\s*k\s*max/],['Ultra Mn Max',/(^|[^a-z])(ultra\s*)?mn\s*max/],['Ultra Zn Max',/(^|[^a-z])(ultra\s*)?zn\s*max/],['Ultra Zebinox',/zebinox/],['Nodofix',/nodo\s*fix/],['Tractus',/tractus/]];
+function sugereProdutos(txt){const t=semAcento(txt);return CATALOGO.filter(([,re])=>re.test(t)).map(([n])=>n)}
+let CLASSIF=[];
+// produto de um item do acervo: o que alguém marcou > o do item do calendário ligado a ele > sugestão pelo texto
+function prodDe(key,txt,cal){const m=CLASSIF.find(c=>c.id===key);if(m)return {l:m.produto==='—'?[]:[m.produto],fonte:'manual',v:m.produto};
+  if(cal&&!semProd(cal.produto))return {l:[cal.produto],fonte:'calendario',v:''};const l=sugereProdutos(txt);return {l,fonte:l.length?'auto':'',v:''}}
+const prodOkL=l=>!S.prod||(S.prod==='—'?!l.length:l.includes(S.prod));
+function prodLinha(key,P){const chips=P.l.map(x=>`<span class="pchip">${esc(x)}</span>`).join('')||'<span class="muted" style="font-size:12px">sem produto</span>';
+  const ed=isTeam()||isM();if(!ed)return `<div class="prodl">${chips}</div>`;const l=produtosLista();if(P.v&&P.v!=='—'&&!l.includes(P.v))l.push(P.v);
+  return `<div class="prodl">${chips}${P.fonte==='auto'?'<span class="muted" style="font-size:11px">sugerido</span>':''}<select class="pe cprod" data-cprod="${esc(key)}" aria-label="Produto"><option value="">${P.fonte==='manual'?'Voltar à sugestão':'Mudar produto…'}</option>${l.map(x=>`<option value="${esc(x)}" ${P.v===x?'selected':''}>${esc(x)}</option>`).join('')}<option value="—" ${P.v==='—'?'selected':''}>Sem produto</option></select></div>`}
+// período do acervo
+const APER=[['tudo','Todo o período'],['30','Últimos 30 dias'],['90','Últimos 90 dias'],['365','Últimos 12 meses']];
+function perOkA(d){const p=S.aper||'tudo';if(p==='tudo')return true;if(/^\d{4}$/.test(p))return (d||'').startsWith(p);return (d||'')>=addDays(TODAY,-Number(p))}
+function perFiltro(datas){const anos=[...new Set(datas.filter(Boolean).map(d=>d.slice(0,4)))].sort().reverse();const p=S.aper||'tudo';
+  return `<select id="f-aper" class="pe" aria-label="Período" style="width:auto">${[...APER,...anos.map(a=>[a,'Ano de '+a])].map(([k,l])=>`<option value="${k}" ${p===k?'selected':''}>${l}</option>`).join('')}</select>`}
+// grade contínua (sem quebra por mês), com "mostrar mais"
+function gradeA(cards,cls){const lim=S.alim||48;return cards.length?`<p class="muted" style="font-size:13px;margin:0">${n(cards.length)} ${cards.length===1?'item':'itens'}</p><div class="agrid ${cls||''}">${cards.slice(0,lim).join('')}</div>${cards.length>lim?`<div class="actions" style="justify-content:center"><button class="btn" data-act="acv-mais">Mostrar mais (${n(cards.length-lim)})</button></div>`:''}`:'<p class="muted">Nada encontrado com esses filtros.</p>'}
+// PRODUTOS: o catálogo, depois os do guia de marca e os que já aparecem nos posts
+function produtosLista(){const g=[...CATALOGO.map(c=>c[0]),...GUIA.produtos.map(x=>x.split('|')[0].trim()).filter(Boolean)].filter((x,i,a)=>a.indexOf(x)===i);const usados=[...new Set([...posts.map(p=>p.produto),...CLASSIF.map(c=>c.produto)].filter(x=>x&&x!=='—'))].filter(x=>!g.includes(x)).sort((a,b)=>a.localeCompare(b,'pt-BR'));return g.concat(usados)}
 const semProd=x=>!x||x==='—';
 function prodOk(x){return !S.prod||(S.prod==='—'?semProd(x):x===S.prod)}
 function prodFiltro(){const l=produtosLista();if(S.prod&&S.prod!=='—'&&!l.includes(S.prod))l.push(S.prod);
@@ -1355,7 +1376,7 @@ function rowD(tag,main,sub2,date,actions,more){return `<details class="rrow"><su
 function groupsHtml(groups){return groups.filter(g=>g.items.length).map(g=>`<section class="rgroup"><h3>${g.t} <span class="muted">${g.items.length}</span></h3><div class="rlist">${g.items.join('')}</div></section>`).join('')||'<p class="muted">Nada encontrado.</p>'}
 const ktag=(txt,c)=>`<span class="ktag" style="--kc:var(${c})">${txt}</span>`;
 function gridGroups(groups,cls){return groups.filter(g=>g.items.length).map(g=>`<section class="rgroup"><h3>${g.t} <span class="muted">${g.items.length}</span></h3><div class="agrid ${cls||''}">${g.items.join('')}</div></section>`).join('')||'<p class="muted">Nada encontrado.</p>'}
-function acard(thumb,tag,title,meta,date,attrs){return `<article class="acard" ${attrs||''}><div class="athumb">${thumb}</div><div class="ainfo"><div class="arow">${tag}<span class="mono muted">${date}</span></div><b>${title}</b><span class="muted">${meta}</span></div></article>`}
+function acard(thumb,tag,title,meta,date,attrs,extra){return `<article class="acard" ${attrs||''}><div class="athumb">${thumb}</div><div class="ainfo"><div class="arow">${tag}<span class="mono muted">${date}</span></div><b>${title}</b><span class="muted">${meta}</span>${extra||''}</div></article>`}
 function acvMateriais(){
   if(DRIVE.conectado||(isTeam()&&DRIVE.configurado))return acvMateriaisReal();
   const exm=exLinha('Materiais de exemplo: entram com a integração do Google Drive da Spraytec.');
@@ -1375,15 +1396,16 @@ function acvPosts(){
 function acvPostsReal(){
   const RD=[['ig','Instagram'],['fb','Facebook'],['yt','YouTube']];
   const yt=metaTem('yt')?META.yt.videos.filter(v=>v.publico).map(v=>({...v,rede:'yt',link:ytLink(v),formato:v.formato==='short'?'short':'video'})):[];
-  const pub=[...META.posts,...yt].filter(x=>x.date).sort((a,b)=>(b.ts||b.date).localeCompare(a.ts||a.date));
-  const cats=RD.map(([k,l])=>[k,l,pub.filter(x=>x.rede===k).length]);
-  const vis=pub.filter(x=>acvMatch('posts',x.rede,(x.titulo||'')+' '+(x.legenda||'')));const meses=[...new Set(vis.map(x=>x.date.slice(0,7)))];
+  const pub=[...META.posts,...yt].filter(x=>x.date).sort((a,b)=>(b.ts||b.date).localeCompare(a.ts||a.date)).map(x=>{const cal=calDe&&x.rede!=='yt'?calDe(x):null,key=x.rede+':'+x.id;
+    return {x,cal,key,P:prodDe(key,(x.titulo||'')+' '+(x.legenda||x.descricao||''),cal)}});
+  const base=pub.filter(o=>prodOkL(o.P.l)&&perOkA(o.x.date));
+  const cats=RD.map(([k,l])=>[k,l,base.filter(o=>o.x.rede===k).length]);
+  const vis=base.filter(o=>acvMatch('posts',o.x.rede,(o.x.titulo||'')+' '+(o.x.legenda||'')+' '+o.P.l.join(' ')));
   const fmtN={reel:'REEL',carrossel:'CARROSSEL',video:'VÍDEO',short:'SHORT',post:'POST'};
-  const card=x=>{const c=calDe&&x.rede!=='yt'?calDe(x):null;const num=x.rede==='yt'?fk(x.views)+' visualizações':x.alc!=null?'alcance '+fk(x.alc)+(x.eng!=null?' · '+pct(x.eng):''):n(x.curt||0)+' curtidas';
-    return acard(`<a class="apost" href="${esc(x.link||'#')}" target="_blank" rel="noopener">${imgTag(x.img,'apimg')}<span class="apcap">${esc((x.titulo||'').slice(0,60))}</span></a>`,ktag((fmtN[x.formato]||'POST')+' · '+NETNAME[x.rede].toUpperCase(),'--k-post'),esc(x.titulo||'(sem legenda)'),num,fmt(x.date),c?`data-open="${c.id}" tabindex="0" role="button"`:'')};
-  const mesN=m=>MONTHS[+m.slice(5)-1]+' de '+m.slice(0,4);
-  return `${acvToolbar('posts',cats)}${gridGroups(meses.slice(0,12).map(m=>({t:mesN(m),items:vis.filter(x=>x.date.startsWith(m)).map(card)})))}
-   <p class="muted" style="font-size:12px;margin:0">Tudo o que foi publicado no Instagram, no Facebook e no YouTube da Spraytec, dos últimos 12 meses com publicação. Clique na imagem para abrir na rede.</p>`}
+  const card=({x,cal,key,P})=>{const num=x.rede==='yt'?fk(x.views)+' visualizações':x.alc!=null?'alcance '+fk(x.alc)+(x.eng!=null?' · '+pct(x.eng):''):n(x.curt||0)+' curtidas';
+    return acard(`<a class="apost" href="${esc(x.link||'#')}" target="_blank" rel="noopener">${imgTag(x.img,'apimg')}<span class="apcap">${esc((x.titulo||'').slice(0,60))}</span></a>`,ktag((fmtN[x.formato]||'POST')+' · '+NETNAME[x.rede].toUpperCase(),'--k-post'),esc(x.titulo||'(sem legenda)'),num,fmt(x.date),cal?`data-open="${cal.id}" tabindex="0" role="button"`:'',prodLinha(key,P))};
+  return `${acvToolbar('posts',cats,prodFiltro()+perFiltro(pub.map(o=>o.x.date)))}${gradeA(vis.map(card))}
+   <p class="muted" style="font-size:12px;margin:0">Tudo o que foi publicado no Instagram, no Facebook e no YouTube da Spraytec. O produto vem do texto do post quando aparece o nome dele ("sugerido"); a Cancha e a Operação podem corrigir. Clique na imagem para abrir na rede.</p>`}
 function acvStories(){
   if(metaTem('ig'))return acvStoriesReal();
   const exm=exLinha('Stories de exemplo: entram com a integração do Meta.');
@@ -1902,7 +1924,7 @@ function aplicar(j){
   APRENDIZADOS=d.aprendizados||[];RELATORIOS=d.relatorios||[];plano=d.plano||null;GUIA=d.guia||GUIA;LANES=d.lanes||[];CONC_ACOES=d.concAcoes||[];LINKS=d.links||[];
   planoItem=posts.find(p=>p.formato==='plano')||null;
   S.role=EU.papel;
-  CICLOS=d.ciclos||[];
+  CICLOS=d.ciclos||[];CLASSIF=d.classif||[];
   DRIVE=j.drive||{conectado:false,configurado:false};GA4=j.ga4||{conectado:false,configurado:false};YT=j.yt||{conectado:false,configurado:false};GADS=j.gads||{conectado:false,configurado:false};materiais=d.materiais||[];
   if(primeira){if(EU.papel==='produtora')META=null;else{META=undefined;carregarMeta()}}
   if(primeira||novoDia){carregarFonteExemplo();if(!S.month){S.month=(Number(TODAY.slice(8))>=15?addDays(TODAY.slice(0,8)+'01',40):TODAY).slice(0,7);S.dmonth=TODAY.slice(0,7)}setPreset(S.per.preset&&S.per.preset!=='custom'?S.per.preset:'30')}
@@ -1976,6 +1998,7 @@ function viewAtividade(){
 
 // ---------- cliques ----------
 document.addEventListener('click',e=>{
+  if(e.target.closest('.cprod'))return;
   const t=e.target.closest('[data-pessoa],[data-selall],[data-calv],[data-kgrp],[data-acat],[data-relcat],[data-per],[data-psort],[data-prede],[data-ytord],[data-cord],[data-thread],[data-thread-go],[data-tab],[data-tipo],[data-atipo],[data-quem],[data-pasta],[data-view],[data-open],[data-video],[data-dem],[data-act],[data-month],[data-sel],[data-selv]');
   if(!t)return;
   const d=t.dataset;
@@ -2031,6 +2054,7 @@ document.addEventListener('click',e=>{
     case 'gads-desconectar':if(confirm('Desconectar o Google Ads? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/gads/desconectar',{}).then(()=>{toast('Google Ads desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'yt-desconectar':if(confirm('Desconectar o YouTube? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/yt/desconectar',{}).then(()=>{toast('YouTube desconectado.');iniciar()}).catch(err=>toast(err.message));break;
     case 'ga4-desconectar':if(confirm('Desconectar o Google Analytics? Os números já coletados continuam no portal, mas param de ser atualizados.'))api('/api/ga4/desconectar',{}).then(()=>{toast('Google Analytics desconectado.');iniciar()}).catch(err=>toast(err.message));break;
+    case 'acv-mais':S.alim=(S.alim||48)+48;render();break;
     case 'guia-arquivos':S.asub='materiais';S.acat.materiais='Guia de marca';S.mpasta='Guia de marca';render();break;
     case 'm-nova-pasta':{const n=(prompt('Nome da nova pasta de materiais:')||'').trim().slice(0,60);if(n){S.mpasta=n;render()}break}
     case 'meta-atualizar':api('/api/integracoes/atualizar',{}).then(j=>{toast(j.jaRodando?'A coleta já está rodando. Os números novos aparecem em alguns minutos.':'Coleta iniciada. Os números novos aparecem em alguns minutos.');[60e3,180e3,360e3].forEach(t=>setTimeout(carregarMeta,t))}).catch(err=>toast(err.message));break;
@@ -2145,7 +2169,7 @@ document.addEventListener('drop',e=>{const c=e.target.closest('[data-day],[data-
   if(g.k==='dem'){if(day!=='espera')acao('demanda-data',{id:g.id,data:day},()=>toast('Demanda movida para '+fmtLong(day)+'.'));return}
   if(day==='espera')acao('post-data',{id:g.id,data:null},()=>toast('Movido para em espera.'));
   else{const was=(posts.find(x=>x.id===g.id)||{}).status;acao('post-data',{id:g.id,data:day},()=>toast(was==='agendado'?'Data alterada e reagendado, sem duplicar.':'Data alterada para '+fmtLong(day)+'.'))}});
-document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='plano-arq'&&t.files&&t.files[0]){const fl=t.files[0];t.value='';planoLerArquivo(fl);return}if(t&&t.id==='f-prod'){S.prod=t.value;render();return}if(t&&t.id==='imp-arq'&&t.files&&t.files[0]){impLerArquivo(t.files[0]);return}if(t&&t.id==='per-cmp'){S.per.cmp=t.value;if(t.value==='custom'){const r={de:addDays(S.per.de,-perDays()),ate:addDays(S.per.de,-1)};S.per.cde=r.de;S.per.cate=r.ate}render();return}if(t&&(t.id==='per-cde'||t.id==='per-cate')&&t.value){S.per[t.id==='per-cde'?'cde':'cate']=t.value;if(S.per.cde>S.per.cate){const x=S.per.cde;S.per.cde=S.per.cate;S.per.cate=x}render();return}if(t&&(t.id==='per-de'||t.id==='per-ate')&&t.value){S.per.preset='custom';S.per[t.id==='per-de'?'de':'ate']=t.value;if(S.per.de>S.per.ate){const x=S.per.de;S.per.de=S.per.ate;S.per.ate=x}render();return}if(t&&t.id==='nt-tipo'){const keep={ti:$('#nt-titulo').value,da:$('#nt-data').value};S.novoTipo=t.value;S.drawer.id=keep.da;renderDrawer();$('#nt-titulo').value=keep.ti;$('#nt-tipo').focus()}});
+document.addEventListener('change',e=>{const t=e.target;if(t&&t.id==='plano-arq'&&t.files&&t.files[0]){const fl=t.files[0];t.value='';planoLerArquivo(fl);return}if(t&&t.id==='f-prod'){S.prod=t.value;S.alim=0;render();return}if(t&&t.id==='f-aper'){S.aper=t.value;S.alim=0;render();return}if(t&&t.dataset&&t.dataset.cprod){acao('acervo-produto',{id:t.dataset.cprod,produto:t.value},()=>toast('Produto salvo.'));return}if(t&&t.id==='imp-arq'&&t.files&&t.files[0]){impLerArquivo(t.files[0]);return}if(t&&t.id==='per-cmp'){S.per.cmp=t.value;if(t.value==='custom'){const r={de:addDays(S.per.de,-perDays()),ate:addDays(S.per.de,-1)};S.per.cde=r.de;S.per.cate=r.ate}render();return}if(t&&(t.id==='per-cde'||t.id==='per-cate')&&t.value){S.per[t.id==='per-cde'?'cde':'cate']=t.value;if(S.per.cde>S.per.cate){const x=S.per.cde;S.per.cde=S.per.cate;S.per.cate=x}render();return}if(t&&(t.id==='per-de'||t.id==='per-ate')&&t.value){S.per.preset='custom';S.per[t.id==='per-de'?'de':'ate']=t.value;if(S.per.de>S.per.ate){const x=S.per.de;S.per.de=S.per.ate;S.per.ate=x}render();return}if(t&&t.id==='nt-tipo'){const keep={ti:$('#nt-titulo').value,da:$('#nt-data').value};S.novoTipo=t.value;S.drawer.id=keep.da;renderDrawer();$('#nt-titulo').value=keep.ti;$('#nt-tipo').focus()}});
 document.addEventListener('input',e=>{if(e.target&&e.target.classList.contains('acq')){const sb=e.target.dataset.sub;S.aq[sb]=e.target.value;const pos=e.target.selectionStart;render();const x=document.getElementById('acq-'+sb);if(x){x.focus();try{x.setSelectionRange(pos,pos)}catch(_){}}return}if(e.target&&e.target.id==='rel-q'){S.relQ=e.target.value;const pos=e.target.selectionStart;render();const x=$('#rel-q');if(x){x.focus();try{x.setSelectionRange(pos,pos)}catch(_){}}return}const t=e.target;if(t.classList&&t.classList.contains('pe')&&t.dataset.orig!==undefined)t.classList.toggle('chgd',t.value!==t.dataset.orig)});
 document.addEventListener('dragend',()=>{drag=null;document.querySelectorAll('.over').forEach(x=>x.classList.remove('over'))});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.pop){S.pop=null;renderPop();return}if(e.key==='Enter'&&e.target&&e.target.dataset&&e.target.dataset.act==='pop'){e.preventDefault();e.target.click();return}if(e.key==='Escape'&&S.drawer){S.needExt=null;S.marcosEd=null;closeDrawer()}if(e.key==='Enter'&&!e.shiftKey&&e.target&&e.target.id==='cm'){e.preventDefault();const b=document.querySelector('[data-act="enviar-msg"]');if(b)b.click()}});
