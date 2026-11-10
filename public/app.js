@@ -6,7 +6,7 @@ const STATUS={
   ajuste:{l:'Ajuste',c:'--s-ajuste'}, aprovado:{l:'Aprovado',c:'--s-aprovado'},
   agendado:{l:'Agendado',c:'--s-agendado'}, publicado:{l:'Publicado',c:'--s-publicado'}, espera:{l:'Em espera',c:'--s-espera'}
 };
-const ST_CURTO={pauta:'Pauta',pauta_aprovacao:'Pauta p/ aprovar',producao:'Produção',aprovacao:'Aprovação',ajuste:'Ajuste',aprovado:'Aprovado',agendado:'Agendado',publicado:'Feito',espera:'Em espera'};
+const ST_CURTO={pauta:'Pauta',pauta_aprovacao:'Pauta p/ aprovar',texto_aprovacao:'Textos p/ aprovar',producao:'Produção',aprovacao:'Aprovação',ajuste:'Ajuste',aprovado:'Aprovado',agendado:'Agendado',publicado:'Feito',espera:'Em espera'};
 const NET={ig:'IG',fb:'FB',yt:'YT',ads:'ADS',email:'E-MAIL',design:'DESIGN',video:'VÍDEO'};
 const NETNAME={ig:'Instagram',fb:'Facebook',yt:'YouTube',ads:'Mídia paga',email:'E-mail marketing',design:'Design',video:'Vídeo'};
 const FORMATO={carrossel:'Carrossel',post:'Post',story:'Story',reel:'Reel',video:'Vídeo',short:'Short',newsletter:'Newsletter',plano:'Plano de mídia',pecas:'Peça em 3 formatos',producao:'Produção de peças',gravacao:'Gravação',entrega:'Entrega do vídeo'};
@@ -1109,7 +1109,7 @@ function monthNav(key){const [y,m]=S[key].split('-').map(Number);return `<div cl
 function calItem(p){
   const drag=isTeam()&&p.status!=='publicado';const k=tipoCal(p);
   return `<div class="it" style="--kc:var(--k-${k})" data-open="${p.id}" ${drag?`draggable="true" data-drag="${p.id}"`:''} title="${esc(p.titulo)}">
-    <div class="lb"><span class="kt">${{post:NET[p.rede],email:'E-MAIL',design:'DESIGN',video:'VÍDEO'}[k]}</span><span class="mono">${p.time||FORMATO[p.formato]}</span>${(n=>n?`<span class="lk" title="Ligado a ${n} itens">↔${n}</span>`:'')(related('p:'+p.id).length)}<span class="st">${ST_CURTO[p.status]}</span></div>${preview(p)}</div>`;
+    <div class="lb"><span class="kt">${{post:NET[p.rede],email:'E-MAIL',design:'DESIGN',video:'VÍDEO'}[k]}</span><span class="mono">${[p.time,FORMATO[p.formato]].filter(Boolean).join(' · ')}</span>${(n=>n?`<span class="lk" title="Ligado a ${n} itens">↔${n}</span>`:'')(related('p:'+p.id).length)}</div><b class="itt">${esc(p.titulo)}</b><span class="itst" style="--sc:var(${(STATUS[p.status]||{}).c||'--muted'})"><i></i>${ST_CURTO[p.status]||(STATUS[p.status]||{}).l||p.status}</span></div>`;
 }
 function viewCalendario(){
   const vp=posts.filter(p=>tipoCal(p)!=='midia'&&S.tipos[tipoCal(p)]);
