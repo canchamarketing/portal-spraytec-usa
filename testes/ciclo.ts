@@ -47,5 +47,15 @@ espera(() => rodar('enviar-textos', cancha, { ids: ['p3'] }), 'texto já aprovad
 rodar('enviar', cancha, { id: 'p3' });
 checa(p('p3').status === 'aprovacao', 'arte pronta vai para a aprovação da peça');
 
+console.log('Agendamento manual (sem Buffer)');
+p('p3').date = '2026-11-07';
+rodar('aprovar', oper, { id: 'p3' });
+checa(p('p3').status === 'aprovado', 'arte aprovada fica "Aprovado", mesmo perto da data (não agenda sozinha)');
+checa(JSON.stringify(ACOES.status.papeis) === '["cancha"]', 'só a Cancha marca como agendado');
+rodar('status', cancha, { id: 'p3', status: 'agendado' });
+checa(p('p3').status === 'agendado' && /Agendado na rede/.test(p('p3').hist.at(-1).t || JSON.stringify(p('p3').hist.at(-1))), 'Cancha marca como agendado, e fica no histórico');
+rodar('post-data', cancha, { id: 'p3', data: '2026-11-09' });
+checa(p('p3').status === 'aprovado', 'mudou a data de um post agendado: volta para "Aprovado" (precisa agendar de novo)');
+
 console.log(`\n${ok} ok, ${falhas} falha(s)`);
 process.exit(falhas ? 1 : 0);

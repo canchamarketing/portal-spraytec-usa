@@ -65,7 +65,6 @@ function markLinkedDemands(e: Estado, ref: string, test: (d: any) => boolean) {
     if (r.startsWith('d:')) { const dm = e.demandas.find((x) => x.id === r.slice(2)); if (dm && test(dm)) dm.feito = true; }
   });
 }
-const inWindow = (c: Ctx, p: any) => p.date && p.date >= c.hoje && p.date <= addDays(c.hoje, 7);
 const pendingApprovals = (e: Estado) => e.posts.filter((p) => EM_APROVACAO.includes(p.status) && !p.faltaTexto);
 const planoItem = (e: Estado) => e.posts.find((p) => p.formato === 'plano');
 const lado = (u: Usuario) => (u.papel === 'operacao' ? 'spraytec' : 'cancha');
@@ -99,7 +98,7 @@ function aprovar(c: Ctx, p: any, quem: string, canal: string) {
     hist(c, p, `Textos aprovados por ${quem} · ${canal}`);
     return;
   }
-  p.status = inWindow(c, p) ? 'agendado' : 'aprovado'; delete p.validacao;
+  p.status = 'aprovado'; delete p.validacao;
   hist(c, p, `Aprovado por ${quem} · ${canal}`);
   if (!pendingApprovals(c.e).length) c.e.demandas.filter((d) => d.quem === 'spraytec' && !d.feito && /^Aprovar calendário/.test(d.t)).forEach((d) => (d.feito = true));
   markLinkedDemands(c.e, 'p:' + p.id, (x) => x.quem === 'spraytec' && /^(Aprovar|Validar)/.test(x.t));
@@ -155,7 +154,8 @@ function mudarStatus(c: Ctx, p: any, ns: string, link?: string) {
     p.pubVia = 'manual';
     if (link) p.pubLink = link;
     hist(c, p, (prod ? 'Concluído' : 'Publicado') + ' · marcado à mão pela Cancha' + (link ? ' · ' + link : ''));
-  } else hist(c, p, `Status: ${STATUS[was] || was} → ${STATUS[ns]}`);
+  } else if (ns === 'agendado') hist(c, p, 'Agendado na rede pela Cancha (marcado à mão)');
+  else hist(c, p, `Status: ${STATUS[was] || was} → ${STATUS[ns]}`);
   if (ns === 'espera') { p.date = null; p.time = null; }
   return true;
 }
@@ -256,7 +256,7 @@ function atualizarItem(c: Ctx, p: any, l: any, arquivo: string): boolean {
   if (vale(l.tipo) && l.tipo !== p.rede + '|' + p.formato) throw new ErroAcao('O canal e o formato não mudam pela planilha.');
   const conteudo = (campo: string, nome: string, atual: unknown, novo: unknown, aplica: (v: string) => void) => {
     if (!vale(novo) || igual(atual, novo)) return;
-    if (!EDITAVEL.includes(p.status)) throw new ErroAcao(`"${p.titulo}" está em "${STATUS[p.status]}" e o ${nome} não muda mais. Para mudar, volte o item para "Em criação" no portal.`);
+    if (!EDITAVEL.includes(p.status)) throw new ErroAcao(`"${p.titulo}" está em "${STATUS[p.status]}" e o ${nome} não muda mais. Para mudar, volte o item para produção no portal.`);
     if (campo === 'pauta' && !etapaDaPauta(p)) throw new ErroAcao(`a pauta de "${p.titulo}" já foi aprovada e não muda.`);
     aplica(String(novo).trim()); mud.push(nome);
   };
@@ -272,7 +272,7 @@ function atualizarItem(c: Ctx, p: any, l: any, arquivo: string): boolean {
     if (p.status === 'publicado') throw new ErroAcao(`"${p.titulo}" já foi publicado e não muda de data.`);
     p.date = l.data; mud.push('data');
     if (p.status === 'espera') p.status = 'pauta';
-    if (['agendado', 'aprovado'].includes(p.status)) p.status = inWindow(c, p) ? 'agendado' : 'aprovado';
+    if (p.status === 'agendado') { p.status = 'aprovado'; mud.push('precisa agendar de novo'); }
   }
   if (mud.length) hist(c, p, `Atualizado pela planilha "${arquivo}" (${mud.join(', ')})`);
   // Etapa: a planilha só faz o passo seguinte do fluxo (enviar para aprovação). O resto é pelo portal.
@@ -486,10 +486,10 @@ export const ACOES: Record<string, Def> = {
     papeis: C,
     fn: (c) => {
       const p = post(c, c.d.id);
-      if (p.status !== 'pauta') throw new ErroAcao('Só pautas vão para criação.');
+      if (p.status !== 'pauta') throw new ErroAcao('Só pautas vão para produção.');
       if (temPauta(p)) throw new ErroAcao('Envie a pauta para aprovação da Spraytec antes de produzir.');
-      p.status = 'producao'; hist(c, p, 'Movido para criação');
-      return { resumo: `Moveu "${p.titulo}" para criação` };
+      p.status = 'producao'; hist(c, p, 'Movido para produção');
+      return { resumo: `Moveu "${p.titulo}" para produção` };
     },
   },
   enviar: {
@@ -551,7 +551,7 @@ export const ACOES: Record<string, Def> = {
       const was = p.status;
       p.date = c.d.data;
       if (p.status === 'espera') p.status = 'pauta';
-      if (was === 'agendado') { p.status = inWindow(c, p) ? 'agendado' : 'aprovado'; hist(c, p, `Data alterada para ${fmt(p.date)}; reagendado sem duplicar`); }
+      if (was === 'agendado') { p.status = 'aprovado'; hist(c, p, `Data alterada para ${fmt(p.date)}; precisa ser agendado de novo na rede`); }
       else hist(c, p, `Data alterada para ${fmt(p.date)}`);
       return { resumo: `Mudou "${p.titulo}" para ${fmt(p.date)}` };
     },
@@ -596,7 +596,7 @@ export const ACOES: Record<string, Def> = {
     fn: (c) => {
       const p = post(c, c.d.id);
       if (!['pauta', 'producao', 'ajuste', 'espera'].includes(p.status))
-        throw new ErroAcao('Depois de enviado para aprovação, o conteúdo não muda. Volte o item para "Em criação" antes de editar.');
+        throw new ErroAcao('Depois de enviado para aprovação, o conteúdo não muda. Volte o item para produção antes de editar.');
       const antes = JSON.stringify([p.titulo, p.pauta, p.legenda, p.drive || '', p.time || '']);
       p.titulo = texto(c.d.titulo, 'título', 200);
       if (c.d.pauta !== undefined && !igual(c.d.pauta, p.pauta)) {
