@@ -1024,17 +1024,19 @@ function relRowRasc(r){return `<details class="rrow"><summary>${ktag('RASCUNHO',
 function mcard(title,go,goLabel,body){return `<section class="panel mcard"><div class="mhead"><h2>${title}</h2><button class="linkbtn" data-view="${go}">${goLabel} ›</button></div>${body}</section>`}
 // Início enxuto: três números, a estratégia numa linha e as conversas logo em seguida.
 // Todo Reel do Instagram também vai para os Shorts do YouTube (combinado com a Spraytec em 10/11).
-// Um Short conta para o Reel quando sai no mesmo dia ou até 7 dias depois e fala da mesma coisa (palavras
-// em comum entre o título do Short e a legenda; mesmo dia vale mais). Aviso só para a Cancha.
-const SHORTS_DESDE='2026-10-27';
+// Um Short conta para o Reel quando sai no mesmo dia ou até 7 dias depois; primeiro casa pelo assunto (palavras
+// em comum entre o título do Short e a legenda; mesmo dia vale mais). Aviso só para a Cancha, a partir de 10/11, e só depois do dia seguinte ao Reel (dá tempo de subir o Short).
+const SHORTS_DESDE='2026-11-10';
 const PAL_FORA=new Set('spraytec para como mais pela pelo com sua seu nossa nosso esta este essa esse voce quer fale site acesse agro brasil safra lavoura'.split(' '));
 const palavras=t=>new Set(semAcento(t).split(/[^a-z0-9]+/).filter(w=>w.length>=4&&!PAL_FORA.has(w)));
 function reelsSemShort(){if(!isTeam()||!metaTem('ig'))return [];
   const sh=metaTem('yt')?META.yt.videos.filter(v=>v.formato==='short'&&v.date>=SHORTS_DESDE):[];
-  const reels=META.posts.filter(x=>x.rede==='ig'&&x.formato==='reel'&&x.date>=SHORTS_DESDE&&x.date<TODAY).sort((a,b)=>a.ts.localeCompare(b.ts));
+  const reels=META.posts.filter(x=>x.rede==='ig'&&x.formato==='reel'&&x.date>=SHORTS_DESDE&&x.date<addDays(TODAY,-1)).sort((a,b)=>a.ts.localeCompare(b.ts));
   const pares=[];reels.forEach((r,i)=>{const pr=palavras(r.legenda);sh.forEach((v,k)=>{if(v.date<r.date||v.date>addDays(r.date,7))return;
     const sc=[...palavras(v.titulo)].filter(w=>pr.has(w)).length*2+(v.date===r.date?3:0);if(sc>=3)pares.push([sc,i,k])})});
   const rOk=new Set(),vOk=new Set();pares.sort((a,b)=>b[0]-a[0]).forEach(([,i,k])=>{if(!rOk.has(i)&&!vOk.has(k)){rOk.add(i);vOk.add(k)}});
+  // sem assunto em comum, qualquer Short que sobrou no prazo também conta (o aviso só aparece quando falta mesmo)
+  reels.forEach((r,i)=>{if(rOk.has(i))return;const k=sh.findIndex((v,j)=>!vOk.has(j)&&v.date>=r.date&&v.date<=addDays(r.date,7));if(k>=0){rOk.add(i);vOk.add(k)}});
   return reels.filter((r,i)=>!rOk.has(i))}
 function avisoShorts(){const l=reelsSemShort();if(!l.length)return '';
   return `<section class="panel"><h2 style="margin:0">${l.length===1?'1 Reel sem Short':l.length+' Reels sem Short'} no YouTube</h2><p class="muted" style="margin:4px 0 8px;font-size:13px">Todo Reel do Instagram também vai para os Shorts do YouTube, com até 1 minuto. Só a Cancha vê este aviso.</p>
@@ -1074,6 +1076,9 @@ function cicloAprov(){if(isDir())return '';const m0=TODAY.slice(0,7),prox=addMon
   const ms=[0,1,2,3,4,5].map(k=>addMonth(prox,k)).filter(m=>m>=CICLO_DESDE),sel=ms.includes(S.apm)?S.apm:ms[0];if(!sel)return a;
   const nav=`<div class="filters apmnav" role="group" aria-label="Mês da preparação"><span class="muted" style="font-size:12px">Preparar o calendário de</span>${ms.map(m=>`<button class="chip" data-act="apm" data-m="${m}" aria-pressed="${m===sel}">${MONTHS[+m.slice(5)-1]}${m.slice(0,4)!==m0.slice(0,4)?' '+m.slice(0,4):''}</button>`).join('')}</div>`;
   return a+nav+cicloStrip(sel)}
+// Na tabela: a arte de verdade quando já foi anexada; antes disso (pauta, textos), só o formato.
+function miniAprov(p){const capa=capaDe(p);if(capa)return `<span class="amini"><img src="${capa}" alt="" loading="lazy" data-falha></span>`;
+  return `<span class="amini vazio" style="--kc:var(--k-${tipoCal(p)})">${esc(FORMATO[p.formato]||"")}</span>`}
 function viewAprovacao(){
   const rows=[...posts.filter(p=>['pauta_aprovacao','texto_aprovacao','aprovacao','ajuste'].includes(p.status)).sort((a,b)=>(a.date||'9').localeCompare(b.date||'9')).map(p=>({p,tipo:tipoAprov(p)})),...roteirosPend().map(v=>({v,tipo:'Vídeo'}))];
   const vis=rows.filter(r=>S.atipo==='todos'||r.tipo===S.atipo);
@@ -1087,7 +1092,7 @@ function viewAprovacao(){
   ${vis.map(r=>{
     if(r.v){const v=r.v;return `<tr>${isM()?`<td><input type="checkbox" data-selv="${v.id}" ${S.sel['v:'+v.id]?'checked':''} aria-label="Selecionar"></td>`:''}<td><div class="itemcell clickable" data-video="${v.id}"><div class="mini"><div class="pv doc"><span class="sm">ROTEIRO</span></div></div><div><div class="t">Roteiro: ${esc(v.titulo)}</div><div class="muted" style="font-size:12px">Para a produtora gravar</div></div></div></td><td>Vídeo</td><td class="due">gravação ${v.gravacao}</td><td class="due">${fmtLong(v.prazo)}</td><td>${tagPill('Roteiro em aprovação','--s-aprovacao')}</td><td>${isM()?`<button class="btn" data-act="v-next" data-id="${v.id}">Aprovar</button>`:''}</td></tr>`}
     const p=r.p,pz=prazoDe(p),hot=pz<=addDays(TODAY,1);
-    return `<tr>${isM()?`<td>${p.status!=='ajuste'?`<input type="checkbox" data-sel="${p.id}" ${S.sel[p.id]?'checked':''} aria-label="Selecionar">`:''}</td>`:''}<td><div class="itemcell clickable" data-open="${p.id}"><div class="mini">${preview(p)}</div><div style="min-width:0"><div class="t">${esc(p.titulo)}</div><div class="muted" style="font-size:12px">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div></div></div></td><td>${r.tipo}</td><td class="due">${fmtLong(p.date)}${p.time?' '+p.time:''}</td><td class="due ${hot&&p.status!=='ajuste'?'hot':''}">${p.status==='ajuste'?'com a Cancha':fmtLong(pz)}</td><td>${pill(p.status)} ${marcas(p)}</td>
+    return `<tr>${isM()?`<td>${p.status!=='ajuste'?`<input type="checkbox" data-sel="${p.id}" ${S.sel[p.id]?'checked':''} aria-label="Selecionar">`:''}</td>`:''}<td><div class="itemcell clickable" data-open="${p.id}">${miniAprov(p)}<div style="min-width:0"><div class="t">${esc(p.titulo)}</div><div class="muted" style="font-size:12px">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div></div></div></td><td>${r.tipo}</td><td class="due">${fmtLong(p.date)}${p.time?' '+p.time:''}</td><td class="due ${hot&&p.status!=='ajuste'?'hot':''}">${p.status==='ajuste'?'com a Cancha':fmtLong(pz)}</td><td>${pill(p.status)} ${marcas(p)}</td>
     <td>${isM()&&p.status!=='ajuste'?`<div class="actions" style="flex-wrap:nowrap"><button class="btn primary" data-act="approve" data-id="${p.id}">${p.status==='pauta_aprovacao'?'Aprovar pauta':p.status==='texto_aprovacao'?'Aprovar textos':'Aprovar'}</button><button class="btn" data-open="${p.id}">Ajuste</button></div>`:`<button class="btn" data-open="${p.id}">Abrir</button>`}</td></tr>`}).join('')||`<tr><td colspan="7" class="muted">Nada para aprovar.</td></tr>`}
   </tbody></table></div>`;
 }
