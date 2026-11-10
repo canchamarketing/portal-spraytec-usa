@@ -59,6 +59,28 @@ export async function gravar(q: Consulta, fonte: string, tipo: string, id: strin
      on conflict (fonte, tipo, id) do update set dados = metricas.dados || excluded.dados, atualizado_em = now()`,
     [fonte, tipo, id, JSON.stringify(dados)]);
 }
+// Post apagado ou arquivado na rede some da lista que a API devolve. O que o portal guardou e não veio
+// mais é marcado como removido (não é apagado do banco, para ficar o registro) e sai do Acervo e dos
+// números. Se a lista veio cortada no limite, só vale para o período que ela cobre. Por segurança, não
+// marca nada se a lista veio vazia ou se sumiria muita coisa de uma vez (falha da API, não exclusão).
+// Quando um post marcado volta (desarquivado), a coleta limpa a marca (removido_em: null).
+export async function marcarSumidos(q: Consulta, fonte: string, tipo: string, vistos: Map<string, string>, completa: boolean, log?: Log) {
+  if (!vistos.size) return 0;
+  const desde = completa ? '' : [...vistos.values()].filter(Boolean).sort()[0] || '';
+  const { rows } = await q.query<{ id: string; ts: string | null }>(
+    `select id, coalesce(dados->>'timestamp', dados->>'created_time', dados->>'publicado') as ts from metricas
+     where fonte=$1 and tipo=$2 and dados->>'removido_em' is null`, [fonte, tipo]);
+  const sumidos = rows.filter((r) => !vistos.has(r.id) && (!desde || (r.ts || '') >= desde));
+  if (!sumidos.length) return 0;
+  if (sumidos.length > Math.max(5, rows.length * 0.1)) {
+    log?.warn({ fonte, tipo, sumidos: sumidos.length, guardados: rows.length }, 'muitos posts sumiram de uma vez: nada marcado como removido');
+    return 0;
+  }
+  const em = new Date().toISOString();
+  for (const s of sumidos) await gravar(q, fonte, tipo, s.id, { removido_em: em });
+  log?.info({ fonte, tipo, ids: sumidos.map((s) => s.id) }, 'posts que saíram da rede marcados como removidos');
+  return sumidos.length;
+}
 export async function situacao(q: Consulta, fonte: string, erro: string | null, detalhe?: any) {
   await q.query(
     `insert into integracoes (fonte, ultimo_ok, ultima_tentativa, erro, detalhe) values ($1, case when $2::text is null then now() end, now(), $2, $3)
@@ -98,7 +120,7 @@ async function descobrirPagina() {
 const IG_POST = ['reach', 'views', 'likes', 'comments', 'saved', 'shares', 'total_interactions'];
 const IG_STORY = ['reach', 'views', 'replies', 'shares', 'total_interactions', 'follows', 'profile_visits'];
 
-async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
+async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean, log?: Log) {
   const perfil = await graph(ig.id, { fields: 'username,name,followers_count,follows_count,media_count,biography,profile_picture_url' });
   await gravar(q, 'ig', 'perfil', 'atual', perfil);
   await gravar(q, 'ig', 'dia', hojeBR(), { seguidores: perfil.followers_count, publicacoes: perfil.media_count });
@@ -117,9 +139,10 @@ async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean) {
     const ler = Date.parse(m.timestamp) > recente || !jaTem.has(m.id);
     const extra = ler ? { metricas: await insights(m.id, (m.media_product_type || '') + ':' + m.media_type, IG_POST), metricas_em: new Date().toISOString() } : {};
     if (ler) lidos++;
-    await gravar(q, 'ig', 'post', m.id, { ...m, ...extra });
+    await gravar(q, 'ig', 'post', m.id, { ...m, ...extra, removido_em: null });
   }
-  return { stories: stories.length, ...guardados, posts: media.length, metricasLidas: lidos };
+  const removidos = await marcarSumidos(q, 'ig', 'post', new Map(media.map((m) => [m.id, m.timestamp])), media.length < 400, log);
+  return { stories: stories.length, ...guardados, posts: media.length, metricasLidas: lidos, removidos };
 }
 
 // Cópia de cada story no Drive (pasta Stories/AAAA-MM), feita uma vez enquanto ele está no ar: o link do
@@ -169,7 +192,7 @@ async function copiar(q: Consulta, url: string, pasta: string[], base: string, p
 
 // ---------- Página do Facebook ----------
 const FB_POST = ['post_impressions_unique', 'post_clicks'];
-async function coletarFB(q: Consulta, pg: { id: string; nome?: string; token?: string }, completa: boolean) {
+async function coletarFB(q: Consulta, pg: { id: string; nome?: string; token?: string }, completa: boolean, log?: Log) {
   const t = pg.token || process.env.META_TOKEN || '';
   const perfil = await graph(pg.id, { fields: 'name,followers_count,fan_count,link,picture.width(320).height(320){url},cover{source}' }, t);
   await gravar(q, 'fb', 'perfil', 'atual', perfil);
@@ -183,9 +206,10 @@ async function coletarFB(q: Consulta, pg: { id: string; nome?: string; token?: s
     const base = { id: p.id, message: p.message, created_time: p.created_time, permalink_url: p.permalink_url, status_type: p.status_type, full_picture: p.full_picture,
       reacoes: p.reactions?.summary?.total_count ?? 0, comentarios: p.comments?.summary?.total_count ?? 0, compartilhamentos: p.shares?.count ?? 0 };
     const extra = Date.parse(p.created_time) > recente ? { metricas: await insights(p.id, 'fbpost', FB_POST, t), metricas_em: new Date().toISOString() } : {};
-    await gravar(q, 'fb', 'post', p.id, { ...base, ...extra });
+    await gravar(q, 'fb', 'post', p.id, { ...base, ...extra, removido_em: null });
   }
-  return { pagina: pg.nome, posts: posts.length };
+  const removidos = await marcarSumidos(q, 'fb', 'post', new Map(posts.map((p) => [p.id, p.created_time])), posts.length < 300, log);
+  return { pagina: pg.nome, posts: posts.length, removidos };
 }
 
 // ---------- Anúncios ----------
@@ -216,12 +240,12 @@ async function coletarAds(q: Consulta) {
 }
 
 // ---------- coleta ----------
-// A cada hora: perfil e stories (que somem em 24 h). A cada 6 horas: posts, Página e anúncios.
+// A cada hora: perfil e stories (que somem em 24 h). A cada 2 horas: posts, Página e anúncios.
 let rodando = false, ultimaCompleta = 0;
 export async function coletarMeta(q: Consulta, log: Log, forcarCompleta = false) {
   if (!metaConfigurado() || rodando) return;
   rodando = true;
-  const completa = forcarCompleta || Date.now() - ultimaCompleta > 6 * 3600e3 - 60e3;
+  const completa = forcarCompleta || Date.now() - ultimaCompleta > 2 * 3600e3 - 60e3;
   try {
     let pg: Awaited<ReturnType<typeof descobrirPagina>> | null = null;
     try { pg = await descobrirPagina(); } catch (e) {
@@ -230,8 +254,8 @@ export async function coletarMeta(q: Consulta, log: Log, forcarCompleta = false)
     const passos: [string, () => Promise<any>][] = [];
     if (pg) {
       const p = pg;
-      passos.push(['ig', async () => { if (!p.ig) throw new ErroMeta('A página não tem uma conta do Instagram profissional ligada.'); return coletarIG(q, p.ig, completa); }]);
-      passos.push(['fb', () => coletarFB(q, p, completa)]);
+      passos.push(['ig', async () => { if (!p.ig) throw new ErroMeta('A página não tem uma conta do Instagram profissional ligada.'); return coletarIG(q, p.ig, completa, log); }]);
+      passos.push(['fb', () => coletarFB(q, p, completa, log)]);
     }
     if (completa) passos.push(['ads', () => coletarAds(q)]);
     for (const [fonte, fn] of passos) {

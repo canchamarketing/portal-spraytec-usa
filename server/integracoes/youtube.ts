@@ -1,11 +1,11 @@
 // Integração com o canal do YouTube da Spraytec. Só leitura (youtube.readonly e yt-analytics.readonly).
 // Usa o mesmo cliente OAuth do Drive: a Cancha conecta uma vez com a conta dona do canal (se o canal for
 // de uma conta de marca, o Google pergunta qual canal na hora). Autorização cifrada no banco com DRIVE_CHAVE.
-// Coleta a cada 6 horas: canal, vídeos (com números de cada um) e números do canal por dia.
+// Coleta a cada 2 horas: canal, vídeos (com números de cada um) e números do canal por dia.
 import type { Consulta } from '../db.ts';
 import { hojeBR } from '../dominio.ts';
 import { cifrar, decifrar, driveConfigurado, pedirToken, urlAutorizacao, ErroDrive } from './drive.ts';
-import { gravar, situacao } from './meta.ts';
+import { gravar, marcarSumidos, situacao } from './meta.ts';
 
 const G = () => process.env.GOOGLE_API_URL; // só nos testes (YouTube simulado)
 const DADOS = () => (G() || 'https://www.googleapis.com') + '/youtube/v3';
@@ -105,7 +105,7 @@ const thumb = (t: any) => (t?.maxres || t?.standard || t?.high || t?.medium || t
 // ---------- coleta ----------
 let rodando = false, ultima = 0;
 export async function coletarYT(q: Consulta, log: Log, forcar = false) {
-  if (!conexao || rodando || (!forcar && Date.now() - ultima < 6 * 3600e3 - 60e3)) return;
+  if (!conexao || rodando || (!forcar && Date.now() - ultima < 2 * 3600e3 - 60e3)) return;
   rodando = true;
   try {
     const c = (await api(`${DADOS()}/channels?part=snippet,statistics,brandingSettings,contentDetails&mine=true`)).items?.[0];
@@ -136,10 +136,12 @@ export async function coletarYT(q: Consulta, log: Log, forcar = false) {
         const formato = live ? 'live' : sabido || (short ?? dur <= 60 ? 'short' : 'video');
         await gravar(q, 'yt', 'video', v.id, {
           id: v.id, titulo: v.snippet?.title, publicado: v.snippet?.publishedAt, thumb: thumb(v.snippet?.thumbnails), duracao: dur, formato, formatoOk: !!sabido || short !== null,
-          privacidade: v.status?.privacyStatus, views: Number(v.statistics?.viewCount || 0), curtidas: Number(v.statistics?.likeCount || 0), comentarios: Number(v.statistics?.commentCount || 0),
+          privacidade: v.status?.privacyStatus, removido_em: null, views: Number(v.statistics?.viewCount || 0), curtidas: Number(v.statistics?.likeCount || 0), comentarios: Number(v.statistics?.commentCount || 0),
         });
       }
     }
+    // vídeo apagado do canal sai da lista de envios: marcado como removido
+    if (ids.length < 1000) await marcarSumidos(q, 'yt', 'video', new Map(ids.map((id) => [id, ''])), true, log);
     // retenção por vídeo (desde sempre) e números do canal por dia; o YouTube Analytics atrasa uns 2 dias
     const ate = hojeBR();
     try {

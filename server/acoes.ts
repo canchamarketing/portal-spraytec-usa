@@ -314,7 +314,16 @@ function novoItem(c: Ctx, d: any): string {
   hist(c, p, (d.origem || 'Adicionado ao calendário') + ' por ' + c.u.nome + (c.u.papel === 'operacao' ? ' (sugestão)' : ''));
   if (c.u.papel === 'operacao') p.comments.push({ who: c.u.nome, text: 'Pauta sugerida por mim pelo calendário.', interno: false, quando: c.agora });
   if (d.etapa === 'pauta_aprovacao' && c.u.papel === 'cancha') enviarPauta(c, p);
-  else if (d.etapa && d.etapa !== 'pauta') throw new ErroAcao('Item novo entra como Pauta ou Pauta em aprovação.');
+  // Calendário montado fora do portal (antes de ele entrar em uso), com a pauta já combinada: entra direto
+  // com os textos para a Spraytec aprovar aqui. Não registra aprovação de pauta que não passou pelo portal.
+  else if (d.etapa === 'texto_aprovacao' && c.u.papel === 'cancha') {
+    if (!comPauta) throw new ErroAcao('Design e vídeo não têm etapa de textos.');
+    if (!String(p.pauta || '').trim() || !String(p.legenda || '').trim()) throw new ErroAcao('Para entrar em Textos em aprovação, preencha a pauta e a legenda.');
+    p.status = 'producao';
+    hist(c, p, 'Pauta combinada fora do portal, antes de ele entrar em uso: entrou direto com os textos');
+    enviarTextos(c, p);
+  }
+  else if (d.etapa && d.etapa !== 'pauta') throw new ErroAcao('Item novo entra como Pauta, Pauta em aprovação ou Textos em aprovação.');
   c.e.posts.push(p);
   return 'p:' + p.id;
 }

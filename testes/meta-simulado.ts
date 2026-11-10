@@ -10,7 +10,7 @@ const checa = (cond: unknown, msg: string) => { if (cond) { ok++; console.log(' 
 
 // ---------- Meta simulado ----------
 const pedidos: string[] = [];
-let quebrado = false;
+let quebrado = false, semM2 = false;
 const agora = Date.now(), dia = 864e5;
 const iso = (t: number) => new Date(t).toISOString().replace('Z', '+0000');
 const servidor = createServer((req, res) => {
@@ -29,6 +29,7 @@ const servidor = createServer((req, res) => {
     if (!u.searchParams.get('after')) return json(200, { data: [
       { id: 'm1', caption: 'Pós-emergência', media_type: 'CAROUSEL_ALBUM', media_product_type: 'FEED', permalink: 'https://instagram.com/p/AAA', timestamp: iso(agora - 2 * dia), like_count: 120, comments_count: 8 },
     ], paging: { next: `http://localhost:${porta}/v23.0/ig1/media?access_token=chave-teste&after=2` } });
+    if (semM2) return json(200, { data: [] });
     return json(200, { data: [{ id: 'm2', caption: 'Reel do ensaio', media_type: 'VIDEO', media_product_type: 'REELS', permalink: 'https://instagram.com/reel/BBB', timestamp: iso(agora - 400 * dia), like_count: 300, comments_count: 20 }] });
   }
   if (/^(m\d|st\d)\/insights$/.test(p)) {
@@ -86,6 +87,14 @@ const nAntes = pedidos.filter((x) => x.startsWith('m2/insights')).length;
 await coletarMeta(b, log, true);
 checa(pedidos.filter((x) => x.startsWith('m2/insights')).length === nAntes, 'post antigo com métricas não é relido');
 checa((await linhas('ig', 'post')).find((x: any) => x.id === 'm2')!.dados.metricas.reach > 0, 'post antigo mantém as métricas já guardadas');
+console.log('Post apagado ou arquivado na rede');
+semM2 = true;
+await coletarMeta(b, log, true);
+checa((await linhas('ig', 'post')).find((x: any) => x.id === 'm2')!.dados.removido_em, 'post que sumiu da rede fica marcado como removido (continua no banco)');
+checa(!(await linhas('ig', 'post')).find((x: any) => x.id === 'm1')!.dados.removido_em, 'os outros posts não são marcados');
+semM2 = false;
+await coletarMeta(b, log, true);
+checa(!(await linhas('ig', 'post')).find((x: any) => x.id === 'm2')!.dados.removido_em, 'post que volta (desarquivado) perde a marca');
 quebrado = true;
 await coletarMeta(b, log, true);
 const s = await sit('ig');

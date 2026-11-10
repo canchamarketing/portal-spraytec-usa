@@ -1023,6 +1023,22 @@ function relRowRasc(r){return `<details class="rrow"><summary>${ktag('RASCUNHO',
 
 function mcard(title,go,goLabel,body){return `<section class="panel mcard"><div class="mhead"><h2>${title}</h2><button class="linkbtn" data-view="${go}">${goLabel} ›</button></div>${body}</section>`}
 // Início enxuto: três números, a estratégia numa linha e as conversas logo em seguida.
+// Todo Reel do Instagram também vai para os Shorts do YouTube (combinado com a Spraytec em 10/11).
+// Um Short conta para o Reel quando sai no mesmo dia ou até 7 dias depois e fala da mesma coisa (palavras
+// em comum entre o título do Short e a legenda; mesmo dia vale mais). Aviso só para a Cancha.
+const SHORTS_DESDE='2026-10-27';
+const PAL_FORA=new Set('spraytec para como mais pela pelo com sua seu nossa nosso esta este essa esse voce quer fale site acesse agro brasil safra lavoura'.split(' '));
+const palavras=t=>new Set(semAcento(t).split(/[^a-z0-9]+/).filter(w=>w.length>=4&&!PAL_FORA.has(w)));
+function reelsSemShort(){if(!isTeam()||!metaTem('ig'))return [];
+  const sh=metaTem('yt')?META.yt.videos.filter(v=>v.formato==='short'&&v.date>=SHORTS_DESDE):[];
+  const reels=META.posts.filter(x=>x.rede==='ig'&&x.formato==='reel'&&x.date>=SHORTS_DESDE&&x.date<TODAY).sort((a,b)=>a.ts.localeCompare(b.ts));
+  const pares=[];reels.forEach((r,i)=>{const pr=palavras(r.legenda);sh.forEach((v,k)=>{if(v.date<r.date||v.date>addDays(r.date,7))return;
+    const sc=[...palavras(v.titulo)].filter(w=>pr.has(w)).length*2+(v.date===r.date?3:0);if(sc>=3)pares.push([sc,i,k])})});
+  const rOk=new Set(),vOk=new Set();pares.sort((a,b)=>b[0]-a[0]).forEach(([,i,k])=>{if(!rOk.has(i)&&!vOk.has(k)){rOk.add(i);vOk.add(k)}});
+  return reels.filter((r,i)=>!rOk.has(i))}
+function avisoShorts(){const l=reelsSemShort();if(!l.length)return '';
+  return `<section class="panel"><h2 style="margin:0">${l.length===1?'1 Reel sem Short':l.length+' Reels sem Short'} no YouTube</h2><p class="muted" style="margin:4px 0 8px;font-size:13px">Todo Reel do Instagram também vai para os Shorts do YouTube, com até 1 minuto. Só a Cancha vê este aviso.</p>
+  <div class="list">${l.map(r=>`<div class="row"><span class="mono muted" style="font-size:12px;min-width:44px">${fmt(r.date)}</span><div class="grow">${esc(r.titulo)}</div><a class="linkbtn" href="${esc(r.link||'#')}" target="_blank" rel="noopener">Ver Reel ›</a></div>`).join('')}</div></section>`}
 function viewHoje(){
   if(!plano)return `${head('Início')}<p class="muted">Ainda não há dados cadastrados.</p>`;
   const cur=plano.dados,pd=plano.pendente,tot=totVerba(pd?pd.dados:cur);
@@ -1044,6 +1060,7 @@ function viewHoje(){
   return `<div class="headrow hello"><div><div class="eyebrow">Spraytec Brasil · ${fmtLong(TODAY)}</div><h1>${'Olá, '+esc(EU.nome.split(' ')[0])}</h1></div></div>
   ${nums}
   ${isDir()?'':cicloStrip(addMonth(TODAY.slice(0,7),1))}
+  ${avisoShorts()}
   ${linhaEst}
   ${isDir()?linhaExec:chatSection()}
   ${novidadesBlock()}`;
@@ -1335,7 +1352,16 @@ function lerRel(){readRelDest();const t=$('#rl-t').value.trim();if(!t){toast('D�
 
 // PRODUTOS: nomes que aparecem nas legendas da Spraytec (levantados em 06/11/2026), do mais específico ao mais geral.
 // A sugestão automática procura esses nomes no texto do post; quem classifica pode corrigir.
-const CATALOGO=[['Twin Pack Max',/twin\s*pack\s*max/],['Pack Max',/(^|[^a-z])pack\s*max/],['Packseed',/pack\s*seed/],['Carbonseed',/carbon\s*seed/],['Cubo IR',/cubo\s*ir/],['Arrow IR',/arrow\s*ir/],['Absortec',/absortec/],['Fulltec Max',/full\s*tec/],['Emultec Max',/emultec/],['Nutrol Max',/nutrol/],['Compative Max',/compative/],['Ultra K Max',/ultra\s*k\s*max/],['Ultra Mn Max',/(^|[^a-z])(ultra\s*)?mn\s*max/],['Ultra Zn Max',/(^|[^a-z])(ultra\s*)?zn\s*max/],['Ultra Zebinox',/zebinox/],['Nodofix',/nodo\s*fix/],['Tractus',/tractus/]];
+// Produtos como estão no site da Spraytec (spraytec.com/produtos, conferido em 10/11/2026), por linha.
+// Cada um é um produto (Tractus Reforce, não "Tractus"); citar só a linha não sugere nada.
+const CATALOGO=[
+ ['Fulltec Drone',/full\s*tec\s*drone/,'Lançamentos'],['Fulltec Xtreme',/full\s*tec\s*x\s*-?\s*treme/,'Lançamentos'],['Carbon Seed',/carbon\s*seed/,'Lançamentos'],['Tractus Regenerative',/tractus\s*regenerative/,'Lançamentos'],
+ ['Nutrol Max',/nutrol/,'Tecnologia de Aplicação'],['Fulltec Max',/full\s*tec\s*max/,'Tecnologia de Aplicação'],['Emultec Max',/emultec/,'Tecnologia de Aplicação'],['Compative Max',/compative/,'Tecnologia de Aplicação'],['Fulltec S Max',/full\s*tec\s*s\s*max/,'Tecnologia de Aplicação'],['Imantic Orange',/imantic\s*orange(?!\s*neutro)/,'Tecnologia de Aplicação'],['Imantic Orange Neutro',/imantic\s*orange\s*neutro/,'Tecnologia de Aplicação'],['Omega',/(^|[^a-z#])omega([^a-z0-9-]|$)/,'Tecnologia de Aplicação'],
+ ['Nodofix AZP',/nodo\s*fix\s*azp/,'Linha TS, Sulco e Vegetativo'],['Nodofix Feijão',/nodo\s*fix\s*feijao/,'Linha TS, Sulco e Vegetativo'],['Nodofix Soja',/nodo\s*fix\s*soja/,'Linha TS, Sulco e Vegetativo'],['Pack Seed',/pack\s*seed/,'Linha TS, Sulco e Vegetativo'],['Comotec Arranque + Níquel',/comotec/,'Linha TS, Sulco e Vegetativo'],
+ ['Tractus Kit Evolution',/tractus\s*kit/,'Linha Tractus'],['Tractus Carbono',/tractus\s*carbono/,'Linha Tractus'],['Tractus Reforce',/tractus\s*reforce/,'Linha Tractus'],['Tractus Supera',/tractus\s*supera/,'Linha Tractus'],['Tractus Max',/tractus\s*max/,'Linha Tractus'],
+ ['Ultra Mn Max',/(^|[^a-z])(ultra\s*)?mn\s*max/,'Linha Ultra'],['Ultra Zn Max',/(^|[^a-z])(ultra\s*)?zn\s*max/,'Linha Ultra'],['Twin Pack Max',/twin\s*pack/,'Linha Ultra'],['Ultra K Max',/ultra\s*k\s*max/,'Linha Ultra'],
+ ['Absortec IR',/absortec/,'Linha Inductor'],['Arrow IR',/arrow\s*ir/,'Linha Inductor'],['Cubo IR',/cubo\s*ir/,'Linha Inductor'],['Ultrazeb Inox',/ultra\s*zeb|zebinox/,'Linha Inductor'],
+ ['Fulltec Regenerative',/full\s*tec\s*regenerative/,'Linha Regenerative'],['Nutrekit + Imantic',/nutrekit/,'Linha Pastagem']];
 function sugereProdutos(txt){const t=semAcento(txt);return CATALOGO.filter(([,re])=>re.test(t)).map(([n])=>n)}
 let CLASSIF=[];
 // produto de um item do acervo: o que alguém marcou > o do item do calendário ligado a ele > sugestão pelo texto
@@ -1358,8 +1384,9 @@ function gradeA(cards,cls){const lim=S.alim||48;return cards.length?`<p class="m
 function produtosLista(){const g=[...CATALOGO.map(c=>c[0]),...GUIA.produtos.map(x=>x.split('|')[0].trim()).filter(Boolean)].filter((x,i,a)=>a.indexOf(x)===i);const usados=[...new Set([...posts.map(p=>p.produto),...CLASSIF.map(c=>c.produto)].filter(x=>x&&x!=='—'))].filter(x=>!g.includes(x)).sort((a,b)=>a.localeCompare(b,'pt-BR'));return g.concat(usados)}
 const semProd=x=>!x||x==='—';
 function prodOk(x){return !S.prod||(S.prod==='—'?semProd(x):x===S.prod)}
-function prodFiltro(){const l=produtosLista();if(S.prod&&S.prod!=='—'&&!l.includes(S.prod))l.push(S.prod);
-  return `<select id="f-prod" class="pe" aria-label="Filtrar por produto" style="width:auto"><option value="">Todos os produtos</option>${l.map(x=>`<option value="${esc(x)}" ${S.prod===x?'selected':''}>${esc(x)}</option>`).join('')}<option value="—" ${S.prod==='—'?'selected':''}>Sem produto</option></select>`}
+function prodFiltro(){const l=produtosLista();if(S.prod&&S.prod!=='—'&&!l.includes(S.prod))l.push(S.prod);const op=x=>`<option value="${esc(x)}" ${S.prod===x?'selected':''}>${esc(x)}</option>`;
+  const linhas=[...new Set(CATALOGO.map(c=>c[2]))],outros=l.filter(x=>!CATALOGO.some(c=>c[0]===x));
+  return `<select id="f-prod" class="pe" aria-label="Filtrar por produto" style="width:auto"><option value="">Todos os produtos</option>${linhas.map(g=>`<optgroup label="${esc(g)}">${CATALOGO.filter(c=>c[2]===g).map(c=>op(c[0])).join('')}</optgroup>`).join('')}${outros.length?`<optgroup label="Outros">${outros.map(op).join('')}</optgroup>`:''}<option value="—" ${S.prod==='—'?'selected':''}>Sem produto</option></select>`}
 // classificação na gaveta do post (Operação e Cancha)
 function classifPost(p){const l=produtosLista();if(!semProd(p.produto)&&!l.includes(p.produto))l.push(p.produto);
   return `<details class="padj"><summary class="linkbtn">Classificar</summary><div class="extbox"><label class="muted" for="pc-prod">Produto</label><select id="pc-prod" class="pe"><option value="—">Sem produto</option>${l.map(x=>`<option ${p.produto===x?'selected':''}>${esc(x)}</option>`).join('')}</select>
@@ -1679,8 +1706,9 @@ function impProcessar(txt,arquivo){
     if(hora&&!/^\d{1,2}:\d{2}$/.test(hora))erros.push('hora inválida');if(drive&&!/^https?:\/\//i.test(drive))erros.push('link do Drive inválido');
     if(pv&&!pilarDe(pv))erros.push('pilar desconhecido');if(ev&&etapa===null)erros.push('etapa desconhecida');
     const dados={n:i+2,id:id||undefined,tipo,titulo,data,hora:hora?hora.padStart(5,'0'):null,pilar:pilarDe(pv),produto:pega(r,'produto'),pauta:pega(r,'pauta'),legenda:pega(r,'legenda'),drive,etapa:etapa||''};
-    if(!id&&tipo&&!tipo.startsWith('demanda')){if(etapa&&!['pauta','pauta_aprovacao'].includes(etapa))erros.push('item novo entra como Pauta ou Pauta em aprovação');
-      else if(etapa==='pauta_aprovacao'&&!dados.pauta)erros.push('sem pauta para enviar para aprovação')}
+    if(!id&&tipo&&!tipo.startsWith('demanda')){if(etapa&&!['pauta','pauta_aprovacao','texto_aprovacao'].includes(etapa))erros.push('item novo entra como Pauta, Pauta em aprovação ou Textos em aprovação');
+      else if(etapa==='pauta_aprovacao'&&!dados.pauta)erros.push('sem pauta para enviar para aprovação');
+      else if(etapa==='texto_aprovacao'&&(!dados.pauta||!dados.legenda||['video','design'].includes(tipo.split('|')[0])))erros.push('para entrar em Textos em aprovação, o post precisa de pauta e legenda')}
     let acao='novo',campos=[];
     if(p&&!erros.length){const r2=impDiff(p,dados);if(r2.erro)erros.push(r2.erro);campos=r2.campos;acao=campos.length?'atualiza':'igual'}
     return {n:i+2,erros,acao,campos,dados,item:p}});
@@ -1703,7 +1731,7 @@ function drawerImportar(){const I=S.imp;const L=I?I.linhas:[];const ruins=L.filt
   return `<header><div><div class="eyebrow">Calendário</div><h2>Planilha do calendário</h2></div>${closeBtn()}</header>
   <div class="content">
    <ol class="impsteps"><li><b>Comece pelo modelo ou pelo mês do calendário.</b> Uma linha por item (post, e-mail, produção ou demanda).<div class="actions" style="margin-top:6px"><button class="btn" data-act="imp-modelo">Baixar modelo (CSV)</button><button class="btn" data-act="exportar-mes">Exportar ${esc(mesNome())}</button></div>
-     <p class="muted" style="font-size:12px;margin:6px 0 0">Linhas sem id viram itens novos. Linhas com id (as do mês exportado) atualizam o item, sem duplicar; campo vazio mantém o que está no portal. Para enviar uma pauta para aprovação, troque a etapa para "Pauta em aprovação"; para enviar a peça, "Em aprovação".</p></li>
+     <p class="muted" style="font-size:12px;margin:6px 0 0">Linhas sem id viram itens novos. Linhas com id (as do mês exportado) atualizam o item, sem duplicar; campo vazio mantém o que está no portal. Para enviar uma pauta para aprovação, troque a etapa para "Pauta em aprovação"; para enviar a peça, "Em aprovação". Post novo com a pauta já combinada e a legenda pronta pode entrar direto em "Textos em aprovação".</p></li>
     <li><b>Ou peça ao Claude</b>: copie o pedido abaixo, troque [MÊS] e salve a resposta como arquivo .csv.<details class="padj" style="margin-top:6px"><summary class="linkbtn">Ver o pedido para o Claude</summary><textarea class="pe" rows="9" readonly id="imp-prompt">${esc(impPrompt())}</textarea><button class="btn sm" data-act="imp-copiar">Copiar pedido</button></details></li>
     <li><b>Envie o arquivo</b>. No Google Sheets: Arquivo › Fazer download › CSV. No Excel: Salvar como › CSV UTF-8.<div style="margin-top:6px"><input type="file" id="imp-arq" accept=".csv,text/csv,text/plain"></div></li></ol>
    ${I&&I.erroGeral?`<div class="notice">${esc(I.erroGeral)}</div>`:''}

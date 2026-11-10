@@ -361,6 +361,7 @@ app.get('/api/metricas', async (req, rep) => {
   const { rows } = await b.query(`select fonte, tipo, id, dados from metricas order by fonte, tipo, id`);
   for (const x of rows) {
     if (!r[x.fonte]) continue;
+    if (x.dados?.removido_em) continue; // apagado ou arquivado na rede (ver marcarSumidos)
     if (x.tipo === 'perfil') r[x.fonte].perfil = x.dados;
     else if (lista[x.tipo]) r[x.fonte][lista[x.tipo]].push(x.tipo === 'dia' ? { d: x.id, ...x.dados } : x.dados);
   }
