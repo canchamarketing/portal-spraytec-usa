@@ -2,11 +2,11 @@
 let TODAY='';
 const ROLES={operacao:'Operação Spraytec',diretoria:'Diretoria Spraytec',cancha:'Cancha',produtora:'Produtora de vídeo',leitor:'Leitor'};
 const STATUS={
-  pauta:{l:'Pauta',c:'--s-pauta'}, pauta_aprovacao:{l:'Pauta em aprovação',c:'--s-validacao'}, producao:{l:'Em produção',c:'--s-producao'}, texto_aprovacao:{l:'Textos em aprovação',c:'--s-validacao'}, aprovacao:{l:'Em aprovação',c:'--s-aprovacao'},
+  pauta:{l:'Pauta',c:'--s-pauta'}, pauta_aprovacao:{l:'Pauta em aprovação',c:'--s-validacao'}, producao:{l:'Em criação',c:'--s-producao'}, texto_aprovacao:{l:'Textos em aprovação',c:'--s-validacao'}, aprovacao:{l:'Em aprovação',c:'--s-aprovacao'},
   ajuste:{l:'Ajuste',c:'--s-ajuste'}, aprovado:{l:'Aprovado',c:'--s-aprovado'},
   agendado:{l:'Agendado',c:'--s-agendado'}, publicado:{l:'Publicado',c:'--s-publicado'}, espera:{l:'Em espera',c:'--s-espera'}
 };
-const ST_CURTO={pauta:'Pauta',pauta_aprovacao:'Pauta p/ aprovar',texto_aprovacao:'Textos p/ aprovar',producao:'Produção',aprovacao:'Aprovação',ajuste:'Ajuste',aprovado:'Aprovado',agendado:'Agendado',publicado:'Feito',espera:'Em espera'};
+const ST_CURTO={pauta:'Pauta',pauta_aprovacao:'Pauta p/ aprovar',texto_aprovacao:'Textos p/ aprovar',producao:'Em criação',aprovacao:'Aprovação',ajuste:'Ajuste',aprovado:'Aprovado',agendado:'Agendado',publicado:'Feito',espera:'Em espera'};
 const NET={ig:'IG',fb:'FB',yt:'YT',ads:'ADS',email:'E-MAIL',design:'DESIGN',video:'VÍDEO'};
 const NETNAME={ig:'Instagram',fb:'Facebook',yt:'YouTube',ads:'Mídia paga',email:'E-mail marketing',design:'Design',video:'Vídeo'};
 const FORMATO={carrossel:'Carrossel',post:'Post',story:'Story',reel:'Reel',video:'Vídeo',short:'Short',newsletter:'Newsletter',plano:'Plano de mídia',pecas:'Peça em 3 formatos',producao:'Produção de peças',gravacao:'Gravação',entrega:'Entrega do vídeo'};
@@ -693,6 +693,21 @@ function inWindow(p){return p.date&&p.date>=TODAY&&p.date<=addDays(TODAY,7)}
 function prazoDe(p){return p.prazo||addDays(TODAY,2)}
 
 // prévias
+// Carrossel com as peças enviadas: arrasta para o lado ou usa as setas, como no Instagram.
+function carrosselPv(p){const L=pecasAtuais(p);
+  return `<div class="img foto car" data-car><div class="cartrack">${L.map((a,i)=>tipoArq(a)==='video'?`<video src="${arqUrl(a.id)}" muted playsinline preload="metadata"></video>`:`<img src="${miniUrl(a.id,1080)}" alt="Lâmina ${i+1}" loading="lazy" data-falha>`).join('')}</div>
+   <span class="cnt" data-carcnt>1/${L.length}</span><button type="button" class="carb ant" data-carb="-1" aria-label="Lâmina anterior" hidden>‹</button><button type="button" class="carb prox" data-carb="1" aria-label="Próxima lâmina">›</button></div>`}
+function carAtual(car,alvo){const t=car.querySelector('.cartrack'),n=t.children.length,pv=car.closest('.pv');
+  const k=Math.min(n-1,Math.max(0,alvo!=null?alvo:car._alvo!=null?car._alvo:Math.round(t.scrollLeft/Math.max(1,t.clientWidth))));
+  const c=car.querySelector('[data-carcnt]');if(c)c.textContent=(k+1)+'/'+n;
+  car.querySelector('.carb.ant').hidden=k===0;car.querySelector('.carb.prox').hidden=k===n-1;
+  if(pv)pv.querySelectorAll('[data-cardots] i').forEach((d,j)=>d.classList.toggle('on',j===k));return k}
+// Seta: vai direto para a lâmina seguinte (contador e pontos mudam na hora, a rolagem acompanha).
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-carb]');if(!b)return;e.stopPropagation();e.preventDefault();
+  const car=b.closest('[data-car]'),t=car.querySelector('.cartrack'),k=carAtual(car,carAtual(car)+Number(b.dataset.carb));
+  car._alvo=k;clearTimeout(car._tm);car._tm=setTimeout(()=>{car._alvo=null},700);t.scrollTo({left:k*t.clientWidth,behavior:'smooth'})},true);
+// Arrastar com o dedo ou o trackpad também troca de lâmina.
+document.addEventListener('scroll',e=>{const t=e.target;if(t&&t.classList&&t.classList.contains('cartrack'))carAtual(t.closest('[data-car]'))},true);
 function preview(p){
   const bg=PILAR_HUE[p.pilar]||'#E3E4D3',capa=hiddenForClient(p)?null:capaDe(p),nP=capa?pecasAtuais(p).length:0;
   const foto=(cls,extra)=>`<div class="img ${cls} foto">${extra||''}<img src="${capa}" alt="" loading="lazy" data-falha></div>`;
@@ -704,6 +719,7 @@ function preview(p){
   if(p.rede==='ig'){
     if(p.formato==='story')return vert('<div class="bars3"><i></i><i></i><i></i></div><div class="hd lite">'+avS()+'<b>'+igUser()+'</b></div>','<div class="sm">Enviar mensagem</div>');
     if(p.formato==='reel')return vert('<div class="sm">Reels</div>','<div class="sm">'+igUser()+' · ♪ áudio original</div>','<div class="play">▶</div>');
+    if(capa&&nP>1)return `<div class="pv">${hd('')}${carrosselPv(p)}<div class="ft"><div class="icons">♡ ○ ▷</div><div class="dots" data-cardots>${pecasAtuais(p).map((_,i)=>`<i class="${i?'':'on'}"></i>`).join('')}</div><div class="cap"><b>${igUser()}</b> ${first}</div></div></div>`;
     return `<div class="pv">${hd('')}${capa?foto('',nP>1?`<span class="cnt">1/${nP}</span>`:''):`<div class="img" style="--bg:${bg}">${p.formato==='carrossel'?'<span class="cnt">1/6</span>':''}<span>${T}</span></div>`}<div class="ft"><div class="icons">♡ ○ ▷</div>${p.formato==='carrossel'?'<div class="dots"><i class="on"></i><i></i><i></i><i></i></div>':''}<div class="cap"><b>${igUser()}</b> ${first}</div></div></div>`;
   }
   if(p.rede==='fb')return `<div class="pv">${hd('2 h · Público')}<div class="txt">${first}</div>${capa?foto('wide'):`<div class="img wide" style="--bg:${bg}"><span>${T}</span></div>`}<div class="ft row3"><span>Curtir</span><span>Comentar</span><span>Compartilhar</span></div></div>`;
@@ -1807,7 +1823,7 @@ function drawerPost(p){
     if(isM()&&p.formato!=='plano'&&EM_APROVACAO.includes(p.status))acts=`${ehPauta?'<div class="notice">Esta é a pauta: o tema e a ideia do conteúdo. Aprovando, a Cancha escreve os textos.</div>':ehTexto?'<div class="notice">Estes são os textos (legenda) do post. Aprovando, a Cancha produz a arte.</div>':''}<div class="actions"><button class="btn primary" data-act="approve" data-id="${p.id}">${ehPauta?'Aprovar pauta':ehTexto?'Aprovar textos':'Aprovar'}</button>${p.status==='aprovacao'&&!p.validacao?`<button class="btn" data-act="validacao" data-id="${p.id}">Levar para validação interna</button>`:''}</div>
       <label for="adj">Pedir ajuste${ehPauta?' na pauta':ehTexto?' nos textos':''} (comentário obrigatório)</label><textarea id="adj" placeholder="O que precisa mudar?"></textarea><div class="actions"><button class="btn danger" data-act="adjust" data-id="${p.id}">Pedir ajuste</button></div>`;
     if(team){const b=[];
-      if(p.status==='pauta')b.push(temPauta(p)?`<button class="btn primary" data-act="enviar-pauta" data-id="${p.id}">Enviar pauta para aprovação</button>`:`<button class="btn dark" data-act="to-prod" data-id="${p.id}">Mover para produção</button>`);
+      if(p.status==='pauta')b.push(temPauta(p)?`<button class="btn primary" data-act="enviar-pauta" data-id="${p.id}">Enviar pauta para aprovação</button>`:`<button class="btn dark" data-act="to-prod" data-id="${p.id}">Mover para criação</button>`);
       if(p.status==='producao'&&temPauta(p)&&!p.textoOk)b.push(`<button class="btn primary" data-act="enviar-textos" data-id="${p.id}">Enviar textos para aprovação</button>`);
       if(p.status==='producao')b.push(`<button class="btn ${temPauta(p)&&!p.textoOk?'':'primary'}" data-act="send" data-id="${p.id}">${['video','design'].includes(p.rede)?'Marcar como concluído':temPauta(p)&&!p.textoOk?'Enviar peça completa (textos e arte)':'Enviar peça para aprovação'}</button>`);
       if(p.status==='ajuste')b.push(`<button class="btn primary" data-act="newver" data-id="${p.id}">${p.etapaAjuste==='pauta'?'Reenviar pauta ajustada':p.etapaAjuste==='texto'?'Reenviar textos ajustados':'Subir nova versão e reenviar'}</button>`);
@@ -1820,8 +1836,15 @@ function drawerPost(p){
   const pautaBloco=temPauta(p)&&(p.pauta||naPauta)?`<div><div class="eyebrow" style="margin-bottom:6px">${naPauta||p.status==='espera'?'Pauta':'Pauta aprovada'}</div><div class="caption">${p.pauta?esc(p.pauta):'Ainda sem pauta.'}</div></div>`:'';
   const legBloco=naPauta&&!p.legenda?'':`<div><div class="eyebrow" style="margin-bottom:6px">${textoLabel}</div><div class="caption">${p.faltaTexto?'Ainda sem textos.':p.legenda?esc(p.legenda):'Ainda sem texto.'}</div></div>`;
   const prep=hid&&p.status==='producao';
+  // Próximo passo da Cancha, no topo do item (o envio da arte fica logo abaixo da prévia).
+  const temArte=pecasAtuais(p).length>0;
+  const passo=!team||p.formato==='plano'||!temPauta(p)?'':p.status==='texto_aprovacao'?'<div class="notice passo"><b>Textos com a Spraytec.</b> Você já pode ir enviando a arte no quadro "Peças (arte)" logo abaixo. Ela só vai para aprovação depois que os textos forem aprovados.</div>'
+    :p.status==='producao'&&p.textoOk?(temArte?`<div class="notice passo"><b>Em criação · arte anexada.</b> Confira as peças abaixo e envie para a Spraytec aprovar.<div class="actions" style="margin-top:8px"><button class="btn primary" data-act="send" data-id="${p.id}">Enviar peça para aprovação</button></div></div>`
+      :'<div class="notice passo"><b>Em criação · textos aprovados.</b> Agora é a arte: envie no quadro "Peças (arte)" logo abaixo e depois clique em "Enviar peça para aprovação".</div>')
+    :p.status==='producao'&&!p.textoOk?'<div class="notice passo"><b>Em criação · pauta aprovada.</b> Escreva a legenda (em "Editar conteúdo") e envie os textos para aprovação.</div>':'';
   return `<header><div><div class="eyebrow">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div><h2>${hid&&!prep?'Em preparação pela Cancha':esc(p.titulo)}</h2></div>${closeBtn()}</header>
   <div class="content">
+   ${passo}
    ${p.formato==='plano'?planoSection().replace('<section class="panel">','<div>').replace(/<\/section>$/,'</div>'):`<div class="pv-lg">${preview(p)}</div><p class="muted" style="font-size:12px;margin:-8px 0 0;text-align:center">${capaDe(p)?'Prévia com a peça enviada. Clique nas peças abaixo para ver em tamanho real.':'Prévia aproximada. '+(p.drive?`<a href="${esc(p.drive)}" target="_blank" rel="noopener">Abrir a arte no Google Drive</a>`:'A arte fica na pasta do Google Drive.')}</p>`}
    ${p.formato==='plano'?'':arqSecao('p:'+p.id,p,{pode:team&&p.status!=='aprovacao',versoes:true,titulo:'Peças (arte)',rotulo:'Enviar a arte',dica:p.status==='ajuste'&&(p.vEnviada||0)>=(p.vPeca||1)?'Entra como nova versão':['pauta_aprovacao','texto_aprovacao'].includes(p.status)?'Pode enviar já: a arte vai para aprovação depois que os textos forem aprovados':'',trava:team&&p.status==='aprovacao'?'A arte está em aprovação: para trocar, espere a resposta ou registre o ajuste.':''})}
    <dl class="kv" style="margin:0"><dt>Status</dt><dd>${pill(p.status)} ${marcas(p)}</dd><dt>Data</dt><dd class="mono">${p.date?fmtLong(p.date)+(p.time?' '+p.time:''):'sem data'}</dd><dt>Pilar</dt><dd>${p.pilar}</dd><dt>Produto</dt><dd>${esc(p.produto)}</dd>${peso?`<dt>Cota de design</dt><dd>${peso} peça${peso>1?'s':''} · rodada ${p.rodada} de 2</dd>`:''}</dl>
@@ -2154,7 +2177,7 @@ document.addEventListener('click',e=>{
     case 'plano-ajuste':{const c=val('#padj');if(!c){toast('Escreva o que precisa mudar.');return}acao('plano-ajuste',{txt:c},()=>toast('Ajuste pedido. A Cancha foi avisada.'));break}
     case 'validacao':acao('validacao',{id},()=>toast('Marcado como em validação interna. O prazo continua correndo.'));break;
     case 'adjust':{const c=val('#adj');if(!c){toast('Escreva o que precisa mudar para pedir ajuste.');return}acao('ajuste',{id,txt:c},()=>toast('Ajuste pedido. A Cancha foi avisada.'));break}
-    case 'to-prod':acao('para-producao',{id},()=>toast('Movido para produção.'));break;
+    case 'to-prod':acao('para-producao',{id},()=>toast('Movido para criação.'));break;
     case 'send':{const prod=p&&['video','design'].includes(p.rede);acao('enviar',{id},()=>toast(prod?'Marcado como concluído.':'Enviado para aprovação.'));break}
     case 'newver':acao('nova-versao',{id},()=>toast('Nova versão enviada para aprovação.'));break;
     case 'enviar-pauta':acao('enviar-pauta',{id},()=>toast('Pauta enviada para aprovação da Spraytec.'));break;

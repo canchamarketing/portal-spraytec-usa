@@ -1158,3 +1158,12 @@ details.accmini>summary:hover{color:var(--ink)}
 .amini{width:52px;height:52px;flex:none;border-radius:8px;overflow:hidden;background:var(--surface-2);display:grid;place-items:center}
 .amini img{width:100%;height:100%;object-fit:cover;display:block}
 .amini.vazio{border-left:3px solid var(--kc,var(--line));font-size:9.5px;overflow-wrap:anywhere;font-weight:600;color:var(--muted);text-align:center;line-height:1.15;padding:0 3px}
+/* carrossel na prévia: lâminas lado a lado, arrasta ou usa as setas */
+.pv .img.car .cartrack{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}
+.pv .img.car .cartrack::-webkit-scrollbar{display:none}
+.pv .img.car .cartrack>img,.pv .img.car .cartrack>video{position:static;flex:0 0 100%;width:100%;height:100%;object-fit:cover;scroll-snap-align:start}
+.pv .carb{position:absolute;top:50%;transform:translateY(-50%);z-index:2;width:28px;height:28px;border-radius:50%;border:0;background:rgba(255,255,255,.85);color:#15170E;font-size:18px;line-height:1;display:grid;place-items:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.pv .carb.ant{left:8px}.pv .carb.prox{right:8px}
+.pv .carb[hidden]{display:none}
+/* próximo passo da Cancha no topo do item */
+.notice.passo{border-left:3px solid var(--s-producao);font-size:13px;line-height:1.5}

@@ -256,7 +256,7 @@ function atualizarItem(c: Ctx, p: any, l: any, arquivo: string): boolean {
   if (vale(l.tipo) && l.tipo !== p.rede + '|' + p.formato) throw new ErroAcao('O canal e o formato não mudam pela planilha.');
   const conteudo = (campo: string, nome: string, atual: unknown, novo: unknown, aplica: (v: string) => void) => {
     if (!vale(novo) || igual(atual, novo)) return;
-    if (!EDITAVEL.includes(p.status)) throw new ErroAcao(`"${p.titulo}" está em "${STATUS[p.status]}" e o ${nome} não muda mais. Para mudar, volte o item para produção no portal.`);
+    if (!EDITAVEL.includes(p.status)) throw new ErroAcao(`"${p.titulo}" está em "${STATUS[p.status]}" e o ${nome} não muda mais. Para mudar, volte o item para "Em criação" no portal.`);
     if (campo === 'pauta' && !etapaDaPauta(p)) throw new ErroAcao(`a pauta de "${p.titulo}" já foi aprovada e não muda.`);
     aplica(String(novo).trim()); mud.push(nome);
   };
@@ -486,10 +486,10 @@ export const ACOES: Record<string, Def> = {
     papeis: C,
     fn: (c) => {
       const p = post(c, c.d.id);
-      if (p.status !== 'pauta') throw new ErroAcao('Só pautas vão para produção.');
+      if (p.status !== 'pauta') throw new ErroAcao('Só pautas vão para criação.');
       if (temPauta(p)) throw new ErroAcao('Envie a pauta para aprovação da Spraytec antes de produzir.');
-      p.status = 'producao'; hist(c, p, 'Movido para produção');
-      return { resumo: `Moveu "${p.titulo}" para produção` };
+      p.status = 'producao'; hist(c, p, 'Movido para criação');
+      return { resumo: `Moveu "${p.titulo}" para criação` };
     },
   },
   enviar: {
@@ -596,7 +596,7 @@ export const ACOES: Record<string, Def> = {
     fn: (c) => {
       const p = post(c, c.d.id);
       if (!['pauta', 'producao', 'ajuste', 'espera'].includes(p.status))
-        throw new ErroAcao('Depois de enviado para aprovação, o conteúdo não muda. Volte o item para produção antes de editar.');
+        throw new ErroAcao('Depois de enviado para aprovação, o conteúdo não muda. Volte o item para "Em criação" antes de editar.');
       const antes = JSON.stringify([p.titulo, p.pauta, p.legenda, p.drive || '', p.time || '']);
       p.titulo = texto(c.d.titulo, 'título', 200);
       if (c.d.pauta !== undefined && !igual(c.d.pauta, p.pauta)) {
