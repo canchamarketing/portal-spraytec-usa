@@ -8,6 +8,7 @@ import { join } from 'node:path';
 let ok = 0, falhas = 0;
 const checa = (cond: unknown, msg: string) => { if (cond) { ok++; console.log('  ok  ', msg); } else { falhas++; console.log('  FALHA', msg); } };
 const espera = async (fn: () => unknown, msg: string) => { try { await fn(); checa(false, msg); } catch (e) { checa(true, msg + ` (${(e as Error).message})`); } };
+const checaSemErro = (fn: () => unknown, msg: string) => { try { fn(); checa(true, msg); } catch (e) { checa(false, msg + ` (${(e as Error).message})`); } };
 
 // ---------- Drive simulado ----------
 const arquivos = new Map<string, { id: string; name: string; mimeType: string; parents: string[]; dados: Buffer; pasta: boolean }>();
@@ -139,6 +140,10 @@ const p = e.posts[0];
 checa(p.arquivos.length === 2 && p.arquivos.every((a: any) => a.v === 1 && a.por === 'Ana Cancha'), 'peças da versão 1 com quem enviou');
 checa(JSON.stringify(p.pastaDrive) === JSON.stringify(['Posts', '2026-11', '2026-11-04 Manejo (p1)']), 'post guarda a própria pasta no Drive');
 checa(!visaoPara(e, oper).posts[0].arquivos, 'Spraytec não vê as peças enquanto o post está em produção');
+p.status = 'texto_aprovacao';
+checa(!visaoPara(e, oper).posts[0].arquivos.length, 'arte anexada durante a aprovação dos textos fica escondida da Spraytec');
+checaSemErro(() => destinoArquivo(e, cancha, 'p:p1'), 'com os textos em aprovação, a Cancha já pode anexar a arte');
+p.status = 'producao';
 ACOES.enviar.fn({ e, u: cancha, d: { id: 'p1' }, hoje, agora, pessoas: [] });
 checa(p.status === 'aprovacao' && p.vEnviada === 1, 'envio para aprovação marca a versão 1 como enviada');
 checa(visaoPara(e, oper).posts[0].arquivos.length === 2, 'na aprovação a Spraytec vê as peças');

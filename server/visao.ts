@@ -27,6 +27,8 @@ export function visaoPara(e0: Estado, u: Usuario) {
     // Pauta ainda sendo escrita: nada aparece. Em produção: a pauta aprovada aparece; legenda e arte, só na aprovação.
     if (temPauta(p) && p.status === 'pauta') { x.pauta = ''; x.legenda = ''; delete x.drive; delete x.arquivos; }
     if (temPauta(p) && p.status === 'producao') { if (!p.textoOk) x.legenda = ''; delete x.drive; delete x.arquivos; }
+    // A arte pode ser anexada enquanto a pauta ou os textos estão em aprovação, mas a Spraytec só a vê quando ela for enviada.
+    if (['pauta_aprovacao', 'texto_aprovacao'].includes(p.status)) { if (!p.vEnviada) delete x.drive; x.arquivos = (x.arquivos || []).filter((a: any) => (a.v || 1) <= (p.vEnviada || 0)); }
     // Ajuste pedido: a versão nova da peça só aparece para a Spraytec quando for reenviada.
     if (p.status === 'ajuste' && x.arquivos) x.arquivos = x.arquivos.filter((a: any) => (a.v || 1) <= (p.vEnviada || 0));
     return x;

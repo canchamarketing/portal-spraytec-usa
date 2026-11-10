@@ -213,7 +213,8 @@ export function destinoArquivo(e: Estado, u: Usuario, ref: string): string[] {
     const p = e.posts.find((x) => x.id === id); if (!p) throw new ErroAcao('Item não encontrado. Atualize a página.');
     papel(['cancha'], 'Só a Cancha anexa peças aos posts.');
     if (p.formato === 'plano') throw new ErroAcao('O plano de mídia não recebe arquivos.');
-    if (EM_APROVACAO.includes(p.status)) throw new ErroAcao('Este item está em aprovação. Espere a resposta da Spraytec ou registre o ajuste antes de enviar outra versão.');
+    // Durante a aprovação da pauta ou dos textos a arte já pode ir sendo anexada; só trava com a própria arte em aprovação.
+    if (p.status === 'aprovacao') throw new ErroAcao('A arte deste item está em aprovação. Espere a resposta da Spraytec ou registre o ajuste antes de enviar outra versão.');
     return p.pastaDrive || ['Posts', p.date ? p.date.slice(0, 7) : 'Sem data', `${p.date || 'sem data'} ${p.titulo} (${p.id})`];
   }
   if (k === 'v') {
