@@ -699,7 +699,7 @@ function prazoDe(p){return p.prazo||addDays(TODAY,2)}
 // prévias
 // Carrossel com as peças enviadas: arrasta para o lado ou usa as setas, como no Instagram.
 function carrosselPv(p){const L=pecasAtuais(p);
-  return `<div class="img foto car" data-car><div class="cartrack">${L.map((a,i)=>tipoArq(a)==='video'?`<video src="${arqUrl(a.id)}" muted playsinline preload="metadata"></video>`:`<img src="${miniUrl(a.id,1080)}" alt="Lâmina ${i+1}" loading="lazy" data-falha>`).join('')}</div>
+  return `<div class="img foto car" data-car><div class="cartrack">${L.map((a,i)=>tipoArq(a)==='video'?`<video src="${arqUrl(a.id)}" muted playsinline preload="metadata"></video>`:`<img src="${miniUrl(a.id,1080)}" alt="Lâmina ${i+1}" loading="lazy" draggable="false" data-falha>`).join('')}</div>
    <span class="cnt" data-carcnt>1/${L.length}</span><button type="button" class="carb ant" data-carb="-1" aria-label="Lâmina anterior" hidden>‹</button><button type="button" class="carb prox" data-carb="1" aria-label="Próxima lâmina">›</button></div>`}
 function carAtual(car,alvo){const t=car.querySelector('.cartrack'),n=t.children.length,pv=car.closest('.pv');
   const k=Math.min(n-1,Math.max(0,alvo!=null?alvo:car._alvo!=null?car._alvo:Math.round(t.scrollLeft/Math.max(1,t.clientWidth))));
@@ -710,6 +710,15 @@ function carAtual(car,alvo){const t=car.querySelector('.cartrack'),n=t.children.
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-carb]');if(!b)return;e.stopPropagation();e.preventDefault();
   const car=b.closest('[data-car]'),t=car.querySelector('.cartrack'),k=carAtual(car,carAtual(car)+Number(b.dataset.carb));
   car._alvo=k;clearTimeout(car._tm);car._tm=setTimeout(()=>{car._alvo=null},700);t.scrollTo({left:k*t.clientWidth,behavior:'smooth'})},true);
+// Arrastar com o mouse: segue o mouse e, ao soltar, vai para a lâmina seguinte (ou volta), como no Instagram.
+let carDrag=null;
+document.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button!==0)return;const t=e.target.closest&&e.target.closest('.cartrack');if(!t)return;
+  const car=t.closest('[data-car]');carDrag={t,car,x0:e.clientX,s0:t.scrollLeft,i0:carAtual(car),dx:0};t.classList.add('arrastando');e.preventDefault()});
+document.addEventListener('pointermove',e=>{if(!carDrag)return;carDrag.dx=e.clientX-carDrag.x0;carDrag.t.scrollLeft=carDrag.s0-carDrag.dx});
+document.addEventListener('pointerup',()=>{if(!carDrag)return;const {t,car,dx,i0}=carDrag,w=Math.max(1,t.clientWidth);carDrag=null;
+  const k=carAtual(car,Math.abs(dx)>w*.15?i0+(dx<0?1:-1):i0);car._alvo=k;clearTimeout(car._tm);car._tm=setTimeout(()=>{car._alvo=null},700);
+  t.classList.remove('arrastando');t.scrollTo({left:k*w,behavior:'smooth'});
+  if(Math.abs(dx)>4){const bloq=ev=>{ev.stopPropagation();ev.preventDefault()};document.addEventListener('click',bloq,{capture:true,once:true});setTimeout(()=>document.removeEventListener('click',bloq,true),50)}});
 // Arrastar com o dedo ou o trackpad também troca de lâmina.
 document.addEventListener('scroll',e=>{const t=e.target;if(t&&t.classList&&t.classList.contains('cartrack'))carAtual(t.closest('[data-car]'))},true);
 function preview(p){
@@ -1581,8 +1590,16 @@ function viewQuem(){const A=acoes();const me=isM()?'spraytec':'cancha';const ord
 const SKCOLS=['pauta','pauta_aprovacao','producao','texto_aprovacao','aprovacao','ajuste','aprovado','agendado','publicado','espera'];
 // Colunas do kanban: copy e arte separadas; "Em produção" fica para design e vídeo.
 const SKCOLS_V=['pauta','pauta_aprovacao','copy','texto_aprovacao','arte','aprovacao','ajuste','aprovado','agendado','publicado','producao','espera'];
+// Etapas na ordem do fluxo; posts com pauta mostram copy e arte separadas, design e vídeo mostram "Em produção".
+const etapasDo=p=>temPauta(p)?SKCOLS_V.filter(k=>k!=='producao'):SKCOLS;
+// Leva o item para a etapa escolhida (no seletor ou arrastando no kanban). Copy e arte são a mesma etapa no servidor.
+function irParaEtapa(p,col){if(!p||!col)return;
+  if(col==='arte'&&p.status==='producao'&&!p.textoOk){toast('Para ir para a arte, os textos precisam ser aprovados pela Spraytec (ou registre a aprovação no item).');return}
+  if(col==='copy'&&p.textoOk&&['producao','aprovacao','ajuste'].includes(p.status)){toast('Os textos deste post já foram aprovados: a etapa agora é a arte.');return}
+  const st=STV[col]?'producao':col;if(st===p.status&&stK(p)===col){toast('Sem mudança.');return}
+  acao('status',{id:p.id,status:st},()=>toast('Status: '+(STV[col]||STATUS[col]).l+'.'))}
 function statusEditor(p){if(p.formato==='plano')return '';const ok=['aprovado','agendado'].includes(p.status);
-  return `<div class="stedit"><div class="ler" style="align-items:flex-end"><div style="flex:1"><label for="st-sel" class="muted" style="font-size:12px">Status</label><select id="st-sel" class="pe">${SKCOLS.map(k=>`<option value="${k}" ${p.status===k?'selected':''}>${k==='producao'&&temPauta(p)?(p.textoOk?'Arte em criação':'Copy em produção'):STATUS[k].l}</option>`).join('')}</select></div><button class="btn" data-act="st-save" data-id="${p.id}">Salvar</button></div>
+  return `<div class="stedit"><div class="ler" style="align-items:flex-end"><div style="flex:1"><label for="st-sel" class="muted" style="font-size:12px">Status</label><select id="st-sel" class="pe">${etapasDo(p).map(k=>`<option value="${k}" ${stK(p)===k?'selected':''}>${(STV[k]||STATUS[k]).l}</option>`).join('')}</select></div><button class="btn" data-act="st-save" data-id="${p.id}">Salvar</button></div>
    ${ok?`<div class="ler"><input id="pub-link" class="pe" placeholder="Link do post publicado (opcional)" aria-label="Link do post publicado"><button class="btn primary" data-act="st-pub" data-id="${p.id}">Marcar como publicado</button></div>`:''}
    <span class="muted" style="font-size:12px">Toda mudança fica no histórico.</span></div>`}
 function kanbanBarra(){return `<div class="toolbar">${monthNav('month')}<div class="filters" role="group" aria-label="Tipos">${TIPOS.filter(t=>t[0]!=='demanda').map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
@@ -2176,7 +2193,7 @@ document.addEventListener('click',e=>{
     case 'vk-novo':acao('video-novo',{},j=>{openDrawer('video',j.criado);toast('Pauta criada. Dê um nome e envie para a produtora.')});break;
     case 'video-salvar':{const r=$('#vr-'+id);acao('video-salvar',{id,titulo:val('#vt-'+id),roteiro:r?r.value:undefined},()=>toast('Vídeo salvo.'));break}
     case 'post-editar':acao('post-editar',{id,titulo:val('#pe-titulo'),legenda:$('#pe-leg')?$('#pe-leg').value:undefined,pauta:$('#pe-pauta')?$('#pe-pauta').value:undefined,hora:val('#pe-hora')||null,drive:val('#pe-drive')},()=>toast('Conteúdo salvo.'));break;
-    case 'st-save':{const ns=$('#st-sel').value;acao('status',{id,status:ns},()=>toast('Status: '+STATUS[ns].l+'.'));break}
+    case 'st-save':irParaEtapa(posts.find(x=>x.id===id),$('#st-sel').value);break;
     case 'agendar':acao('status',{id,status:'agendado'},()=>toast('Marcado como agendado.'));break;
     case 'st-pub':acao('publicar',{id,link:val('#pub-link')},()=>toast('Marcado como publicado.'));break;
     case 'ver-mud':openDrawer('mud',id);break;
@@ -2225,10 +2242,7 @@ let drag=null;
 document.addEventListener('dragstart',e=>{const t=e.target.closest('[data-drag],[data-ddrag],[data-vdrag],[data-sdrag]');if(!t)return;drag=t.dataset.sdrag?{k:'st',id:t.dataset.sdrag}:t.dataset.vdrag?{k:'vid',id:t.dataset.vdrag}:t.dataset.drag?{k:'post',id:t.dataset.drag}:{k:'dem',id:t.dataset.ddrag};e.dataTransfer.effectAllowed='move';try{e.dataTransfer.setData('text/plain',drag.id)}catch(_){}});
 document.addEventListener('dragover',e=>{const c=e.target.closest('[data-day],[data-vcol],[data-scol]');if(!c||!drag)return;e.preventDefault();document.querySelectorAll('.over').forEach(x=>x.classList.remove('over'));c.classList.add('over')});
 document.addEventListener('drop',e=>{const c=e.target.closest('[data-day],[data-vcol],[data-scol]');if(!c||!drag)return;e.preventDefault();const g=drag;drag=null;document.querySelectorAll('.over').forEach(x=>x.classList.remove('over'));
-  if(g.k==='st'){const col=c.dataset.scol;if(!col)return;const p=posts.find(x=>x.id===g.id);
-    if(col==='arte'&&p&&p.status==='producao'&&!p.textoOk){toast('Para ir para a arte, os textos precisam ser aprovados pela Spraytec (ou registre a aprovação no item).');return}
-    if(col==='copy'&&p&&p.status==='producao'&&p.textoOk){toast('Os textos deste post já foram aprovados.');return}
-    const st=STV[col]?'producao':col;acao('status',{id:g.id,status:st},()=>toast('Status: '+(STV[col]||STATUS[col]).l+'.'));return}
+  if(g.k==='st'){irParaEtapa(posts.find(x=>x.id===g.id),c.dataset.scol);return}
   if(g.k==='vid'){const col=c.dataset.vcol,v=videos.find(x=>x.id===g.id);if(col&&v&&v.stage!==col)acao('video-etapa',{id:g.id,etapa:col},()=>toast('Vídeo movido para '+VCOLS.find(x=>x[0]===col)[1]+'.'));return}
   const day=c.dataset.day;if(!day)return;
   if(g.k==='dem'){if(day!=='espera')acao('demanda-data',{id:g.id,data:day},()=>toast('Demanda movida para '+fmtLong(day)+'.'));return}

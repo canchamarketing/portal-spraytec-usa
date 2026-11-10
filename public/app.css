@@ -1167,3 +1167,5 @@ details.accmini>summary:hover{color:var(--ink)}
 .pv .carb[hidden]{display:none}
 /* próximo passo da Cancha no topo do item */
 .notice.passo{border-left:3px solid var(--s-producao);font-size:13px;line-height:1.5}
+.pv .img.car .cartrack{cursor:grab;user-select:none}
+.pv .img.car .cartrack.arrastando{cursor:grabbing;scroll-snap-type:none}
