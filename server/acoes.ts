@@ -210,6 +210,17 @@ function reenviar(c: Ctx, p: any) {
 // Peças no Drive: a versão que foi para aprovação fica marcada; o próximo envio abre a versão seguinte.
 const vivos = (l: any[] | undefined) => (l || []).filter((a) => !a.removido);
 function marcarVersaoEnviada(p: any) { if (vivos(p.arquivos).length) p.vEnviada = p.vPeca || 1; }
+// Depois da aprovação, a pasta do post no Drive fica só com a versão aprovada: as outras versões (e o que foi
+// tirado do portal) vão para a subpasta "Versões antigas", que continua guardada como histórico.
+export function versoesParaArquivar(e: Estado) {
+  const out: { id: string; caminho: string[]; ids: string[] }[] = [];
+  for (const p of e.posts) {
+    if (!['aprovado', 'agendado', 'publicado'].includes(p.status) || !p.vEnviada || !p.pastaDrive) continue;
+    const ids = (p.arquivos || []).filter((a: any) => !a.antiga && ((a.v || 1) !== p.vEnviada || a.removido)).map((a: any) => a.id);
+    if (ids.length) out.push({ id: p.id, caminho: [...p.pastaDrive, 'Versões antigas'], ids });
+  }
+  return out;
+}
 
 // Onde cada arquivo fica no Drive e quem pode anexar. É conferido antes de o envio começar e de novo ao registrar.
 export function destinoArquivo(e: Estado, u: Usuario, ref: string): string[] {
@@ -560,6 +571,19 @@ export const ACOES: Record<string, Def> = {
       if (was === 'agendado') { p.status = 'aprovado'; hist(c, p, `Data alterada para ${fmt(p.date)}; precisa ser agendado de novo na rede`); }
       else hist(c, p, `Data alterada para ${fmt(p.date)}`);
       return { resumo: `Mudou "${p.titulo}" para ${fmt(p.date)}` };
+    },
+  },
+  // O portal moveu no Drive as versões que não foram aprovadas para "Versões antigas" (ver versoesParaArquivar).
+  'versoes-arquivadas': {
+    papeis: C,
+    fn: (c) => {
+      const p = post(c, c.d.id), ids = new Set(Array.isArray(c.d.ids) ? c.d.ids.map(String) : []);
+      const alvo = new Set(versoesParaArquivar(c.e).find((x) => x.id === p.id)?.ids || []);
+      const L = (p.arquivos || []).filter((a: any) => ids.has(a.id) && alvo.has(a.id));
+      if (!L.length) return { resumo: 'Sem mudança' };
+      L.forEach((a: any) => { a.antiga = true; });
+      hist(c, p, `Versões não aprovadas movidas para "Versões antigas" no Drive (${L.length} arquivo${L.length > 1 ? 's' : ''})`);
+      return { resumo: `Moveu ${L.length} arquivo${L.length > 1 ? 's' : ''} de "${p.titulo}" para "Versões antigas" no Drive` };
     },
   },
   // Excluir um item do calendário (teste, duplicado, criado por engano). Só a Cancha.

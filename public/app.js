@@ -352,7 +352,8 @@ function arqSecao(ref,x,o){o=o||{};const L=arqVivos(x),pode=o.pode&&DRIVE.conect
   if(!L.length&&!o.pode)return '';
   let corpo='';
   if(o.versoes&&L.length){const vs=[...new Set(L.map(a=>a.v||1))].sort((a,b)=>b-a);
-    corpo=vs.map((v,i)=>{const G=L.filter(a=>(a.v||1)===v);const lbl=`Versão ${v}${(x.vEnviada||0)>=v?' · enviada para aprovação':' · ainda não enviada'}`;const grid=`<div class="arqgrid">${G.map(a=>arqTile(a,ref)).join('')}</div>`;
+    corpo=vs.map((v,i)=>{const G=L.filter(a=>(a.v||1)===v);const aprov=['aprovado','agendado','publicado'].includes(x.status)&&x.vEnviada===v;
+      const lbl=`Versão ${v}${aprov?' · aprovada':(x.vEnviada||0)>=v?' · enviada para aprovação':' · ainda não enviada'}${G.every(a=>a.antiga)?' · guardada em "Versões antigas" no Drive':''}`;const grid=`<div class="arqgrid">${G.map(a=>arqTile(a,ref)).join('')}</div>`;
       return i===0?`<div class="arqv"><span class="muted" style="font-size:12px">${lbl}</span>${grid}</div>`:`<details class="arqv"><summary class="muted" style="font-size:12px">${lbl}</summary>${grid}</details>`}).join('')}
   else if(L.length)corpo=`<div class="arqgrid">${L.map(a=>arqTile(a,ref)).join('')}</div>`;
   // Arquivo que já está no Drive: cola o link (ou usa o link do calendário) e o Google copia para a pasta do item.

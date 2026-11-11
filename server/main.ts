@@ -7,12 +7,12 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { abrirBanco, migrar } from './db.ts';
 import { carregar, salvar, gravarTudo } from './estado.ts';
-import { ACOES, destinoArquivo, type Aviso } from './acoes.ts';
+import { ACOES, destinoArquivo, versoesParaArquivar, type Aviso } from './acoes.ts';
 import { visaoPara } from './visao.ts';
 import { coletaRodando, coletarMeta, metaConfigurado } from './integracoes/meta.ts';
 import {
   ErroDrive, PARTE, abrirConteudo, carregarDrive, concluirAutorizacao, desconectarDrive, driveConectado, driveConfigurado, envioDe,
-  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao, copiarDoDrive, idDoLink, registrarCopia,
+  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao, copiarDoDrive, idDoLink, registrarCopia, moverPara,
 } from './integracoes/drive.ts';
 import {
   carregarGA4, coletaGA4Rodando, coletarGA4, concluirGA4, desconectarGA4, escolherPropriedade, ga4Conectado, ga4Configurado, urlAutorizacaoGA4,
@@ -251,8 +251,30 @@ async function executarAcao(u: Usuario, acao: string, d: any, ip?: string) {
     return r;
   }));
   if (res.avisos?.length) avisar(res.avisos, u).catch((err) => app.log.error({ err }, 'falha ao enviar aviso'));
+  if (acao !== 'versoes-arquivadas') setTimeout(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 500);
   return res;
 }
+
+// Arte ou vídeo aprovado: o portal move no Drive as outras versões do post para "Versões antigas".
+// Roda depois de cada ação e de hora em hora (se o Drive estiver fora do ar, tenta de novo depois).
+const SISTEMA: Usuario = { id: 'sistema', nome: 'Portal (automático)', papel: 'cancha', email: null, demo: false } as any;
+let arquivando = false;
+async function arquivarVersoes() {
+  if (arquivando || !driveConectado()) return;
+  arquivando = true;
+  try {
+    for (const x of versoesParaArquivar(await carregar(b))) {
+      const feitos: string[] = [];
+      for (const id of x.ids) {
+        try { await moverPara(b, id, x.caminho); feitos.push(id); }
+        catch (err) { if (err instanceof ErroDrive && err.status === 404) feitos.push(id); else app.log.warn({ err, post: x.id }, 'não moveu versão antiga'); }
+      }
+      if (feitos.length) await executarAcao(SISTEMA, 'versoes-arquivadas', { id: x.id, ids: feitos });
+    }
+  } finally { arquivando = false; }
+}
+setTimeout(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 90e3);
+setInterval(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 3600e3);
 
 app.post('/api/acao', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;

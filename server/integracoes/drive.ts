@@ -208,6 +208,15 @@ export async function copiarDoDrive(q: Consulta, id: string, caminho: string[]) 
   const c = await api('POST', `${DRIVE()}/files/${encodeURIComponent(id)}/copy?fields=id,name,mimeType,size&supportsAllDrives=true`, { json: { name: limpo(m.name || 'arquivo'), parents: [pai] } });
   return { id: c.id as string, nome: (c.name || m.name) as string, tipo: (c.mimeType || m.mimeType || 'application/octet-stream') as string, tam: Number(c.size || m.size || 0) };
 }
+// Move um arquivo do portal para outra pasta (ex.: "Versões antigas" do post). Se já está lá, não faz nada.
+export async function moverPara(q: Consulta, id: string, caminho: string[]) {
+  const destino = await pasta(q, caminho);
+  const m = await api('GET', `${DRIVE()}/files/${encodeURIComponent(id)}?fields=parents`);
+  const pais: string[] = m.parents || [];
+  if (pais.includes(destino)) return false;
+  await api('PATCH', `${DRIVE()}/files/${encodeURIComponent(id)}?addParents=${encodeURIComponent(destino)}${pais.length ? '&removeParents=' + encodeURIComponent(pais.join(',')) : ''}&fields=id`, { json: {} });
+  return true;
+}
 // A cópia entra no item pelo mesmo caminho de um envio (ação arquivo-anexar).
 export function registrarCopia(usuario: string, ref: string, arquivo: { id: string; nome: string; tipo: string; tam: number; origem?: string }) {
   const e: Envio = { token: randomBytes(18).toString('base64url'), usuario, ref, nome: arquivo.nome, tipo: arquivo.tipo, tam: arquivo.tam, url: '', recebido: arquivo.tam, criado: Date.now(), arquivo };

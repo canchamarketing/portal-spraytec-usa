@@ -49,6 +49,13 @@ const servidor = createServer(async (req, res) => {
     const id = 'f' + ++seq; arquivos.set(id, { id, name: s.meta.name, mimeType: s.meta.mimeType, parents: s.meta.parents, dados: Buffer.concat(s.partes), pasta: false });
     return json(200, { id, name: s.meta.name, mimeType: s.meta.mimeType, size: String(s.tam) });
   }
+  const mp = u.pathname.match(/^\/drive\/v3\/files\/([^/]+)$/);
+  if (mp && req.method === 'PATCH') {
+    const a = arquivos.get(decodeURIComponent(mp[1])); if (!a) return json(404, { error: { message: 'File not found' } });
+    const add = u.searchParams.get('addParents'), rem = (u.searchParams.get('removeParents') || '').split(',').filter(Boolean);
+    if (add && !arquivos.has(add)) return json(404, { error: { message: 'File not found: ' + add } });
+    a.parents = [...a.parents.filter((x) => !rem.includes(x)), ...(add ? [add] : [])]; return json(200, { id: a.id });
+  }
   const mc = u.pathname.match(/^\/drive\/v3\/files\/([^/]+)\/copy$/);
   if (mc && req.method === 'POST') {
     const a = arquivos.get(decodeURIComponent(mc[1])); if (!a) return json(404, { error: { message: 'File not found' } });
@@ -64,7 +71,7 @@ const servidor = createServer(async (req, res) => {
       if (rg) { const i = Number(rg[1]), f = rg[2] ? Number(rg[2]) : a.dados.length - 1; res.writeHead(206, { 'content-type': a.mimeType, 'content-length': String(f - i + 1), 'content-range': `bytes ${i}-${f}/${a.dados.length}` }); return res.end(a.dados.subarray(i, f + 1)); }
       res.writeHead(200, { 'content-type': a.mimeType, 'content-length': String(a.dados.length) }); return res.end(a.dados);
     }
-    return json(200, { id: a.id, name: a.name, size: String(a.dados.length), thumbnailLink: a.mimeType.startsWith('image/') ? `http://localhost:${porta}/miniatura/${a.id}=s220` : undefined, mimeType: a.mimeType });
+    return json(200, { id: a.id, parents: a.parents, name: a.name, size: String(a.dados.length), thumbnailLink: a.mimeType.startsWith('image/') ? `http://localhost:${porta}/miniatura/${a.id}=s220` : undefined, mimeType: a.mimeType });
   }
   if (u.pathname.startsWith('/miniatura/')) { res.writeHead(200, { 'content-type': 'image/jpeg' }); return res.end(Buffer.from('mini:' + u.pathname)); }
   json(404, { error: { message: 'rota ' + u.pathname } });
@@ -193,6 +200,20 @@ checa(p9.arquivos.length === 1 && p9.arquivos[0].origem && p9.arquivos[0].por ==
 ACOES.aprovar.fn({ e, u: oper, d: { id: 'p9' }, hoje, agora, pessoas: [] });
 checa(p9.textoOk && p9.status === 'aprovacao', 'Reel com o vídeo da produtora já anexado: copy aprovada vai direto para a aprovação do vídeo (sem "arte em criação")');
 checa(visaoPara(e, oper).posts.find((x: any) => x.id === 'p9').arquivos.length === 1, 'na aprovação do vídeo, a Spraytec vê o vídeo');
+
+console.log('Versões antigas depois da aprovação');
+const { versoesParaArquivar } = await import('../server/acoes.ts');
+checa(!versoesParaArquivar(e).some((x) => x.id === 'p1'), 'antes da aprovação, nenhuma versão sai do lugar');
+ACOES.aprovar.fn({ e, u: oper, d: { id: 'p1' }, hoje, agora, pessoas: [] });
+const alvo = versoesParaArquivar(e).find((x) => x.id === 'p1')!;
+const v1 = p.arquivos.filter((a: any) => (a.v || 1) === 1).map((a: any) => a.id);
+checa(alvo && v1.every((id: string) => alvo.ids.includes(id)) && !p.arquivos.filter((a: any) => a.v === 2 && !a.removido).some((a: any) => alvo.ids.includes(a.id)), 'aprovada a versão 2: a versão 1 vai para "Versões antigas"; a aprovada fica');
+for (const id of alvo.ids) await D.moverPara(b, id, alvo.caminho);
+const antigas = arquivos.get(arquivos.get(alvo.ids[0])!.parents[0])!;
+checa(antigas.name === 'Versões antigas' && arquivos.get(antigas.parents[0])!.name === p.pastaDrive.at(-1), 'no Drive, a versão 1 fica em <pasta do post>/Versões antigas');
+checa((await D.moverPara(b, alvo.ids[0], alvo.caminho)) === false, 'mover de novo não faz nada');
+ACOES['versoes-arquivadas'].fn({ e, u: cancha, d: { id: 'p1', ids: alvo.ids }, hoje, agora, pessoas: [] });
+checa(!versoesParaArquivar(e).some((x) => x.id === 'p1') && p.arquivos.filter((a: any) => alvo.ids.includes(a.id)).every((a: any) => a.antiga), 'portal marca as versões guardadas e não move de novo');
 
 console.log('Desconexão');
 await D.desconectarDrive(b);
