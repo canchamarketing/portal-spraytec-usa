@@ -1,8 +1,8 @@
-# Portal Spraytec no servidor da Hostinger (/opt/spraytec). Segredos ficam em .env (permissão 600, fora do git).
+# Portal Spraytec USA no servidor da Hostinger (/opt/spraytecusa). Segredos ficam em .env (permissão 600, fora do git).
 services:
   app:
     build: .
-    image: portal-spraytec:latest
+    image: portal-spraytecusa:latest
     restart: unless-stopped
     mem_limit: 1536m        # inclui a conversão de vídeo (ffmpeg); o servidor tem 16 GB
     env_file: .env
@@ -18,17 +18,17 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik_proxy
-      - traefik.http.routers.spraytec.rule=Host(`${SITE_HOST}`)
-      - traefik.http.routers.spraytec.entrypoints=websecure
-      - traefik.http.routers.spraytec.tls=true
-      - traefik.http.routers.spraytec.tls.certresolver=letsencrypt
-      - traefik.http.routers.spraytec.service=spraytec
-      - traefik.http.services.spraytec.loadbalancer.server.port=3000
-      - traefik.http.routers.spraytec-http.rule=Host(`${SITE_HOST}`)
-      - traefik.http.routers.spraytec-http.entrypoints=web
-      - traefik.http.routers.spraytec-http.middlewares=spraytec-https
-      - traefik.http.middlewares.spraytec-https.redirectscheme.scheme=https
-      - traefik.http.middlewares.spraytec-https.redirectscheme.permanent=true
+      - traefik.http.routers.spraytecusa.rule=Host(`${SITE_HOST}`)
+      - traefik.http.routers.spraytecusa.entrypoints=websecure
+      - traefik.http.routers.spraytecusa.tls=true
+      - traefik.http.routers.spraytecusa.tls.certresolver=letsencrypt
+      - traefik.http.routers.spraytecusa.service=spraytecusa
+      - traefik.http.services.spraytecusa.loadbalancer.server.port=3000
+      - traefik.http.routers.spraytecusa-http.rule=Host(`${SITE_HOST}`)
+      - traefik.http.routers.spraytecusa-http.entrypoints=web
+      - traefik.http.routers.spraytecusa-http.middlewares=spraytecusa-https
+      - traefik.http.middlewares.spraytecusa-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.spraytecusa-https.redirectscheme.permanent=true
 
   db:
     image: postgres:17
