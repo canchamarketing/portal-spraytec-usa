@@ -96,6 +96,12 @@ function aprovar(c: Ctx, p: any, quem: string, canal: string) {
   if (p.status === 'texto_aprovacao') {
     p.status = 'producao'; p.textoOk = true; delete p.validacao;
     hist(c, p, `Textos aprovados por ${quem} · ${canal}`);
+    // Reels, vídeos e Shorts usam vídeo pronto da produtora: sem arte a criar. Se o vídeo já está anexado,
+    // vai direto para a aprovação do vídeo (a Spraytec vê o vídeo e a legenda juntos).
+    if (['reel', 'video', 'short'].includes(p.formato) && vivos(p.arquivos).some((a: any) => /^video\//.test(a.tipo || ''))) {
+      enviarPeca(c, p);
+      hist(c, p, 'Vídeo da produtora já anexado: foi direto para a aprovação do vídeo');
+    }
     return;
   }
   p.status = 'aprovado'; delete p.validacao;

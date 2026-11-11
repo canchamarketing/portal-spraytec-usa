@@ -2,11 +2,11 @@
 let TODAY='';
 const ROLES={operacao:'Operação Spraytec',diretoria:'Diretoria Spraytec',cancha:'Cancha',produtora:'Produtora de vídeo',leitor:'Leitor'};
 const STATUS={
-  pauta:{l:'Pauta',c:'--s-pauta'}, pauta_aprovacao:{l:'Pauta em aprovação',c:'--s-validacao'}, producao:{l:'Em produção',c:'--s-producao'}, texto_aprovacao:{l:'Textos em aprovação',c:'--s-validacao'}, aprovacao:{l:'Em aprovação',c:'--s-aprovacao'},
+  pauta:{l:'Pauta em produção',c:'--s-pauta'}, pauta_aprovacao:{l:'Pauta em aprovação',c:'--s-validacao'}, producao:{l:'Em produção',c:'--s-producao'}, texto_aprovacao:{l:'Textos em aprovação',c:'--s-validacao'}, aprovacao:{l:'Em aprovação',c:'--s-aprovacao'},
   ajuste:{l:'Ajuste',c:'--s-ajuste'}, aprovado:{l:'Aprovado',c:'--s-aprovado'},
   agendado:{l:'Agendado',c:'--s-agendado'}, publicado:{l:'Publicado',c:'--s-publicado'}, espera:{l:'Em espera',c:'--s-espera'}
 };
-const ST_CURTO={pauta:'Pauta',pauta_aprovacao:'Pauta p/ aprovar',texto_aprovacao:'Textos p/ aprovar',producao:'Produção',copy:'Copy em produção',arte:'Arte em criação',aprovacao:'Aprovação',ajuste:'Ajuste',aprovado:'Aprovado',agendado:'Agendado',publicado:'Feito',espera:'Em espera'};
+const ST_CURTO={pauta:'Pauta em produção',pauta_aprovacao:'Pauta p/ aprovar',texto_aprovacao:'Textos p/ aprovar',producao:'Produção',copy:'Copy em produção',arte:'Arte em criação',aprovacao:'Aprovação',ajuste:'Ajuste',aprovado:'Aprovado',agendado:'Agendado',publicado:'Feito',espera:'Em espera'};
 const NET={ig:'IG',fb:'FB',yt:'YT',ads:'ADS',email:'E-MAIL',design:'DESIGN',video:'VÍDEO'};
 const NETNAME={ig:'Instagram',fb:'Facebook',yt:'YouTube',ads:'Mídia paga',email:'E-mail marketing',design:'Design',video:'Vídeo'};
 const FORMATO={carrossel:'Carrossel',post:'Post',story:'Story',reel:'Reel',video:'Vídeo',short:'Short',newsletter:'Newsletter',plano:'Plano de mídia',pecas:'Peça em 3 formatos',producao:'Produção de peças',gravacao:'Gravação',entrega:'Entrega do vídeo'};
@@ -355,7 +355,10 @@ function arqSecao(ref,x,o){o=o||{};const L=arqVivos(x),pode=o.pode&&DRIVE.conect
     corpo=vs.map((v,i)=>{const G=L.filter(a=>(a.v||1)===v);const lbl=`Versão ${v}${(x.vEnviada||0)>=v?' · enviada para aprovação':' · ainda não enviada'}`;const grid=`<div class="arqgrid">${G.map(a=>arqTile(a,ref)).join('')}</div>`;
       return i===0?`<div class="arqv"><span class="muted" style="font-size:12px">${lbl}</span>${grid}</div>`:`<details class="arqv"><summary class="muted" style="font-size:12px">${lbl}</summary>${grid}</details>`}).join('')}
   else if(L.length)corpo=`<div class="arqgrid">${L.map(a=>arqTile(a,ref)).join('')}</div>`;
-  const up=pode?`<label class="arqdrop" data-drop="${esc(ref)}"><input type="file" multiple data-enviar="${esc(ref)}" hidden><b>${o.rotulo||'Enviar arquivos'}</b><span class="muted">Arraste aqui ou clique para escolher. O arquivo vai para o Drive da Spraytec${o.dica?'. '+o.dica:''}.</span></label>`
+  // Arquivo que já está no Drive: cola o link (ou usa o link do calendário) e o Google copia para a pasta do item.
+  const sug=o.driveLink&&x.drive&&/drive\.google\.com\/(file\/d\/|open\?id=|uc\?)/.test(x.drive)&&!(x.arquivos||[]).some(a=>!a.removido&&a.origem===x.drive)?x.drive:'';
+  const dl=o.driveLink&&pode&&isTeam()?`<div class="drvlink">${sug?`<button class="btn sm primary" data-act="drive-link" data-ref="${esc(ref)}" data-link="${esc(sug)}">Usar o arquivo do link do calendário</button>`:''}<div class="ler"><input class="pe" id="dl-${esc(ref.replace(':','-'))}" placeholder="Ou cole o link de um arquivo do Google Drive" aria-label="Link do arquivo no Google Drive"><button class="btn sm" data-act="drive-link" data-ref="${esc(ref)}">Usar do Drive</button></div></div>`:'';
+  const up=pode?`<label class="arqdrop" data-drop="${esc(ref)}"><input type="file" multiple data-enviar="${esc(ref)}" hidden><b>${o.rotulo||'Enviar arquivos'}</b><span class="muted">Arraste aqui ou clique para escolher. O arquivo vai para o Drive da Spraytec${o.dica?'. '+o.dica:''}.</span></label>${dl}`
     :o.pode&&!DRIVE.conectado?'<p class="muted" style="font-size:12px;margin:0">O Google Drive da Spraytec ainda não está conectado ao portal.</p>':o.trava?`<p class="muted" style="font-size:12px;margin:0">${o.trava}</p>`:'';
   return `<div class="arqsec"><div class="eyebrow" style="margin-bottom:6px">${o.titulo||'Arquivos'}${L.length?' · '+L.length:''}</div>${corpo}<div data-envios="${esc(ref)}">${envList(ref)}</div>${up}</div>`}
 
@@ -420,10 +423,10 @@ document.addEventListener('keydown',e=>{if(!S.visor&&(e.key==='Enter'||e.key==='
 // ---------- conexão do Drive (Cancha) e materiais do Acervo ----------
 function drivePainel(){if(!isTeam())return '';
   if(!DRIVE.configurado)return '<section class="panel drivep"><div><b>Google Drive</b><p class="muted" style="margin:4px 0 0;font-size:13px">As chaves do Google ainda não estão no servidor.</p></div></section>';
-  if(!DRIVE.conectado)return `<section class="panel drivep"><div><b>Conectar o Google Drive da Spraytec</b><p class="muted" style="margin:4px 0 0;font-size:13px">Antes de clicar, entre neste navegador na conta Google da Spraytec. O portal só enxerga a pasta "Portal Spraytec", que ele mesmo cria.</p></div><a class="btn primary" href="/api/drive/conectar">Conectar Google Drive</a></section>`;
+  if(!DRIVE.conectado)return `<section class="panel drivep"><div><b>Conectar o Google Drive da Spraytec</b><p class="muted" style="margin:4px 0 0;font-size:13px">Antes de clicar, entre neste navegador na conta Google da Spraytec. O portal grava só na pasta "Portal Spraytec", que ele mesmo cria, e lê os arquivos que vocês indicarem pelo link.</p></div><a class="btn primary" href="/api/drive/conectar">Conectar Google Drive</a></section>`;
   const s=S.driveSit;if(!s&&!S.driveSitPedido){S.driveSitPedido=true;api('/api/drive/situacao').then(j=>{S.driveSit=j;if(S.view==='acervo')render()}).catch(()=>{})}
   const uso=s&&s.usado!=null?' · '+tamTxt(s.usado)+(s.limite?' de '+tamTxt(s.limite):'')+' usados':'';
-  return `<section class="panel drivep"><div><b>Google Drive conectado</b><div class="muted" style="font-size:13px">${esc(DRIVE.conta||'')}${uso}${s&&s.limite&&s.usado/s.limite>.85?' · <span class="badt">pouco espaço livre</span>':''}${s&&s.erro?' · <span class="badt">'+esc(s.erro)+'</span>':''}</div></div><button class="btn sm" data-act="drive-desconectar">Desconectar</button></section>`}
+  return `<section class="panel drivep"><div><b>Google Drive conectado</b><div class="muted" style="font-size:13px">${esc(DRIVE.conta||'')}${uso}${s&&s.limite&&s.usado/s.limite>.85?' · <span class="badt">pouco espaço livre</span>':''}${s&&s.erro?' · <span class="badt">'+esc(s.erro)+'</span>':''}</div>${DRIVE.leitura?'':'<div class="muted" style="font-size:12px;margin-top:4px">Para usar vídeos e fotos que já estão no Drive pelo link (sem baixar e subir de novo), conecte de novo na conta da Spraytec e aceite a leitura dos arquivos. Nada do que já está no portal muda.</div>'}</div><div class="actions">${DRIVE.leitura?'':'<a class="btn sm primary" href="/api/drive/conectar">Conectar de novo</a>'}<button class="btn sm" data-act="drive-desconectar">Desconectar</button></div></section>`}
 function acvMateriaisReal(){const M=materiais.filter(m=>!m.removido);
   const pastas=[...new Set([...PASTAS_M,...M.map(m=>m.pasta),...(S.mpasta?[S.mpasta]:[])])];
   const cats=pastas.map(p=>[p,p,M.filter(m=>m.pasta===p).length]);
@@ -680,7 +683,10 @@ const isM=()=>S.role==='operacao';
 // Posts com pauta passam duas vezes por "producao": antes dos textos aprovados (copy) e depois (arte).
 const STV={copy:{l:'Copy em produção',c:'--s-producao'},arte:{l:'Arte em criação',c:'--s-producao'}};
 const stK=p=>p.status==='producao'&&temPauta(p)&&!p.faltaTexto?(p.textoOk?'arte':'copy'):p.status;
-const stInfo=p=>STV[stK(p)]||STATUS[p.status]||{l:p.status,c:'--muted'};
+// Reels, vídeos e Shorts usam vídeo pronto da produtora: depois da copy não há arte a criar, só anexar o vídeo.
+const ehVideo=p=>temPauta(p)&&['reel','video','short'].includes(p.formato);
+const stInfo=p=>stK(p)==='arte'&&ehVideo(p)?{l:'Vídeo a anexar',c:'--s-producao'}:STV[stK(p)]||STATUS[p.status]||{l:p.status,c:'--muted'};
+const stCurto=p=>stK(p)==='arte'&&ehVideo(p)?'Vídeo a anexar':ST_CURTO[stK(p)]||stInfo(p).l;
 function pill(st){const s=typeof st==='object'?stInfo(st):STATUS[st];return `<span class="pill" style="color:var(${s.c})"><i></i><span style="color:var(--ink)">${s.l}</span></span>`}
 function tagPill(txt,c){return `<span class="pill" style="color:var(${c})"><i></i><span style="color:var(--ink)">${txt}</span></span>`}
 function hiddenForClient(p){return isCliente()&&(p.status==='pauta'||p.status==='producao')&&!['video','design'].includes(p.rede)}
@@ -699,7 +705,7 @@ function prazoDe(p){return p.prazo||addDays(TODAY,2)}
 // prévias
 // Carrossel com as peças enviadas: arrasta para o lado ou usa as setas, como no Instagram.
 function carrosselPv(p){const L=pecasAtuais(p);
-  return `<div class="img foto car" data-car><div class="cartrack">${L.map((a,i)=>tipoArq(a)==='video'?`<video src="${arqUrl(a.id)}" muted playsinline preload="metadata"></video>`:`<img src="${miniUrl(a.id,1080)}" alt="Lâmina ${i+1}" loading="lazy" draggable="false" data-falha>`).join('')}</div>
+  return `<div class="img foto car" data-car><div class="cartrack">${L.map((a,i)=>tipoArq(a)==='video'?vidTag(a):`<img src="${miniUrl(a.id,1080)}" alt="Lâmina ${i+1}" loading="lazy" draggable="false" data-falha>`).join('')}</div>
    <span class="cnt" data-carcnt>1/${L.length}</span><button type="button" class="carb ant" data-carb="-1" aria-label="Lâmina anterior" hidden>‹</button><button type="button" class="carb prox" data-carb="1" aria-label="Próxima lâmina">›</button></div>`}
 function carAtual(car,alvo){const t=car.querySelector('.cartrack'),n=t.children.length,pv=car.closest('.pv');
   const k=Math.min(n-1,Math.max(0,alvo!=null?alvo:car._alvo!=null?car._alvo:Math.round(t.scrollLeft/Math.max(1,t.clientWidth))));
@@ -721,23 +727,34 @@ document.addEventListener('pointerup',()=>{if(!carDrag)return;const {t,car,dx,i0
   if(Math.abs(dx)>4){const bloq=ev=>{ev.stopPropagation();ev.preventDefault()};document.addEventListener('click',bloq,{capture:true,once:true});setTimeout(()=>document.removeEventListener('click',bloq,true),50)}});
 // Arrastar com o dedo ou o trackpad também troca de lâmina.
 document.addEventListener('scroll',e=>{const t=e.target;if(t&&t.classList&&t.classList.contains('cartrack'))carAtual(t.closest('[data-car]'))},true);
-function preview(p){
+// Legenda como no Instagram: o começo e "… mais" para abrir o resto (só na prévia grande, no detalhe do item).
+function capTxt(p){const t=String(p.legenda||'').replace(/\r\n?/g,'\n').trim();if(!t)return '';const lim=125;if(t.length<=lim+15)return `<span class="capc">${esc(t)}</span>`;
+  let k=t.lastIndexOf(' ',lim);if(k<60)k=lim;return `<span class="capc">${esc(t.slice(0,k))}</span><button type="button" class="capmais" data-capmais>… mais</button><span class="capr" hidden>${esc(t.slice(k))}</span>`}
+document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-capmais]');if(!b)return;e.stopPropagation();e.preventDefault();const r=b.nextElementSibling;if(r)r.hidden=false;b.remove()},true);
+// Vídeo anexado: capa do Drive e o vídeo só baixa quando alguém dá play (os vídeos têm 70 a 140 MB).
+const vidTag=(a,cls)=>`<video class="${cls||''}" src="${arqUrl(a.id)}" poster="${miniUrl(a.id,800)}" preload="none" controls playsinline></video>`;
+function preview(p,o){o=o||{};
   const bg=PILAR_HUE[p.pilar]||'#E3E4D3',capa=hiddenForClient(p)?null:capaDe(p),nP=capa?pecasAtuais(p).length:0;
+  const vid=o.grande&&!hiddenForClient(p)?pecasAtuais(p).find(a=>tipoArq(a)==='video'):null;
   const foto=(cls,extra)=>`<div class="img ${cls} foto">${extra||''}<img src="${capa}" alt="" loading="lazy" data-falha></div>`;
   if(hiddenForClient(p))return `<div class="pv"><div class="ph">Em preparação</div></div>`;
-  const T=esc(p.titulo),first=esc((p.legenda||'').split('\n')[0]);
+  const T=esc(p.titulo),first=o.grande?capTxt(p):esc((p.legenda||'').split('\n')[0]);
+  const capV=o.grande&&p.legenda?`<div class="pvcap"><b>${p.rede==='yt'?'@spraytecbrasil':igUser()}</b> ${capTxt(p)}</div>`:'';
+  const comVideo=extra=>`<div class="pv vert comvideo">${vidTag(vid,'pvvideo')}${extra||''}</div>${capV}`;
   if(p.rede==='video'||(p.rede==='design'&&p.formato==='producao'))return `<div class="pv prod" style="--kc:var(--k-${p.rede})"><span class="ptp">${p.rede==='video'?'Produção de vídeo':'Produção de design'}</span><b>${T}</b><span class="sm">${p.rede==='video'?(p.formato==='gravacao'?'Gravação com a produtora':'Entrega do vídeo final'):'Entrega das peças para aprovação'}</span></div>`;
   const hd=sub=>`<div class="hd">${avS()}<span style="min-width:0"><b>${p.rede==='ig'?igUser():'Spraytec Brasil'}</b>${sub?`<br><span class="sm">${sub}</span>`:''}</span></div>`;
   const vert=(top,bottom,extra)=>`<div class="pv vert${capa?' comfoto':''}" style="--bg:${bg}">${capa?`<img class="pvfundo" src="${capa}" alt="" loading="lazy" data-falha>`:''}<div class="full">${top}<div class="big">${T}</div>${bottom}</div>${extra||''}</div>`;
   if(p.rede==='ig'){
     if(p.formato==='story')return vert('<div class="bars3"><i></i><i></i><i></i></div><div class="hd lite">'+avS()+'<b>'+igUser()+'</b></div>','<div class="sm">Enviar mensagem</div>');
-    if(p.formato==='reel')return vert('<div class="sm">Reels</div>','<div class="sm">'+igUser()+' · ♪ áudio original</div>','<div class="play">▶</div>');
+    if((p.formato==='reel'||p.formato==='story')&&vid)return comVideo();
+    if(p.formato==='reel')return vert('<div class="sm">Reels</div>','<div class="sm">'+igUser()+' · ♪ áudio original</div>','<div class="play">▶</div>')+capV;
     if(capa&&nP>1)return `<div class="pv">${hd('')}${carrosselPv(p)}<div class="ft"><div class="icons">♡ ○ ▷</div><div class="dots" data-cardots>${pecasAtuais(p).map((_,i)=>`<i class="${i?'':'on'}"></i>`).join('')}</div><div class="cap"><b>${igUser()}</b> ${first}</div></div></div>`;
     return `<div class="pv">${hd('')}${capa?foto('',nP>1?`<span class="cnt">1/${nP}</span>`:''):`<div class="img" style="--bg:${bg}">${p.formato==='carrossel'?'<span class="cnt">1/6</span>':''}<span>${T}</span></div>`}<div class="ft"><div class="icons">♡ ○ ▷</div>${p.formato==='carrossel'?'<div class="dots"><i class="on"></i><i></i><i></i><i></i></div>':''}<div class="cap"><b>${igUser()}</b> ${first}</div></div></div>`;
   }
   if(p.rede==='fb')return `<div class="pv">${hd('2 h · Público')}<div class="txt">${first}</div>${capa?foto('wide'):`<div class="img wide" style="--bg:${bg}"><span>${T}</span></div>`}<div class="ft row3"><span>Curtir</span><span>Comentar</span><span>Compartilhar</span></div></div>`;
   if(p.rede==='yt'){
-    if(p.formato==='short')return vert('','<div class="sm">@spraytecbrasil</div>','<span class="short">Shorts</span><div class="play">▶</div>');
+    if(p.formato==='short')return vid?comVideo():vert('','<div class="sm">@spraytecbrasil</div>','<span class="short">Shorts</span><div class="play">▶</div>')+capV;
+    if(vid)return `<div class="pv"><div class="img v169 foto">${vidTag(vid,'pvvideo')}</div><div class="hd">${avS()}<span style="min-width:0"><b>${T}</b><br><span class="sm">Spraytec Brasil</span></span></div></div>${capV}`;
     return `<div class="pv">${capa?foto('v169'):`<div class="img v169" style="--bg:${bg}"><span>${T}</span><span class="dur">8:42</span></div>`}<div class="hd">${avS()}<span style="min-width:0"><b>${T}</b><br><span class="sm">Spraytec Brasil</span></span></div></div>`;
   }
   if(p.rede==='email')return `<div class="pv"><div class="mailtop"><span class="sm">De: Spraytec Brasil</span><b>${T}</b></div><div class="mailbar">SPRAYTEC</div><div class="img wide" style="--bg:${bg}"></div><div class="lines"><i></i><i></i><i style="width:60%"></i></div><div class="cta">Ler no site</div></div>`;
@@ -1143,7 +1160,7 @@ function monthNav(key){const [y,m]=S[key].split('-').map(Number);return `<div cl
 function calItem(p){
   const drag=isTeam()&&p.status!=='publicado';const k=tipoCal(p);
   return `<div class="it" style="--kc:var(--k-${k})" data-open="${p.id}" ${drag?`draggable="true" data-drag="${p.id}"`:''} title="${esc(p.titulo)}">
-    <div class="lb"><span class="kt">${{post:NET[p.rede],email:'E-MAIL',design:'DESIGN',video:'VÍDEO'}[k]}</span><span class="mono">${[p.time,FORMATO[p.formato]].filter(Boolean).join(' · ')}</span>${(n=>n?`<span class="lk" title="Ligado a ${n} itens">↔${n}</span>`:'')(related('p:'+p.id).length)}</div><b class="itt">${esc(p.titulo)}</b><span class="itst" style="--sc:var(${stInfo(p).c})"><i></i>${ST_CURTO[stK(p)]||stInfo(p).l}</span></div>`;
+    <div class="lb"><span class="kt">${{post:NET[p.rede],email:'E-MAIL',design:'DESIGN',video:'VÍDEO'}[k]}</span><span class="mono">${[p.time,FORMATO[p.formato]].filter(Boolean).join(' · ')}</span>${(n=>n?`<span class="lk" title="Ligado a ${n} itens">↔${n}</span>`:'')(related('p:'+p.id).length)}</div><b class="itt">${esc(p.titulo)}</b><span class="itst" style="--sc:var(${stInfo(p).c})"><i></i>${stCurto(p)}</span></div>`;
 }
 function viewCalendario(){
   const vp=posts.filter(p=>tipoCal(p)!=='midia'&&S.tipos[tipoCal(p)]);
@@ -1565,7 +1582,7 @@ function passo(p){const s=p.status,z=p.date?prazosCiclo(p.date.slice(0,7)):{};
   if(s==='ajuste')return {quem:'cancha',acao:p.etapaAjuste==='texto'?'Ajustar os textos e reenviar':'Fazer o ajuste pedido',prazo:addBiz(TODAY,1)};
   if(s==='producao'){if(!temPauta(p))return {quem:p.rede==='video'?'produtora':'cancha',acao:p.rede==='video'?'Gravar e entregar':'Produzir as peças',prazo:p.date};
     if(!p.textoOk)return {quem:'cancha',acao:'Escrever os textos e enviar',prazo:z.txt};
-    return {quem:'cancha',acao:'Produzir a arte e enviar',prazo:z.pec&&z.pec<p.date?z.pec:addBiz(p.date,-5)}}
+    return {quem:'cancha',acao:ehVideo(p)?'Anexar o vídeo e enviar':'Produzir a arte e enviar',prazo:z.pec&&z.pec<p.date?z.pec:addBiz(p.date,-5)}}
   if(s==='aprovado')return {quem:'cancha',acao:'Agendar a publicação na rede e marcar como agendado',prazo:addDays(p.date,-1)};
   return null}
 function acoes(){const out=[];const lim=addDays(TODAY,45);const push=o=>{if(o.prazo&&o.prazo>lim)return;out.push(o)};
@@ -1599,7 +1616,7 @@ function irParaEtapa(p,col){if(!p||!col)return;
   const st=STV[col]?'producao':col;if(st===p.status&&stK(p)===col){toast('Sem mudança.');return}
   acao('status',{id:p.id,status:st},()=>toast('Status: '+(STV[col]||STATUS[col]).l+'.'))}
 function statusEditor(p){if(p.formato==='plano')return '';const ok=['aprovado','agendado'].includes(p.status);
-  return `<div class="stedit"><div class="ler" style="align-items:flex-end"><div style="flex:1"><label for="st-sel" class="muted" style="font-size:12px">Status</label><select id="st-sel" class="pe">${etapasDo(p).map(k=>`<option value="${k}" ${stK(p)===k?'selected':''}>${(STV[k]||STATUS[k]).l}</option>`).join('')}</select></div><button class="btn" data-act="st-save" data-id="${p.id}">Salvar</button></div>
+  return `<div class="stedit"><div class="ler" style="align-items:flex-end"><div style="flex:1"><label for="st-sel" class="muted" style="font-size:12px">Status</label><select id="st-sel" class="pe">${etapasDo(p).map(k=>`<option value="${k}" ${stK(p)===k?'selected':''}>${k==='arte'&&ehVideo(p)?'Vídeo a anexar':(STV[k]||STATUS[k]).l}</option>`).join('')}</select></div><button class="btn" data-act="st-save" data-id="${p.id}">Salvar</button></div>
    ${ok?`<div class="ler"><input id="pub-link" class="pe" placeholder="Link do post publicado (opcional)" aria-label="Link do post publicado"><button class="btn primary" data-act="st-pub" data-id="${p.id}">Marcar como publicado</button></div>`:''}
    <span class="muted" style="font-size:12px">Toda mudança fica no histórico.</span></div>`}
 function kanbanBarra(){return `<div class="toolbar">${monthNav('month')}<div class="filters" role="group" aria-label="Tipos">${TIPOS.filter(t=>t[0]!=='demanda').map(([k,l])=>`<button class="chip kchip" style="--kc:var(--k-${k})" data-tipo="${k}" aria-pressed="${S.tipos[k]}"><i></i>${l}</button>`).join('')}</div>
@@ -1609,7 +1626,7 @@ function viewStatusKanban(){
   const vp=posts.filter(p=>tipoCal(p)!=='midia'&&S.tipos[tipoCal(p)]&&((p.date&&p.date.startsWith(S.month))||!p.date));
   return `${kanbanBarra()}
   <p class="muted" style="font-size:13px;margin:0">Arraste para mudar o status. Para tirar um item de "Pauta em aprovação" ou "Em aprovação", o portal pede o registro da aprovação da Spraytec.</p>
-  <div class="kanban sk">${SKCOLS_V.map(c=>{const it=vp.filter(p=>stK(p)===c),iv=vidsAbertos().filter(v=>VSK[v.stage]===c);if(c==='producao'&&!it.length&&!iv.length)return '';return `<div class="col" data-scol="${c}"><h3>${(STV[c]||STATUS[c]).l}<span class="mono muted">${it.length+iv.length}</span></h3>${iv.map(v=>vidCard(v)).join('')}${it.map(p=>{const k=tipoCal(p);return `<div class="card" data-open="${p.id}" draggable="true" data-sdrag="${p.id}" style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${c==='publicado'?`<span class="tag">${p.anterior?'agência anterior':'manual'}</span>`:''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>${p.faltaTexto?'<span class="flag">Faltam textos</span>':''}</div>`}).join('')}</div>`}).join('')}</div>`}
+  <div class="kanban sk">${SKCOLS_V.map(c=>{const it=vp.filter(p=>stK(p)===c),iv=vidsAbertos().filter(v=>VSK[v.stage]===c);if(c==='producao'&&!it.length&&!iv.length)return '';return `<div class="col" data-scol="${c}"><h3>${c==='arte'?'Arte em criação / vídeo a anexar':(STV[c]||STATUS[c]).l}<span class="mono muted">${it.length+iv.length}</span></h3>${iv.map(v=>vidCard(v)).join('')}${it.map(p=>{const k=tipoCal(p);return `<div class="card" data-open="${p.id}" draggable="true" data-sdrag="${p.id}" style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${c==='publicado'?`<span class="tag">${p.anterior?'agência anterior':'manual'}</span>`:''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>${p.faltaTexto?'<span class="flag">Faltam textos</span>':''}</div>`}).join('')}</div>`}).join('')}</div>`}
 
 // Kanban simplificado da Operação Spraytec: sem arrastar; aprova pauta e peça direto na coluna "Com você".
 const CKCOLS=[['plan','Planejado',['pauta']],['voce','Com você',['pauta_aprovacao','texto_aprovacao','aprovacao']],['prod','Com a Cancha',['producao','ajuste']],['pronto','Pronto',['aprovado','agendado']],['pub','Publicado',['publicado']]];
@@ -1861,8 +1878,10 @@ function drawerPost(p){
   const prep=hid&&p.status==='producao';
   // Próximo passo da Cancha, no topo do item (o envio da arte fica logo abaixo da prévia).
   const temArte=pecasAtuais(p).length>0;
-  const passo=!team||p.formato==='plano'||!temPauta(p)?'':p.status==='texto_aprovacao'?'<div class="notice passo"><b>Textos com a Spraytec.</b> Você já pode ir enviando a arte no quadro "Peças (arte)" logo abaixo. Ela só vai para aprovação depois que os textos forem aprovados.</div>'
-    :p.status==='producao'&&p.textoOk?(temArte?`<div class="notice passo"><b>Arte em criação · arte anexada.</b> Confira as peças abaixo e envie para a Spraytec aprovar.<div class="actions" style="margin-top:8px"><button class="btn primary" data-act="send" data-id="${p.id}">Enviar peça para aprovação</button></div></div>`
+  const V=ehVideo(p),qd=V?'"Vídeo"':'"Peças (arte)"';
+  const passo=!team||p.formato==='plano'||!temPauta(p)?'':p.status==='texto_aprovacao'?(V?'<div class="notice passo"><b>Textos com a Spraytec.</b> Você já pode anexar o vídeo da produtora no quadro "Vídeo" logo abaixo. Quando a copy for aprovada, o vídeo vai direto para a aprovação da Spraytec.</div>':'<div class="notice passo"><b>Textos com a Spraytec.</b> Você já pode ir enviando a arte no quadro "Peças (arte)" logo abaixo. Ela só vai para aprovação depois que os textos forem aprovados.</div>')
+    :p.status==='producao'&&p.textoOk?(temArte?`<div class="notice passo"><b>${V?'Vídeo anexado':'Arte em criação · arte anexada'}.</b> Confira ${V?'o vídeo':'as peças'} abaixo e envie para a Spraytec aprovar.<div class="actions" style="margin-top:8px"><button class="btn primary" data-act="send" data-id="${p.id}">Enviar peça para aprovação</button></div></div>`
+      :V?'<div class="notice passo"><b>Vídeo a anexar · copy aprovada.</b> Anexe o vídeo da produtora no quadro "Vídeo" logo abaixo (do computador ou pelo link do Drive) e clique em "Enviar peça para aprovação".</div>'
       :'<div class="notice passo"><b>Arte em criação · copy aprovada.</b> Agora é a arte: envie no quadro "Peças (arte)" logo abaixo e depois clique em "Enviar peça para aprovação".</div>')
     :p.status==='producao'&&!p.textoOk?'<div class="notice passo"><b>Copy em produção · pauta aprovada.</b> Escreva a legenda (em "Editar conteúdo") e envie os textos para aprovação.</div>'
     :p.status==='aprovado'?`<div class="notice passo"><b>Aprovado pela Spraytec.</b> Agende a publicação na rede (${p.date?fmtLong(p.date)+(p.time?' às '+p.time:''):'sem data'}) e marque aqui.<div class="actions" style="margin-top:8px"><button class="btn primary" data-act="agendar" data-id="${p.id}">Marcar como agendado</button></div></div>`
@@ -1870,8 +1889,8 @@ function drawerPost(p){
   return `<header><div><div class="eyebrow">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div><h2>${hid&&!prep?'Em preparação pela Cancha':esc(p.titulo)}</h2></div>${closeBtn()}</header>
   <div class="content">
    ${passo}
-   ${p.formato==='plano'?planoSection().replace('<section class="panel">','<div>').replace(/<\/section>$/,'</div>'):`<div class="pv-lg">${preview(p)}</div><p class="muted" style="font-size:12px;margin:-8px 0 0;text-align:center">${capaDe(p)?'Prévia com a peça enviada. Clique nas peças abaixo para ver em tamanho real.':'Prévia aproximada. '+(p.drive?`<a href="${esc(p.drive)}" target="_blank" rel="noopener">Abrir a arte no Google Drive</a>`:'A arte fica na pasta do Google Drive.')}</p>`}
-   ${p.formato==='plano'?'':arqSecao('p:'+p.id,p,{pode:team&&p.status!=='aprovacao',versoes:true,titulo:'Peças (arte)',rotulo:'Enviar a arte',dica:p.status==='ajuste'&&(p.vEnviada||0)>=(p.vPeca||1)?'Entra como nova versão':['pauta_aprovacao','texto_aprovacao'].includes(p.status)?'Pode enviar já: a arte vai para aprovação depois que os textos forem aprovados':'',trava:team&&p.status==='aprovacao'?'A arte está em aprovação: para trocar, espere a resposta ou registre o ajuste.':''})}
+   ${p.formato==='plano'?planoSection().replace('<section class="panel">','<div>').replace(/<\/section>$/,'</div>'):`<div class="pv-lg">${preview(p,{grande:true})}</div><p class="muted" style="font-size:12px;margin:-8px 0 0;text-align:center">${pecasAtuais(p).some(a=>tipoArq(a)==='video')?'Prévia com o vídeo enviado: dê play para assistir.':capaDe(p)?'Prévia com a peça enviada. Clique nas peças abaixo para ver em tamanho real.':'Prévia aproximada. '+(p.drive?`<a href="${esc(p.drive)}" target="_blank" rel="noopener">Abrir a arte no Google Drive</a>`:'A arte fica na pasta do Google Drive.')}</p>`}
+   ${p.formato==='plano'?'':arqSecao('p:'+p.id,p,{pode:team&&p.status!=='aprovacao',versoes:true,titulo:ehVideo(p)?'Vídeo':'Peças (arte)',rotulo:ehVideo(p)?'Enviar o vídeo':'Enviar a arte',driveLink:true,dica:p.status==='ajuste'&&(p.vEnviada||0)>=(p.vPeca||1)?'Entra como nova versão':['pauta_aprovacao','texto_aprovacao'].includes(p.status)?'Pode enviar já: a arte vai para aprovação depois que os textos forem aprovados':'',trava:team&&p.status==='aprovacao'?'A arte está em aprovação: para trocar, espere a resposta ou registre o ajuste.':''})}
    <dl class="kv" style="margin:0"><dt>Status</dt><dd>${pill(p)} ${marcas(p)}</dd><dt>Data</dt><dd class="mono">${p.date?fmtLong(p.date)+(p.time?' '+p.time:''):'sem data'}</dd><dt>Pilar</dt><dd>${p.pilar}</dd><dt>Produto</dt><dd>${esc(p.produto)}</dd>${peso?`<dt>Cota de design</dt><dd>${peso} peça${peso>1?'s':''} · rodada ${p.rodada} de 2</dd>`:''}</dl>
    ${p.formato==='plano'?'':hid?(prep?pautaBloco:'')+`<div class="notice lock">${prep?'A legenda e a arte aparecem quando a peça for enviada para aprovação.':'O texto aparece quando a pauta for enviada para aprovação.'}</div>`:pautaBloco+legBloco}
    ${acts}
@@ -2194,6 +2213,9 @@ document.addEventListener('click',e=>{
     case 'video-salvar':{const r=$('#vr-'+id);acao('video-salvar',{id,titulo:val('#vt-'+id),roteiro:r?r.value:undefined},()=>toast('Vídeo salvo.'));break}
     case 'post-editar':acao('post-editar',{id,titulo:val('#pe-titulo'),legenda:$('#pe-leg')?$('#pe-leg').value:undefined,pauta:$('#pe-pauta')?$('#pe-pauta').value:undefined,hora:val('#pe-hora')||null,drive:val('#pe-drive')},()=>toast('Conteúdo salvo.'));break;
     case 'st-save':irParaEtapa(posts.find(x=>x.id===id),$('#st-sel').value);break;
+    case 'drive-link':{const ref=t.dataset.ref,inp=document.getElementById('dl-'+ref.replace(':','-')),link=(t.dataset.link||(inp&&inp.value)||'').trim();if(!link){toast('Cole o link do arquivo no Google Drive.');break}
+      const txt=t.textContent;t.disabled=true;t.textContent='Copiando do Drive…';
+      api('/api/arquivos/do-drive',{ref,link}).then(j=>{if(j&&j.dados){aplicar(j);render()}toast('"'+(j&&j.nome||'Arquivo')+'" copiado do Drive para o post.')}).catch(e=>{t.disabled=false;t.textContent=txt;toast(e.message||'Não foi possível usar esse arquivo do Drive.')});break}
     case 'agendar':acao('status',{id,status:'agendado'},()=>toast('Marcado como agendado.'));break;
     case 'st-pub':acao('publicar',{id,link:val('#pub-link')},()=>toast('Marcado como publicado.'));break;
     case 'ver-mud':openDrawer('mud',id);break;

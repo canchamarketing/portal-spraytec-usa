@@ -1,6 +1,8 @@
 // Integração com o Google Drive da Spraytec. Fotos, vídeos e peças ficam no Drive; o portal guarda só a
 // identificação de cada arquivo (nas ações, com quem enviou e quando) e mostra o arquivo para quem pode vê-lo.
-// Permissão drive.file: o portal só enxerga o que ele mesmo criou, dentro da pasta "Portal Spraytec".
+// Permissão drive.file: o portal grava só no que ele mesmo criou, dentro da pasta "Portal Spraytec".
+// Leitura (drive.readonly, pedida na conexão): permite usar um arquivo que já está no Drive pelo link,
+// copiando-o para a pasta do post (a cópia é feita dentro do Google, sem baixar nada).
 // A autorização (refresh token) fica cifrada no banco com DRIVE_CHAVE, que só existe no .env do servidor.
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import type { Consulta } from '../db.ts';
@@ -12,6 +14,7 @@ const DRIVE = () => (G() || 'https://www.googleapis.com') + '/drive/v3';
 const UPLOAD = () => (G() || 'https://www.googleapis.com') + '/upload/drive/v3';
 const AUTH_URL = process.env.GOOGLE_AUTH_URL || 'https://accounts.google.com/o/oauth2/v2/auth'; // simulado nos testes
 export const ESCOPO = 'https://www.googleapis.com/auth/drive.file';
+export const ESCOPO_LER = 'https://www.googleapis.com/auth/drive.readonly';
 const RAIZ = 'Portal Spraytec';
 const PASTA = 'application/vnd.google-apps.folder';
 export const PARTE = 8 * 1024 * 1024; // pedaço de cada envio (múltiplo de 256 KB, exigência do Google)
@@ -36,10 +39,10 @@ export function decifrar(s: string) {
   return Buffer.concat([d.update(x), d.final()]).toString('utf8');
 }
 
-type Conexao = { refresh: string; conta: string; nome: string };
+type Conexao = { refresh: string; conta: string; nome: string; leitura?: boolean };
 let conexao: Conexao | null = null;
 let acesso: { token: string; ate: number } | null = null;
-export const driveConectado = () => (conexao ? { conta: conexao.conta, nome: conexao.nome } : null);
+export const driveConectado = () => (conexao ? { conta: conexao.conta, nome: conexao.nome, leitura: !!conexao.leitura } : null);
 
 export async function carregarDrive(q: Consulta) {
   conexao = null; acesso = null;
@@ -49,7 +52,7 @@ export async function carregarDrive(q: Consulta) {
 }
 
 // ---------- conexão (OAuth) ----------
-export function urlAutorizacao(retorno: string, estado: string, escopo = ESCOPO, cliente = process.env.GOOGLE_CLIENT_ID!) {
+export function urlAutorizacao(retorno: string, estado: string, escopo = ESCOPO + ' ' + ESCOPO_LER, cliente = process.env.GOOGLE_CLIENT_ID!) {
   const u = new URL(AUTH_URL);
   u.search = new URLSearchParams({
     client_id: cliente, redirect_uri: retorno, response_type: 'code', scope: escopo,
@@ -75,7 +78,7 @@ export async function concluirAutorizacao(q: Consulta, codigo: string, retorno: 
   if (!String(t.scope || '').split(' ').includes(ESCOPO)) throw new ErroDrive('A permissão de acesso ao Drive não foi marcada. Tente de novo e marque a caixa do Drive.');
   acesso = { token: t.access_token, ate: Date.now() + (t.expires_in - 60) * 1000 };
   const sobre = await api('GET', `${DRIVE()}/about?fields=user(emailAddress,displayName)`, {}, t.access_token);
-  const nova: Conexao = { refresh: t.refresh_token, conta: sobre.user?.emailAddress || '', nome: sobre.user?.displayName || '' };
+  const nova: Conexao = { refresh: t.refresh_token, conta: sobre.user?.emailAddress || '', nome: sobre.user?.displayName || '', leitura: String(t.scope || '').split(' ').includes(ESCOPO_LER) };
   // Outra conta: as pastas criadas na conta anterior não valem nesta.
   if (conexao && conexao.conta !== nova.conta) await q.query('delete from drive_pastas');
   await q.query(`insert into segredos (nome, valor) values ('drive', $1) on conflict (nome) do update set valor=excluded.valor, atualizado_em=now()`, [cifrar(JSON.stringify(nova))]);
@@ -184,6 +187,32 @@ export async function salvarArquivo(q: Consulta, caminho: string[], nome: string
   for (let i = 0; i < dados.length; i += PARTE) await enviarParte(e, i, dados.subarray(i, i + PARTE));
   envios.delete(e.token);
   return e.arquivo!;
+}
+
+// ---------- arquivo que já está no Drive, pelo link ----------
+// Aceita os formatos de link do Drive (…/file/d/ID/…, ?id=ID) ou o próprio id.
+export function idDoLink(link: string): string | null {
+  const s = String(link || '').trim();
+  const m = s.match(/\/file\/d\/([\w-]{10,})/) || s.match(/[?&]id=([\w-]{10,})/) || s.match(/^([\w-]{20,})$/);
+  return m ? m[1] : null;
+}
+export async function copiarDoDrive(q: Consulta, id: string, caminho: string[]) {
+  if (!conexao) throw new ErroDrive('O Google Drive não está conectado.', 503);
+  if (!conexao.leitura) throw new ErroDrive('Para usar arquivos pelo link, o Drive precisa ser conectado de novo (Integrações › Google Drive › Conectar), aceitando a leitura dos arquivos.', 403);
+  let m: any;
+  try { m = await api('GET', `${DRIVE()}/files/${encodeURIComponent(id)}?fields=id,name,mimeType,size&supportsAllDrives=true`); }
+  catch (e) { if (e instanceof ErroDrive && [403, 404].includes(e.status)) throw new ErroDrive('O portal não consegue abrir esse arquivo. Confira se o link está certo e se o arquivo está no Drive da Spraytec ou compartilhado com ela.', 404); throw e; }
+  if (m.mimeType === PASTA) throw new ErroDrive('Esse link é de uma pasta. Abra a pasta e copie o link do arquivo.', 400);
+  if (/^application\/vnd\.google-apps\./.test(m.mimeType || '')) throw new ErroDrive('Esse link é de um documento do Google (Docs, Planilhas…). Use o link de uma imagem ou de um vídeo.', 400);
+  const pai = await pasta(q, caminho);
+  const c = await api('POST', `${DRIVE()}/files/${encodeURIComponent(id)}/copy?fields=id,name,mimeType,size&supportsAllDrives=true`, { json: { name: limpo(m.name || 'arquivo'), parents: [pai] } });
+  return { id: c.id as string, nome: (c.name || m.name) as string, tipo: (c.mimeType || m.mimeType || 'application/octet-stream') as string, tam: Number(c.size || m.size || 0) };
+}
+// A cópia entra no item pelo mesmo caminho de um envio (ação arquivo-anexar).
+export function registrarCopia(usuario: string, ref: string, arquivo: { id: string; nome: string; tipo: string; tam: number; origem?: string }) {
+  const e: Envio = { token: randomBytes(18).toString('base64url'), usuario, ref, nome: arquivo.nome, tipo: arquivo.tipo, tam: arquivo.tam, url: '', recebido: arquivo.tam, criado: Date.now(), arquivo };
+  envios.set(e.token, e);
+  return e.token;
 }
 
 // ---------- leitura (o portal mostra o arquivo; ninguém precisa de acesso ao Drive) ----------

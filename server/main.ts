@@ -12,7 +12,7 @@ import { visaoPara } from './visao.ts';
 import { coletaRodando, coletarMeta, metaConfigurado } from './integracoes/meta.ts';
 import {
   ErroDrive, PARTE, abrirConteudo, carregarDrive, concluirAutorizacao, desconectarDrive, driveConectado, driveConfigurado, envioDe,
-  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao,
+  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao, copiarDoDrive, idDoLink, registrarCopia,
 } from './integracoes/drive.ts';
 import {
   carregarGA4, coletaGA4Rodando, coletarGA4, concluirGA4, desconectarGA4, escolherPropriedade, ga4Conectado, ga4Configurado, urlAutorizacaoGA4,
@@ -111,7 +111,7 @@ async function estadoPara(u: Usuario) {
   if (u.papel === 'cancha') r.aprovadores = pessoas.filter((p: any) => p.papel === 'operacao');
   // Quem pode ser mencionado com @ (quem lê comentários e conversas).
   const dc = driveConectado();
-  r.drive = { configurado: driveConfigurado(), conectado: !!dc, ...(u.papel === 'cancha' && dc ? { conta: dc.conta } : {}) };
+  r.drive = { configurado: driveConfigurado(), conectado: !!dc, ...(u.papel === 'cancha' && dc ? { conta: dc.conta, leitura: dc.leitura } : {}) };
   const ga = ga4Conectado();
   const ga2 = gadsConectado();
   r.gads = { configurado: gadsConfigurado(), conectado: !!ga2, conta: ga2?.cliente?.nome || null, ...(u.papel === 'cancha' && ga2 ? { email: ga2.conta, opcoes: ga2.cliente ? [] : ga2.opcoes } : {}) };
@@ -553,6 +553,27 @@ app.post('/api/arquivos/iniciar', async (req, rep) => {
     if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message });
     req.log.error({ err }, 'falha ao iniciar envio ao Drive');
     return rep.code(err instanceof ErroDrive && err.status === 503 ? 503 : 502).send({ erro: err instanceof ErroDrive ? err.message : 'Não foi possível falar com o Google Drive. Tente de novo.' });
+  }
+});
+// Arquivo que já está no Drive (link colado ou o link do calendário): o Google copia para a pasta do item.
+app.post('/api/arquivos/do-drive', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha usa arquivos do Drive pelo link.' });
+  if (!driveConectado()) return rep.code(503).send({ erro: 'O Google Drive da Spraytec ainda não está conectado ao portal.' });
+  const d = (req.body as any) || {};
+  const ref = String(d.ref || ''), id = idDoLink(String(d.link || ''));
+  if (!ref.startsWith('p:')) return rep.code(400).send({ erro: 'Item inválido.' });
+  if (!id) return rep.code(400).send({ erro: 'Cole o link de um arquivo do Google Drive (drive.google.com/file/d/…).' });
+  try {
+    const caminho = destinoArquivo(await carregar(b), u, ref);
+    const arq = await copiarDoDrive(b, id, caminho);
+    await executarAcao(u, 'arquivo-anexar', { envio: registrarCopia(u.id, ref, { ...arq, origem: String(d.link).trim().slice(0, 600) }) }, req.ip);
+    return { feito: true, nome: arq.nome, ...(await estadoPara(u)) };
+  } catch (err) {
+    if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message });
+    if (err instanceof ErroDrive) return rep.code(err.status >= 400 && err.status < 500 ? 400 : 502).send({ erro: err.message });
+    req.log.error({ err }, 'falha ao copiar arquivo do Drive');
+    return rep.code(502).send({ erro: 'Não foi possível falar com o Google Drive. Tente de novo.' });
   }
 });
 app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer', bodyLimit: PARTE + 1024 }, (_req, body, done) => done(null, body));

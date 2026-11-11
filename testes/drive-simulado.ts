@@ -13,7 +13,7 @@ const checaSemErro = (fn: () => unknown, msg: string) => { try { fn(); checa(tru
 // ---------- Drive simulado ----------
 const arquivos = new Map<string, { id: string; name: string; mimeType: string; parents: string[]; dados: Buffer; pasta: boolean }>();
 const sessoes = new Map<string, { meta: any; tam: number; partes: Buffer[]; recebido: number }>();
-let seq = 0, acessos = 0, tokensRenovados = 0;
+let seq = 0, acessos = 0, tokensRenovados = 0, comLeitura = false;
 const servidor = createServer(async (req, res) => {
   const u = new URL(req.url!, 'http://x');
   const corpo: Buffer = await new Promise((r) => { const b: Buffer[] = []; req.on('data', (c) => b.push(c)); req.on('end', () => r(Buffer.concat(b))); });
@@ -21,7 +21,7 @@ const servidor = createServer(async (req, res) => {
   if (u.pathname === '/token') {
     const p = new URLSearchParams(corpo.toString());
     if (p.get('grant_type') === 'authorization_code') return p.get('code') === 'codigo-bom'
-      ? json(200, { access_token: 'acesso-1', expires_in: 3600, refresh_token: 'renovar-1', scope: 'https://www.googleapis.com/auth/drive.file' })
+      ? json(200, { access_token: 'acesso-1', expires_in: 3600, refresh_token: 'renovar-1', scope: 'https://www.googleapis.com/auth/drive.file' + (comLeitura ? ' https://www.googleapis.com/auth/drive.readonly' : '') })
       : json(400, { error: 'invalid_grant' });
     if (p.get('grant_type') === 'refresh_token') { tokensRenovados++; return p.get('refresh_token') === 'renovar-1' ? json(200, { access_token: 'acesso-2', expires_in: 3600 }) : json(400, { error: 'invalid_grant' }); }
   }
@@ -49,6 +49,13 @@ const servidor = createServer(async (req, res) => {
     const id = 'f' + ++seq; arquivos.set(id, { id, name: s.meta.name, mimeType: s.meta.mimeType, parents: s.meta.parents, dados: Buffer.concat(s.partes), pasta: false });
     return json(200, { id, name: s.meta.name, mimeType: s.meta.mimeType, size: String(s.tam) });
   }
+  const mc = u.pathname.match(/^\/drive\/v3\/files\/([^/]+)\/copy$/);
+  if (mc && req.method === 'POST') {
+    const a = arquivos.get(decodeURIComponent(mc[1])); if (!a) return json(404, { error: { message: 'File not found' } });
+    const m = JSON.parse(corpo.toString()); if (!arquivos.has(m.parents?.[0])) return json(404, { error: { message: 'File not found: ' + m.parents?.[0] } });
+    const id = 'f' + ++seq; arquivos.set(id, { ...a, id, name: m.name, parents: m.parents });
+    return json(200, { id, name: m.name, mimeType: a.mimeType, size: String(a.dados.length) });
+  }
   const mf = u.pathname.match(/^\/drive\/v3\/files\/([^/]+)$/);
   if (mf) {
     const a = arquivos.get(decodeURIComponent(mf[1])); if (!a) return json(404, { error: { message: 'File not found' } });
@@ -57,7 +64,7 @@ const servidor = createServer(async (req, res) => {
       if (rg) { const i = Number(rg[1]), f = rg[2] ? Number(rg[2]) : a.dados.length - 1; res.writeHead(206, { 'content-type': a.mimeType, 'content-length': String(f - i + 1), 'content-range': `bytes ${i}-${f}/${a.dados.length}` }); return res.end(a.dados.subarray(i, f + 1)); }
       res.writeHead(200, { 'content-type': a.mimeType, 'content-length': String(a.dados.length) }); return res.end(a.dados);
     }
-    return json(200, { thumbnailLink: a.mimeType.startsWith('image/') ? `http://localhost:${porta}/miniatura/${a.id}=s220` : undefined, mimeType: a.mimeType });
+    return json(200, { id: a.id, name: a.name, size: String(a.dados.length), thumbnailLink: a.mimeType.startsWith('image/') ? `http://localhost:${porta}/miniatura/${a.id}=s220` : undefined, mimeType: a.mimeType });
   }
   if (u.pathname.startsWith('/miniatura/')) { res.writeHead(200, { 'content-type': 'image/jpeg' }); return res.end(Buffer.from('mini:' + u.pathname)); }
   json(404, { error: { message: 'rota ' + u.pathname } });
@@ -166,6 +173,26 @@ checa(e.materiais[0].removido && visaoPara(e, oper).materiais.length === 0 && vi
 const x = await D.iniciarEnvio(b, cancha.id, 'd:d1', ['Demandas'], 'a.jpg', 'image/jpeg', 1); await D.enviarParte(x, 0, Buffer.from('a'));
 ACOES['arquivo-anexar'].fn({ e, u: cancha, d: { envio: x.token }, hoje, agora, pessoas: [] });
 await espera(async () => ACOES['arquivo-anexar'].fn({ e, u: cancha, d: { envio: x.token }, hoje, agora, pessoas: [] }), 'o mesmo envio não é registrado duas vezes');
+
+console.log('Arquivo que já está no Drive, pelo link');
+checa(D.idDoLink('https://drive.google.com/file/d/1AbCdEfGhIjK_lm-nop/view?usp=sharing') === '1AbCdEfGhIjK_lm-nop' && D.idDoLink('https://drive.google.com/open?id=1AbCdEfGhIjK') === '1AbCdEfGhIjK' && D.idDoLink('qualquer coisa') === null, 'entende os formatos de link do Drive');
+arquivos.set('videoDaProdutora1', { id: 'videoDaProdutora1', name: 'Revendedor 02.mp4', mimeType: 'video/mp4', parents: ['root'], dados: Buffer.from('video-pesado'), pasta: false });
+await espera(() => D.copiarDoDrive(b, 'videoDaProdutora1', ['Posts', '2026-11', 'p9']), 'sem a permissão de leitura, pede para conectar o Drive de novo');
+comLeitura = true;
+await D.concluirAutorizacao(b, 'codigo-bom', 'http://x/retorno');
+checa(D.driveConectado()?.leitura === true, 'conectado de novo com leitura');
+const cp = await D.copiarDoDrive(b, 'videoDaProdutora1', ['Posts', '2026-11', 'p9']);
+checa(cp.id !== 'videoDaProdutora1' && cp.tipo === 'video/mp4' && arquivos.get(cp.id)!.dados.toString() === 'video-pesado', 'o Google copia o vídeo para a pasta do post (o original fica onde está)');
+await espera(() => D.copiarDoDrive(b, 'naoExisteEsseArquivo', ['Posts']), 'link de arquivo que o portal não enxerga dá mensagem clara');
+const raizId = [...arquivos.values()].find((a) => a.name === 'Portal Spraytec')!.id;
+await espera(() => D.copiarDoDrive(b, raizId, ['Posts']), 'link de pasta é recusado');
+e.posts.push({ id: 'p9', titulo: 'Parceria com a revenda', rede: 'ig', formato: 'reel', status: 'texto_aprovacao', date: '2026-11-12', pauta: 'Revenda', legenda: 'Produto bom chega mais longe', comments: [], hist: [] });
+ACOES['arquivo-anexar'].fn({ e, u: cancha, d: { envio: D.registrarCopia(cancha.id, 'p:p9', { ...cp, origem: 'https://drive.google.com/file/d/videoDaProdutora1/view' }) }, hoje, agora, pessoas: [] });
+const p9 = e.posts.find((x: any) => x.id === 'p9');
+checa(p9.arquivos.length === 1 && p9.arquivos[0].origem && p9.arquivos[0].por === 'Ana Cancha', 'cópia entra no post como peça, com o link de origem');
+ACOES.aprovar.fn({ e, u: oper, d: { id: 'p9' }, hoje, agora, pessoas: [] });
+checa(p9.textoOk && p9.status === 'aprovacao', 'Reel com o vídeo da produtora já anexado: copy aprovada vai direto para a aprovação do vídeo (sem "arte em criação")');
+checa(visaoPara(e, oper).posts.find((x: any) => x.id === 'p9').arquivos.length === 1, 'na aprovação do vídeo, a Spraytec vê o vídeo');
 
 console.log('Desconexão');
 await D.desconectarDrive(b);
