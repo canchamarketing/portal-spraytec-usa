@@ -230,6 +230,30 @@ export async function abrirConteudo(id: string, range?: string) {
   if (!r.ok && r.status !== 206) throw new ErroDrive(r.status === 404 ? 'Arquivo não encontrado no Drive.' : `O Google Drive respondeu ${r.status}.`, r.status);
   return r;
 }
+// Baixa um arquivo do Drive para o disco do servidor (para converter vídeo), sem passar tudo pela memória.
+export async function baixarPara(id: string, destino: string) {
+  const { createWriteStream } = await import('node:fs');
+  const { pipeline } = await import('node:stream/promises');
+  const { Readable } = await import('node:stream');
+  const r = await chamar('GET', `${DRIVE()}/files/${encodeURIComponent(id)}?alt=media`);
+  if (!r.ok || !r.body) throw new ErroDrive(r.status === 404 ? 'Arquivo não encontrado no Drive.' : `O Google Drive respondeu ${r.status}.`, r.status);
+  await pipeline(Readable.fromWeb(r.body as any), createWriteStream(destino));
+}
+// Sobe um arquivo do disco para a pasta do item, em partes (o mesmo envio do portal).
+export async function enviarDoDisco(q: Consulta, ref: string, caminho: string[], nome: string, tipo: string, arquivo: string) {
+  const { open, stat } = await import('node:fs/promises');
+  const tam = (await stat(arquivo)).size;
+  const e = await iniciarEnvio(q, 'sistema', ref, caminho, nome, tipo, tam);
+  const fh = await open(arquivo, 'r');
+  try {
+    for (let i = 0; i < tam; i += PARTE) {
+      const buf = Buffer.alloc(Math.min(PARTE, tam - i));
+      await fh.read(buf, 0, buf.length, i);
+      await enviarParte(e, i, buf);
+    }
+  } finally { await fh.close(); envios.delete(e.token); }
+  return e.arquivo!;
+}
 const miniaturas = new Map<string, { tipo: string; dados: Buffer; ate: number }>();
 export async function miniatura(id: string, tam: number) {
   const k = id + ':' + tam, c = miniaturas.get(k);

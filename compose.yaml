@@ -4,7 +4,7 @@ services:
     build: .
     image: portal-spraytec:latest
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 1536m        # inclui a conversão de vídeo (ffmpeg); o servidor tem 16 GB
     env_file: .env
     environment:
       NODE_ENV: production

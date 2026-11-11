@@ -1,6 +1,8 @@
 FROM node:24.21.0-slim
 WORKDIR /app
 ENV NODE_ENV=production
+# ffmpeg: versão para postar dos vídeos (integracoes/video.ts)
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY server ./server

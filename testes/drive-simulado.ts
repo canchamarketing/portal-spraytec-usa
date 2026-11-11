@@ -215,6 +215,29 @@ checa((await D.moverPara(b, alvo.ids[0], alvo.caminho)) === false, 'mover de nov
 ACOES['versoes-arquivadas'].fn({ e, u: cancha, d: { id: 'p1', ids: alvo.ids }, hoje, agora, pessoas: [] });
 checa(!versoesParaArquivar(e).some((x) => x.id === 'p1') && p.arquivos.filter((a: any) => alvo.ids.includes(a.id)).every((a: any) => a.antiga), 'portal marca as versões guardadas e não move de novo');
 
+console.log('Versão para postar dos vídeos');
+const { videosParaConverter } = await import('../server/acoes.ts');
+const { writeFileSync, readFileSync } = await import('node:fs');
+const fila = videosParaConverter(e);
+checa(fila.some((x) => x.id === 'p9' && x.arquivo.tipo === 'video/mp4') && !fila.some((x) => /^image/.test(x.arquivo.tipo)), 'vídeo anexado entra na fila; imagem não');
+const tmpV = join(dir, 'v-original.mp4'), tmpL = join(dir, 'v-leve.mp4');
+await D.baixarPara(fila.find((x) => x.id === 'p9')!.arquivo.id, tmpV);
+checa(readFileSync(tmpV).toString() === 'video-pesado', 'servidor baixa o vídeo do Drive para converter');
+writeFileSync(tmpL, Buffer.alloc(D.PARTE + 10, 1));
+const leve = await D.enviarDoDisco(b, 'p:p9', p9.pastaDrive, 'Revendedor 02 · para postar.mp4', 'video/mp4', tmpL);
+checa(arquivos.get(leve.id)!.dados.length === D.PARTE + 10 && arquivos.get(leve.id)!.parents[0] === (await D.pasta(b, p9.pastaDrive)), 'versão leve sobe para a mesma pasta do post, em partes');
+const orig = p9.arquivos[0];
+ACOES['video-leve'].fn({ e, u: cancha, d: { id: 'p9', de: orig.id, arquivo: leve, ssim: 0.992 }, hoje, agora, pessoas: [] });
+const l9 = p9.arquivos.find((a: any) => a.leve);
+checa(l9 && l9.de === orig.id && orig.leveId === l9.id && l9.v === orig.v && l9.ssim === 0.992, 'versão para postar fica ao lado do original, na mesma versão, com a nota de qualidade');
+checa(!videosParaConverter(e).some((x) => x.id === 'p9'), 'vídeo com versão para postar sai da fila (e a versão leve não é convertida de novo)');
+e.posts.push({ id: 'p10', titulo: 'Short', rede: 'yt', formato: 'short', status: 'producao', pastaDrive: ['Posts', '2026-11', 'p10'], arquivos: [{ id: 'vx', nome: 'curto.mp4', tipo: 'video/mp4', v: 1 }], comments: [], hist: [] });
+ACOES['video-leve'].fn({ e, u: cancha, d: { id: 'p10', de: 'vx', ok: 'o original já está no formato das redes' }, hoje, agora, pessoas: [] });
+checa(!videosParaConverter(e).some((x) => x.id === 'p10') && e.posts.at(-1).arquivos.length === 1, 'vídeo que já está nos padrões: nada é criado, vale o original');
+e.posts.push({ id: 'p11', titulo: 'Reel', rede: 'ig', formato: 'reel', status: 'producao', pastaDrive: ['Posts', '2026-11', 'p11'], arquivos: [{ id: 'vy', nome: 'x.mov', tipo: 'video/quicktime', v: 1 }], comments: [], hist: [] });
+for (let i = 0; i < 3; i++) ACOES['video-leve'].fn({ e, u: cancha, d: { id: 'p11', de: 'vy', erro: 'Drive fora do ar' }, hoje, agora, pessoas: [] });
+checa(!videosParaConverter(e).some((x) => x.id === 'p11'), 'depois de 3 falhas, para de tentar (fica valendo o original)');
+
 console.log('Desconexão');
 await D.desconectarDrive(b);
 checa(!D.driveConectado() && !(await b.query(`select 1 from segredos`)).rows.length, 'desconectar apaga a autorização');

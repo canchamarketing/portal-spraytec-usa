@@ -1185,3 +1185,5 @@ details.accmini>summary:hover{color:var(--ink)}
 .notice.passo.ajp{border-left-color:var(--s-ajuste)}
 .notice.ajp blockquote{margin:6px 0;padding:6px 10px;border-left:2px solid var(--s-ajuste);background:var(--surface);border-radius:4px;white-space:pre-line;font-size:13px}
 .notice.ajp>span{display:block}
+/* versão para postar dos vídeos */
+.leves{margin-top:6px}.leves .leve{font-size:12px;margin:4px 0 0;line-height:1.45}

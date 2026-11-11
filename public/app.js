@@ -340,7 +340,8 @@ const tamTxt=b=>b>=1e9?(b/1e9).toFixed(1).replace('.',',')+' GB':b>=1e6?(b/1e6).
 const arqVivos=x=>((x&&x.arquivos)||[]).filter(a=>!a.removido);
 const versaoAtual=x=>{const L=arqVivos(x);return L.length?Math.max(...L.map(a=>a.v||1)):0};
 // peças da versão mais recente (imagens e vídeos), na ordem em que foram enviadas
-function pecasAtuais(p){const v=versaoAtual(p);return arqVivos(p).filter(a=>(a.v||1)===v&&['img','video'].includes(tipoArq(a)))}
+// A versão para postar de um vídeo (a.leve) acompanha o original: não conta como peça nem lâmina.
+function pecasAtuais(p){const v=versaoAtual(p);return arqVivos(p).filter(a=>!a.leve&&(a.v||1)===v&&['img','video'].includes(tipoArq(a)))}
 function capaDe(p){const a=pecasAtuais(p)[0];return a?miniUrl(a.id,800):null}
 function acharArq(id){for(const l of [posts,videos,demandas])for(const x of l){const a=(x.arquivos||[]).find(y=>y.id===id);if(a)return a}
   const st=META&&META.stories.find(x=>x.drive===id);if(st)return {id,nome:`Story de ${fmtLong(st.date)} às ${st.hora}`,tipo:st.driveTipo||'image/jpeg',por:'Instagram',q:st.alc!=null?'alcance '+n(st.alc):''};
@@ -361,7 +362,7 @@ function arqSecao(ref,x,o){o=o||{};const L=arqVivos(x),pode=o.pode&&DRIVE.conect
   const dl=o.driveLink&&pode&&isTeam()?`<div class="drvlink">${sug?`<button class="btn sm primary" data-act="drive-link" data-ref="${esc(ref)}" data-link="${esc(sug)}">Usar o arquivo do link do calendário</button>`:pend.length>1?`<button class="btn sm primary" data-act="drive-links" data-id="${esc(x.id)}">Usar os ${pend.length} arquivos dos links do calendário</button>`:''}<div class="ler"><input class="pe" id="dl-${esc(ref.replace(':','-'))}" placeholder="Ou cole o link de um arquivo do Google Drive" aria-label="Link do arquivo no Google Drive"><button class="btn sm" data-act="drive-link" data-ref="${esc(ref)}">Usar do Drive</button></div></div>`:'';
   const up=pode?`<label class="arqdrop" data-drop="${esc(ref)}"><input type="file" multiple data-enviar="${esc(ref)}" hidden><b>${o.rotulo||'Enviar arquivos'}</b><span class="muted">Arraste aqui ou clique para escolher. O arquivo vai para o Drive da Spraytec${o.dica?'. '+o.dica:''}.</span></label>${dl}`
     :o.pode&&!DRIVE.conectado?'<p class="muted" style="font-size:12px;margin:0">O Google Drive da Spraytec ainda não está conectado ao portal.</p>':o.trava?`<p class="muted" style="font-size:12px;margin:0">${o.trava}</p>`:'';
-  return `<div class="arqsec"><div class="eyebrow" style="margin-bottom:6px">${o.titulo||'Arquivos'}${L.length?' · '+L.length:''}</div>${corpo}<div data-envios="${esc(ref)}">${envList(ref)}</div>${up}</div>`}
+  return `<div class="arqsec"><div class="eyebrow" style="margin-bottom:6px">${o.titulo||'Arquivos'}${L.length?' · '+L.length:''}</div>${corpo}${o.extra||''}<div data-envios="${esc(ref)}">${envList(ref)}</div>${up}</div>`}
 
 // ---------- envio (em partes de 8 MB, com nova tentativa se a conexão cair) ----------
 const ENVIOS=[];
@@ -705,6 +706,14 @@ function badgeCount(){return pendingApprovals().length+roteirosPend().length}
 function inWindow(p){return p.date&&p.date>=TODAY&&p.date<=addDays(TODAY,7)}
 function prazoDe(p){return p.prazo||addDays(TODAY,2)}
 
+// Situação da versão para postar de cada vídeo do post (feita pelo servidor, sem perder qualidade).
+function notaLeve(p){const L=pecasAtuais(p).filter(a=>tipoArq(a)==='video');if(!L.length)return '';const mb=n=>Math.round((n||0)/1e6)+' MB';
+  return '<div class="leves">'+L.map(a=>{const l=a.leveId&&acharArq(a.leveId);
+    const t=l?`<b>Para postar:</b> use "${esc(l.nome)}" (${mb(l.tam)} em vez de ${mb(a.tam)}; qualidade conferida: ${String(((l.ssim||0)*100).toFixed(1)).replace('.',',')}% igual ao original). Clique nele para baixar.`
+      :a.leveOk?`<b>Para postar:</b> o original já está no formato das redes (${esc(a.leveOk)}). Poste o próprio "${esc(a.nome)}".`
+      :(a.leveTentativas||0)>=3?`<b>Para postar:</b> não deu para gerar a versão leve (${esc(a.leveErro||'')}). Poste o original.`
+      :'<b>Para postar:</b> gerando a versão leve deste vídeo, sem perder qualidade. Leva alguns minutos; atualize a página depois.';
+    return `<p class="muted leve">${t}</p>`}).join('')+'</div>'}
 // prévias
 // Carrossel com as peças enviadas: arrasta para o lado ou usa as setas, como no Instagram.
 function carrosselPv(p){const L=pecasAtuais(p);
@@ -735,7 +744,8 @@ function capTxt(p){const t=String(p.legenda||'').replace(/\r\n?/g,'\n').trim();i
   let k=t.lastIndexOf(' ',lim);if(k<60)k=lim;return `<span class="capc">${esc(t.slice(0,k))}</span><button type="button" class="capmais" data-capmais>… mais</button><span class="capr" hidden>${esc(t.slice(k))}</span>`}
 document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('[data-capmais]');if(!b)return;e.stopPropagation();e.preventDefault();const r=b.nextElementSibling;if(r)r.hidden=false;b.remove()},true);
 // Vídeo anexado: capa do Drive e o vídeo só baixa quando alguém dá play (os vídeos têm 70 a 140 MB).
-const vidTag=(a,cls)=>`<video class="${cls||''}" src="${arqUrl(a.id)}" poster="${miniUrl(a.id,800)}" preload="none" controls playsinline></video>`;
+// Na prévia toca a versão para postar, quando já existe (mais leve, mesma qualidade); a capa é a do original.
+const vidTag=(a,cls)=>`<video class="${cls||''}" src="${arqUrl(a.leveId&&acharArq(a.leveId)?a.leveId:a.id)}" poster="${miniUrl(a.id,800)}" preload="none" controls playsinline></video>`;
 function preview(p,o){o=o||{};
   const bg=PILAR_HUE[p.pilar]||'#E3E4D3',capa=hiddenForClient(p)?null:capaDe(p),nP=capa?pecasAtuais(p).length:0;
   const vid=o.grande&&!hiddenForClient(p)?pecasAtuais(p).find(a=>tipoArq(a)==='video'):null;
@@ -1909,7 +1919,7 @@ function ajusteAviso(p,team){const a=p.ajustePedido||(()=>{const c=(p.comments||
   <div class="content">
    ${passo}${avisoCli}
    ${p.formato==='plano'?planoSection().replace('<section class="panel">','<div>').replace(/<\/section>$/,'</div>'):`<div class="pv-lg">${preview(p,{grande:true})}</div><p class="muted" style="font-size:12px;margin:-8px 0 0;text-align:center">${pecasAtuais(p).some(a=>tipoArq(a)==='video')?'Prévia com o vídeo enviado: dê play para assistir.':capaDe(p)?'Prévia com a peça enviada. Clique nas peças abaixo para ver em tamanho real.':'Prévia aproximada. '+(p.drive?`<a href="${esc(p.drive)}" target="_blank" rel="noopener">Abrir a arte no Google Drive</a>`:'A arte fica na pasta do Google Drive.')}</p>`}
-   ${p.formato==='plano'?'':arqSecao('p:'+p.id,p,{pode:team&&p.status!=='aprovacao',versoes:true,titulo:ehVideo(p)?'Vídeo':'Peças (arte)',rotulo:ehVideo(p)?'Enviar o vídeo':'Enviar a arte',driveLink:true,dica:p.status==='ajuste'&&(p.vEnviada||0)>=(p.vPeca||1)?'Entra como nova versão':['pauta_aprovacao','texto_aprovacao'].includes(p.status)?'Pode enviar já: a arte vai para aprovação depois que os textos forem aprovados':'',trava:team&&p.status==='aprovacao'?'A arte está em aprovação: para trocar, espere a resposta ou registre o ajuste.':''})}
+   ${p.formato==='plano'?'':arqSecao('p:'+p.id,p,{extra:notaLeve(p),pode:team&&p.status!=='aprovacao',versoes:true,titulo:ehVideo(p)?'Vídeo':'Peças (arte)',rotulo:ehVideo(p)?'Enviar o vídeo':'Enviar a arte',driveLink:true,dica:p.status==='ajuste'&&(p.vEnviada||0)>=(p.vPeca||1)?'Entra como nova versão':['pauta_aprovacao','texto_aprovacao'].includes(p.status)?'Pode enviar já: a arte vai para aprovação depois que os textos forem aprovados':'',trava:team&&p.status==='aprovacao'?'A arte está em aprovação: para trocar, espere a resposta ou registre o ajuste.':''})}
    <dl class="kv" style="margin:0"><dt>Status</dt><dd>${pill(p)} ${marcas(p)}</dd><dt>Data</dt><dd class="mono">${p.date?fmtLong(p.date)+(p.time?' '+p.time:''):'sem data'}</dd><dt>Pilar</dt><dd>${p.pilar}</dd><dt>Produto</dt><dd>${esc(p.produto)}</dd>${peso?`<dt>Cota de design</dt><dd>${peso} peça${peso>1?'s':''} · rodada ${p.rodada} de 2</dd>`:''}</dl>
    ${p.formato==='plano'?'':hid?(prep?pautaBloco:'')+`<div class="notice lock">${prep?'A legenda e a arte aparecem quando a peça for enviada para aprovação.':'O texto aparece quando a pauta for enviada para aprovação.'}</div>`:pautaBloco+legBloco}
    ${acts}

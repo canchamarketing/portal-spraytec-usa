@@ -7,12 +7,13 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { abrirBanco, migrar } from './db.ts';
 import { carregar, salvar, gravarTudo } from './estado.ts';
-import { ACOES, destinoArquivo, versoesParaArquivar, type Aviso } from './acoes.ts';
+import { ACOES, destinoArquivo, versoesParaArquivar, videosParaConverter, type Aviso } from './acoes.ts';
+import { ffmpegDisponivel, versaoParaPostar } from './integracoes/video.ts';
 import { visaoPara } from './visao.ts';
 import { coletaRodando, coletarMeta, metaConfigurado } from './integracoes/meta.ts';
 import {
   ErroDrive, PARTE, abrirConteudo, carregarDrive, concluirAutorizacao, desconectarDrive, driveConectado, driveConfigurado, envioDe,
-  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao, copiarDoDrive, idDoLink, registrarCopia, moverPara,
+  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao, copiarDoDrive, idDoLink, registrarCopia, moverPara, baixarPara, enviarDoDisco,
 } from './integracoes/drive.ts';
 import {
   carregarGA4, coletaGA4Rodando, coletarGA4, concluirGA4, desconectarGA4, escolherPropriedade, ga4Conectado, ga4Configurado, urlAutorizacaoGA4,
@@ -251,7 +252,10 @@ async function executarAcao(u: Usuario, acao: string, d: any, ip?: string) {
     return r;
   }));
   if (res.avisos?.length) avisar(res.avisos, u).catch((err) => app.log.error({ err }, 'falha ao enviar aviso'));
-  if (acao !== 'versoes-arquivadas') setTimeout(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 500);
+  if (acao !== 'versoes-arquivadas' && acao !== 'video-leve') {
+    setTimeout(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 500);
+    setTimeout(() => converterVideos().catch((err) => app.log.error({ err }, 'falha na fila de vídeos')), 1500);
+  }
   return res;
 }
 
@@ -274,6 +278,42 @@ async function arquivarVersoes() {
   } finally { arquivando = false; }
 }
 setTimeout(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 90e3);
+
+// Versão para postar dos vídeos (ver integracoes/video.ts): um vídeo por vez, com prioridade baixa no servidor.
+let convertendo = false, temFfmpeg: boolean | null = null;
+async function converterVideos() {
+  if (convertendo || !driveConectado()) return;
+  if (temFfmpeg === null) temFfmpeg = await ffmpegDisponivel();
+  if (!temFfmpeg) return;
+  convertendo = true;
+  const { mkdtemp, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join, extname } = await import('node:path');
+  try {
+    for (;;) {
+      const x = videosParaConverter(await carregar(b))[0];
+      if (!x) break;
+      const a = x.arquivo, pasta = await mkdtemp(join(tmpdir(), 'spraytec-video-'));
+      try {
+        const ent = join(pasta, 'original' + (extname(a.nome || '') || '.mp4')), sai = join(pasta, 'para-postar.mp4');
+        const t0 = Date.now();
+        await baixarPara(a.id, ent);
+        const r = await versaoParaPostar(ent, sai, 2);
+        if (r.feito === 'convertido') {
+          const nome = String(a.nome || 'video').replace(/\.[^.]+$/, '') + ' · para postar.mp4';
+          const arq = await enviarDoDisco(b, 'p:' + x.id, x.caminho, nome, 'video/mp4', sai);
+          await executarAcao(SISTEMA, 'video-leve', { id: x.id, de: a.id, arquivo: arq, ssim: r.ssim });
+          app.log.info({ post: x.id, de: r.info.tam, para: r.saida.tam, ssim: r.ssim, crf: r.crf, s: Math.round((Date.now() - t0) / 1000) }, 'versão para postar criada');
+        } else await executarAcao(SISTEMA, 'video-leve', { id: x.id, de: a.id, ok: r.motivo });
+      } catch (err) {
+        app.log.warn({ err, post: x.id, arquivo: a.id }, 'não fez a versão para postar');
+        await executarAcao(SISTEMA, 'video-leve', { id: x.id, de: a.id, erro: (err as Error).message }).catch(() => {});
+      } finally { await rm(pasta, { recursive: true, force: true }).catch(() => {}); }
+    }
+  } finally { convertendo = false; }
+}
+setTimeout(() => converterVideos().catch((err) => app.log.error({ err }, 'falha na fila de vídeos')), 120e3);
+setInterval(() => converterVideos().catch((err) => app.log.error({ err }, 'falha na fila de vídeos')), 3600e3);
 setInterval(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 3600e3);
 
 app.post('/api/acao', async (req, rep) => {

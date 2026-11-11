@@ -212,6 +212,17 @@ function reenviar(c: Ctx, p: any) {
 // Peças no Drive: a versão que foi para aprovação fica marcada; o próximo envio abre a versão seguinte.
 const vivos = (l: any[] | undefined) => (l || []).filter((a) => !a.removido);
 function marcarVersaoEnviada(p: any) { if (vivos(p.arquivos).length) p.vEnviada = p.vPeca || 1; }
+// Vídeos anexados aos posts que ainda não têm a versão para postar (nem foram conferidos). Falhas tentam de novo
+// até 3 vezes (o Drive ou o servidor podem ter caído no meio).
+export function videosParaConverter(e: Estado) {
+  const out: { id: string; caminho: string[]; arquivo: any }[] = [];
+  for (const p of e.posts) {
+    if (!p.pastaDrive) continue;
+    for (const a of vivos(p.arquivos))
+      if (/^video\//.test(a.tipo || '') && !a.leve && !a.leveId && !a.leveOk && (a.leveTentativas || 0) < 3) out.push({ id: p.id, caminho: p.pastaDrive, arquivo: a });
+  }
+  return out;
+}
 // Depois da aprovação, a pasta do post no Drive fica só com a versão aprovada: as outras versões (e o que foi
 // tirado do portal) vão para a subpasta "Versões antigas", que continua guardada como histórico.
 export function versoesParaArquivar(e: Estado) {
@@ -575,6 +586,29 @@ export const ACOES: Record<string, Def> = {
       if (was === 'agendado') { p.status = 'aprovado'; hist(c, p, `Data alterada para ${fmt(p.date)}; precisa ser agendado de novo na rede`); }
       else hist(c, p, `Data alterada para ${fmt(p.date)}`);
       return { resumo: `Mudou "${p.titulo}" para ${fmt(p.date)}` };
+    },
+  },
+  // Versão para postar de um vídeo (feita pelo servidor; ver videosParaConverter). Registra o arquivo leve ao
+  // lado do original, ou anota que o original já serve, ou que não deu para converter.
+  'video-leve': {
+    papeis: C,
+    fn: (c) => {
+      const p = post(c, c.d.id), o = (p.arquivos || []).find((a: any) => a.id === c.d.de && !a.leve);
+      if (!o) throw new ErroAcao('Vídeo original não encontrado.');
+      if (o.leveId || o.leveOk) return { resumo: 'Sem mudança' };
+      const mb = (n: number) => (n / 1e6).toFixed(0).replace('.', ',') + ' MB';
+      if (c.d.arquivo) {
+        const x = c.d.arquivo, ssim = Number(c.d.ssim) || 0;
+        const a = { id: String(x.id), nome: String(x.nome).slice(0, 200), tipo: 'video/mp4', tam: Number(x.tam) || 0, v: o.v, leve: true, de: o.id, ssim,
+          por: 'Portal (automático)', q: c.agora, em: new Date().toISOString() };
+        p.arquivos.push(a); o.leveId = a.id; delete o.leveErro;
+        hist(c, p, `Versão para postar criada: ${o.nome} (${mb(o.tam)}) → ${a.nome} (${mb(a.tam)}), qualidade conferida: ${(ssim * 100).toFixed(1).replace('.', ',')}% igual ao original`);
+        return { resumo: `Criou a versão para postar de "${o.nome}" em "${p.titulo}"` };
+      }
+      if (c.d.ok) { o.leveOk = String(c.d.ok).slice(0, 200); delete o.leveErro; hist(c, p, `Vídeo ${o.nome}: ${o.leveOk}, então vale o original para postar`); return { resumo: `Conferiu o vídeo de "${p.titulo}": vale o original` }; }
+      o.leveErro = String(c.d.erro || 'falhou').slice(0, 300);
+      o.leveTentativas = (o.leveTentativas || 0) + 1;
+      return { resumo: `Não conseguiu fazer a versão para postar de "${o.nome}"` };
     },
   },
   // O portal moveu no Drive as versões que não foram aprovadas para "Versões antigas" (ver versoesParaArquivar).
