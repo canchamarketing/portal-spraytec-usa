@@ -1181,3 +1181,7 @@ details.accmini>summary:hover{color:var(--ink)}
 .capmais:hover{text-decoration:underline}
 .drvlink{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .drvlink .ler{display:flex;gap:6px}.drvlink .ler input{flex:1;min-width:0}
+/* pedido de ajuste no topo do item */
+.notice.passo.ajp{border-left-color:var(--s-ajuste)}
+.notice.ajp blockquote{margin:6px 0;padding:6px 10px;border-left:2px solid var(--s-ajuste);background:var(--surface);border-radius:4px;white-space:pre-line;font-size:13px}
+.notice.ajp>span{display:block}

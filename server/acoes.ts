@@ -156,6 +156,8 @@ function mudarStatus(c: Ctx, p: any, ns: string, link?: string) {
   p.status = ns;
   if (EM_APROVACAO.includes(ns)) p.prazo = addBiz(c.hoje, 2);
   if (!EM_APROVACAO.includes(ns)) delete p.validacao;
+  // A peça que foi para aprovação fica marcada como enviada, venha do botão, do seletor ou do kanban.
+  if (ns === 'aprovacao' && !prod) marcarVersaoEnviada(p);
   if (ns === 'publicado') {
     p.pubVia = 'manual';
     if (link) p.pubLink = link;
@@ -386,7 +388,9 @@ export const ACOES: Record<string, Def> = {
         c.e.plano.pendente.ajuste = { txt, q: c.agora };
       } else if (!EM_APROVACAO.includes(p.status)) throw new ErroAcao('Este item não está esperando aprovação.');
       const naPauta = p.status === 'pauta_aprovacao', noTexto = p.status === 'texto_aprovacao';
+      if (!naPauta && !noTexto && !p.vEnviada) marcarVersaoEnviada(p);
       p.status = 'ajuste'; p.etapaAjuste = naPauta ? 'pauta' : noTexto ? 'texto' : 'peca'; delete p.validacao;
+      p.ajustePedido = { quem: c.u.nome, txt, quando: c.agora, etapa: p.etapaAjuste, versao: p.etapaAjuste === 'peca' ? p.vEnviada || 1 : undefined };
       p.comments.push({ who: c.u.nome, text: txt, interno: false, quando: c.agora });
       const onde = naPauta ? 'na pauta ' : noTexto ? 'nos textos ' : '';
       hist(c, p, `Ajuste ${onde}pedido por ${c.u.nome}`);
@@ -743,7 +747,9 @@ export const ACOES: Record<string, Def> = {
       if (!x) { c.e.materiais.push({ ...a, pasta: caminho[1] }); return { resumo: `Enviou "${a.nome}" para ${nome}` }; }
       x.pastaDrive = x.pastaDrive || caminho;
       if (ev.ref.startsWith('p:')) {
-        const v = x.vPeca || 1, nova = (x.vEnviada || 0) >= v && vivos(x.arquivos).length > 0;
+        const v = x.vPeca || 1, env = x.vEnviada || (['aprovacao', 'ajuste', 'aprovado', 'agendado', 'publicado'].includes(x.status) && x.etapaAjuste !== 'texto' && x.etapaAjuste !== 'pauta' ? v : 0);
+        const nova = env >= v && vivos(x.arquivos).length > 0;
+        if (nova && !x.vEnviada) x.vEnviada = v;
         x.vPeca = nova ? v + 1 : v; a.v = x.vPeca;
       }
       if (ev.ref.startsWith('v:')) a.etapa = x.stage;

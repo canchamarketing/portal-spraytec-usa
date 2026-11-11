@@ -30,7 +30,7 @@ export function visaoPara(e0: Estado, u: Usuario) {
     // A arte pode ser anexada enquanto a pauta ou os textos estão em aprovação, mas a Spraytec só a vê quando ela for enviada.
     if (['pauta_aprovacao', 'texto_aprovacao'].includes(p.status)) { if (!p.vEnviada) delete x.drive; x.arquivos = (x.arquivos || []).filter((a: any) => (a.v || 1) <= (p.vEnviada || 0)); }
     // Ajuste pedido: a versão nova da peça só aparece para a Spraytec quando for reenviada.
-    if (p.status === 'ajuste' && x.arquivos) x.arquivos = x.arquivos.filter((a: any) => (a.v || 1) <= (p.vEnviada || 0));
+    if (p.status === 'ajuste' && x.arquivos) x.arquivos = x.arquivos.filter((a: any) => (a.v || 1) <= (p.vEnviada || (p.etapaAjuste === 'peca' ? 1 : 0)));
     return x;
   });
   e.videos = e.videos.map((v: any) => ({ ...v, arquivos: vivos(v.arquivos) }));

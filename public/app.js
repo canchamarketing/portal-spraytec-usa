@@ -357,8 +357,8 @@ function arqSecao(ref,x,o){o=o||{};const L=arqVivos(x),pode=o.pode&&DRIVE.conect
       return i===0?`<div class="arqv"><span class="muted" style="font-size:12px">${lbl}</span>${grid}</div>`:`<details class="arqv"><summary class="muted" style="font-size:12px">${lbl}</summary>${grid}</details>`}).join('')}
   else if(L.length)corpo=`<div class="arqgrid">${L.map(a=>arqTile(a,ref)).join('')}</div>`;
   // Arquivo que já está no Drive: cola o link (ou usa o link do calendário) e o Google copia para a pasta do item.
-  const sug=o.driveLink&&x.drive&&/drive\.google\.com\/(file\/d\/|open\?id=|uc\?)/.test(x.drive)&&!(x.arquivos||[]).some(a=>!a.removido&&a.origem===x.drive)?x.drive:'';
-  const dl=o.driveLink&&pode&&isTeam()?`<div class="drvlink">${sug?`<button class="btn sm primary" data-act="drive-link" data-ref="${esc(ref)}" data-link="${esc(sug)}">Usar o arquivo do link do calendário</button>`:''}<div class="ler"><input class="pe" id="dl-${esc(ref.replace(':','-'))}" placeholder="Ou cole o link de um arquivo do Google Drive" aria-label="Link do arquivo no Google Drive"><button class="btn sm" data-act="drive-link" data-ref="${esc(ref)}">Usar do Drive</button></div></div>`:'';
+  const pend=o.driveLink?linksPendentes(x):[],sug=pend.length===1?pend[0]:'';
+  const dl=o.driveLink&&pode&&isTeam()?`<div class="drvlink">${sug?`<button class="btn sm primary" data-act="drive-link" data-ref="${esc(ref)}" data-link="${esc(sug)}">Usar o arquivo do link do calendário</button>`:pend.length>1?`<button class="btn sm primary" data-act="drive-links" data-id="${esc(x.id)}">Usar os ${pend.length} arquivos dos links do calendário</button>`:''}<div class="ler"><input class="pe" id="dl-${esc(ref.replace(':','-'))}" placeholder="Ou cole o link de um arquivo do Google Drive" aria-label="Link do arquivo no Google Drive"><button class="btn sm" data-act="drive-link" data-ref="${esc(ref)}">Usar do Drive</button></div></div>`:'';
   const up=pode?`<label class="arqdrop" data-drop="${esc(ref)}"><input type="file" multiple data-enviar="${esc(ref)}" hidden><b>${o.rotulo||'Enviar arquivos'}</b><span class="muted">Arraste aqui ou clique para escolher. O arquivo vai para o Drive da Spraytec${o.dica?'. '+o.dica:''}.</span></label>${dl}`
     :o.pode&&!DRIVE.conectado?'<p class="muted" style="font-size:12px;margin:0">O Google Drive da Spraytec ainda não está conectado ao portal.</p>':o.trava?`<p class="muted" style="font-size:12px;margin:0">${o.trava}</p>`:'';
   return `<div class="arqsec"><div class="eyebrow" style="margin-bottom:6px">${o.titulo||'Arquivos'}${L.length?' · '+L.length:''}</div>${corpo}<div data-envios="${esc(ref)}">${envList(ref)}</div>${up}</div>`}
@@ -686,8 +686,9 @@ const STV={copy:{l:'Copy em produção',c:'--s-producao'},arte:{l:'Arte em cria�
 const stK=p=>p.status==='producao'&&temPauta(p)&&!p.faltaTexto?(p.textoOk?'arte':'copy'):p.status;
 // Reels, vídeos e Shorts usam vídeo pronto da produtora: depois da copy não há arte a criar, só anexar o vídeo.
 const ehVideo=p=>temPauta(p)&&['reel','video','short'].includes(p.formato);
-const stInfo=p=>stK(p)==='arte'&&ehVideo(p)?{l:'Vídeo a anexar',c:'--s-producao'}:STV[stK(p)]||STATUS[p.status]||{l:p.status,c:'--muted'};
-const stCurto=p=>stK(p)==='arte'&&ehVideo(p)?'Vídeo a anexar':ST_CURTO[stK(p)]||stInfo(p).l;
+const AJ_ONDE={pauta:'na pauta',texto:'na copy',peca:'na arte'};
+const stInfo=p=>p.status==='ajuste'?{l:'Ajuste '+(p.etapaAjuste==='peca'&&ehVideo(p)?'no vídeo':AJ_ONDE[p.etapaAjuste]||'pedido'),c:'--s-ajuste'}:stK(p)==='arte'&&ehVideo(p)?{l:'Vídeo a anexar',c:'--s-producao'}:STV[stK(p)]||STATUS[p.status]||{l:p.status,c:'--muted'};
+const stCurto=p=>p.status==='ajuste'?stInfo(p).l:stK(p)==='arte'&&ehVideo(p)?'Vídeo a anexar':ST_CURTO[stK(p)]||stInfo(p).l;
 function pill(st){const s=typeof st==='object'?stInfo(st):STATUS[st];return `<span class="pill" style="color:var(${s.c})"><i></i><span style="color:var(--ink)">${s.l}</span></span>`}
 function tagPill(txt,c){return `<span class="pill" style="color:var(${c})"><i></i><span style="color:var(--ink)">${txt}</span></span>`}
 function hiddenForClient(p){return isCliente()&&(p.status==='pauta'||p.status==='producao')&&!['video','design'].includes(p.rede)}
@@ -697,7 +698,8 @@ function tipoAprov(p){if(p.status==='pauta_aprovacao'||(p.status==='ajuste'&&p.e
 const EM_APROVACAO=['pauta_aprovacao','texto_aprovacao','aprovacao'];
 const temPauta=p=>!['video','design'].includes(p.rede)&&p.formato!=='plano';
 function pendingApprovals(){return posts.filter(p=>EM_APROVACAO.includes(p.status)&&!p.faltaTexto)}
-function marcas(p){return (p.validacao?'<span class="tag">validação interna</span>':'')+(p.status==='ajuste'?`<span class="tag">${p.etapaAjuste==='pauta'?'na pauta':p.etapaAjuste==='texto'?'nos textos':'na peça'}</span>`:'')}
+// (onde é o ajuste já vem no nome da etapa: "Ajuste na arte", "Ajuste na copy"…)
+function marcas(p){return p.validacao?'<span class="tag">validação interna</span>':''}
 function roteirosPend(){return videos.filter(v=>v.stage==='roteiro')}
 function badgeCount(){return pendingApprovals().length+roteirosPend().length}
 function inWindow(p){return p.date&&p.date>=TODAY&&p.date<=addDays(TODAY,7)}
@@ -1627,7 +1629,7 @@ function viewStatusKanban(){
   const vp=posts.filter(p=>tipoCal(p)!=='midia'&&S.tipos[tipoCal(p)]&&((p.date&&p.date.startsWith(S.month))||!p.date));
   return `${kanbanBarra()}
   <p class="muted" style="font-size:13px;margin:0">Arraste para mudar o status. Para tirar um item de "Pauta em aprovação" ou "Em aprovação", o portal pede o registro da aprovação da Spraytec.</p>
-  <div class="kanban sk">${SKCOLS_V.map(c=>{const it=vp.filter(p=>stK(p)===c),iv=vidsAbertos().filter(v=>VSK[v.stage]===c);if(c==='producao'&&!it.length&&!iv.length)return '';return `<div class="col" data-scol="${c}"><h3>${c==='arte'?'Arte em criação / vídeo a anexar':(STV[c]||STATUS[c]).l}<span class="mono muted">${it.length+iv.length}</span></h3>${iv.map(v=>vidCard(v)).join('')}${it.map(p=>{const k=tipoCal(p);return `<div class="card" data-open="${p.id}" draggable="true" data-sdrag="${p.id}" style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${c==='publicado'?`<span class="tag">${p.anterior?'agência anterior':'manual'}</span>`:''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>${p.faltaTexto?'<span class="flag">Faltam textos</span>':''}</div>`}).join('')}</div>`}).join('')}</div>`}
+  <div class="kanban sk">${SKCOLS_V.map(c=>{const it=vp.filter(p=>stK(p)===c),iv=vidsAbertos().filter(v=>VSK[v.stage]===c);if(c==='producao'&&!it.length&&!iv.length)return '';return `<div class="col" data-scol="${c}"><h3>${c==='arte'?'Arte em criação / vídeo a anexar':(STV[c]||STATUS[c]).l}<span class="mono muted">${it.length+iv.length}</span></h3>${iv.map(v=>vidCard(v)).join('')}${it.map(p=>{const k=tipoCal(p);return `<div class="card" data-open="${p.id}" draggable="true" data-sdrag="${p.id}" style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${c==='publicado'?`<span class="tag">${p.anterior?'agência anterior':'manual'}</span>`:''}${marcas(p)}${p.status==='ajuste'?`<span class="tag">${stInfo(p).l.replace(/^Ajuste /,'')}</span>`:''}</div><span class="t">${esc(p.titulo)}</span>${p.faltaTexto?'<span class="flag">Faltam textos</span>':''}</div>`}).join('')}</div>`}).join('')}</div>`}
 
 // Kanban simplificado da Operação Spraytec: sem arrastar; aprova pauta e peça direto na coluna "Com você".
 const CKCOLS=[['plan','Planejado',['pauta']],['voce','Com você',['pauta_aprovacao','texto_aprovacao','aprovacao']],['prod','Com a Cancha',['producao','ajuste']],['pronto','Pronto',['aprovado','agendado']],['pub','Publicado',['publicado']]];
@@ -1637,7 +1639,7 @@ function viewClientKanban(){
   <div class="kanban ck">${CKCOLS.map(([c,l,sts])=>{const it=vp.filter(p=>sts.includes(p.status)).sort((a,b)=>a.date.localeCompare(b.date));
     const iv=vidsAbertos().filter(v=>VCK[v.stage]===c);
     return `<div class="col ${c==='voce'?'voce':''}"><h3>${l}<span class="mono muted">${it.length+iv.length}</span></h3>${iv.map(v=>vidCard(v,true)).join('')}${it.map(p=>{const k=tipoCal(p);const draft=hiddenForClient(p);
-      return `<div class="card ${draft?'draft':''}" ${draft?'':`data-open="${p.id}"`} style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${p.status==='pauta_aprovacao'?'<span class="tag">pauta</span>':p.status==='texto_aprovacao'?'<span class="tag">textos</span>':''}${p.status==='agendado'?'<span class="tag">agendado</span>':''}${marcas(p)}</div><span class="t">${esc(p.titulo)}</span>
+      return `<div class="card ${draft?'draft':''}" ${draft?'':`data-open="${p.id}"`} style="border-left:3px solid var(--k-${k})"><div class="meta"><span class="kt" style="--kc:var(--k-${k})">${KTAG[k](p)}</span><span class="mono">${fmt(p.date)}</span>${p.status==='pauta_aprovacao'?'<span class="tag">pauta</span>':p.status==='texto_aprovacao'?'<span class="tag">textos</span>':''}${p.status==='agendado'?'<span class="tag">agendado</span>':''}${marcas(p)}${p.status==='ajuste'?`<span class="tag">${stInfo(p).l.replace(/^Ajuste /,'')}</span>`:''}</div><span class="t">${esc(p.titulo)}</span>
       ${draft?'<span class="muted" style="font-size:12px">A Cancha está produzindo</span>':''}${c==='voce'?`<button class="btn primary sm" data-act="approve" data-id="${p.id}">${p.status==='pauta_aprovacao'?'Aprovar pauta':p.status==='texto_aprovacao'?'Aprovar textos':'Aprovar'}</button>`:''}${c==='pub'&&p.pubLink?`<a class="linkbtn" href="${esc(p.pubLink)}" target="_blank" rel="noopener">Ver post</a>`:''}</div>`}).join('')||'<p class="muted" style="font-size:13px;margin:4px 0">Nada aqui.</p>'}</div>`}).join('')}</div>`}
 // ACERVO
 function viewAcervo(){
@@ -1693,6 +1695,7 @@ function viewVideos(){
 // Planilha padrão (CSV). Pode ser preenchida à mão, no Google Sheets/Excel ou gerada pelo Claude.
 const IMP_COLS=['id','data','hora','canal','formato','etapa','titulo','pilar','produto','pauta','legenda','link_drive'];
 const IMP_EXEMPLO=[
+  ['','04/12/2026','11:00','Instagram','Reel','Textos em aprovação','Depoimento: revendedor no campo','Relacionamento','','Reels com o vídeo pronto da produtora (link do Drive na última coluna).','Legenda completa do Reel, com hashtags.','https://drive.google.com/file/d/ID_DO_VIDEO/view'],
   ['','05/12/2026','11:30','Instagram','Carrossel','Pauta','Florescimento: 5 cuidados com o calor','Manejo','Bioestimulante','Carrossel educativo com os 5 cuidados no florescimento. Fechar com chamada para o RTV.','',''],
   ['','08/12/2026','18:00','Instagram','Reel','Pauta em aprovação','Dia de campo em 30 segundos','Eventos','','Reel com os melhores momentos do dia de campo.','',''],
   ['','10/12/2026','08:00','E-mail','Newsletter','Pauta','Newsletter de dezembro','Manejo','Linha foliar','Assunto: o manejo de dezembro. Destaque para a nutrição foliar.','',''],
@@ -1710,7 +1713,8 @@ Regras:
 - pilar: Manejo, Campo, Produto, Educação, Institucional, Relacionamento ou Eventos.
 - produto: ${pr.length?pr.join(', ')+', ou vazio se o conteúdo não for de um produto':'vazio'}.
 - pauta: o tema e a ideia do conteúdo, em uma ou duas frases.
-- legenda e link_drive: deixe vazios (a legenda é escrita depois que a Spraytec aprova a pauta).
+- legenda: deixe vazia, a não ser que a copy já esteja pronta (aí use a etapa Textos em aprovação).
+- link_drive: o link do vídeo (ou da arte) no Google Drive, como está no calendário (drive.google.com/file/d/...). Mais de um arquivo (carrossel): links separados por espaço. O portal copia sozinho o arquivo para o post.
 Responda só com o CSV, sem comentários.`}
 const semAcento=t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
 function lerCSV(txt){
@@ -1793,7 +1797,7 @@ function drawerImportar(){const I=S.imp;const L=I?I.linhas:[];const ruins=L.filt
   return `<header><div><div class="eyebrow">Calendário</div><h2>Planilha do calendário</h2></div>${closeBtn()}</header>
   <div class="content">
    <ol class="impsteps"><li><b>Comece pelo modelo ou pelo mês do calendário.</b> Uma linha por item (post, e-mail, produção ou demanda).<div class="actions" style="margin-top:6px"><button class="btn" data-act="imp-modelo">Baixar modelo (CSV)</button><button class="btn" data-act="exportar-mes">Exportar ${esc(mesNome())}</button></div>
-     <p class="muted" style="font-size:12px;margin:6px 0 0">Linhas sem id viram itens novos. Linhas com id (as do mês exportado) atualizam o item, sem duplicar; campo vazio mantém o que está no portal. Para enviar uma pauta para aprovação, troque a etapa para "Pauta em aprovação"; para enviar a peça, "Em aprovação". Post novo com a pauta já combinada e a legenda pronta pode entrar direto em "Textos em aprovação".</p></li>
+     <p class="muted" style="font-size:12px;margin:6px 0 0">Linhas sem id viram itens novos. Linhas com id (as do mês exportado) atualizam o item, sem duplicar; campo vazio mantém o que está no portal. Para enviar uma pauta para aprovação, troque a etapa para "Pauta em aprovação"; para enviar a peça, "Em aprovação". Post novo com a pauta já combinada e a legenda pronta pode entrar direto em "Textos em aprovação". <b>Vídeo ou arte no Drive:</b> cole o link na coluna link_drive (mais de um, separados por espaço) e o portal copia sozinho para o post.</p></li>
     <li><b>Ou peça ao Claude</b>: copie o pedido abaixo, troque [MÊS] e salve a resposta como arquivo .csv.<details class="padj" style="margin-top:6px"><summary class="linkbtn">Ver o pedido para o Claude</summary><textarea class="pe" rows="9" readonly id="imp-prompt">${esc(impPrompt())}</textarea><button class="btn sm" data-act="imp-copiar">Copiar pedido</button></details></li>
     <li><b>Envie o arquivo</b>. No Google Sheets: Arquivo › Fazer download › CSV. No Excel: Salvar como › CSV UTF-8.<div style="margin-top:6px"><input type="file" id="imp-arq" accept=".csv,text/csv,text/plain"></div></li></ol>
    ${I&&I.erroGeral?`<div class="notice">${esc(I.erroGeral)}</div>`:''}
@@ -1878,19 +1882,32 @@ function drawerPost(p){
   const pautaBloco=temPauta(p)&&(p.pauta||naPauta)?`<div><div class="eyebrow" style="margin-bottom:6px">${naPauta||p.status==='espera'?'Pauta':'Pauta aprovada'}</div><div class="caption">${p.pauta?esc(p.pauta):'Ainda sem pauta.'}</div></div>`:'';
   const legBloco=naPauta&&!p.legenda?'':`<div><div class="eyebrow" style="margin-bottom:6px">${textoLabel}</div><div class="caption">${p.faltaTexto?'Ainda sem textos.':p.legenda?esc(p.legenda):'Ainda sem texto.'}</div></div>`;
   const prep=hid&&p.status==='producao';
-  // Próximo passo da Cancha, no topo do item (o envio da arte fica logo abaixo da prévia).
+  // Ajuste pedido: o que a Spraytec pediu, quem, quando e em qual etapa; para a Cancha, o que fazer a seguir.
+function ajusteAviso(p,team){const a=p.ajustePedido||(()=>{const c=(p.comments||[]).filter(x=>!x.interno).slice(-1)[0];return c?{quem:c.who,txt:c.text,quando:c.quando,etapa:p.etapaAjuste}:null})();
+  const e=p.etapaAjuste,V=ehVideo(p),onde=e==='pauta'?'na pauta':e==='texto'?'na copy (legenda)':V?'no vídeo':'na arte';
+  const novaV=pecasAtuais(p).length&&versaoAtual(p)>(p.vEnviada||1);
+  const fazer=!team?'A Cancha está ajustando. Quando reenviar, o item volta para a sua aprovação.'
+    :e==='pauta'?'Mude a pauta em "Editar conteúdo" (mais abaixo) e clique em "Reenviar pauta ajustada".'
+    :e==='texto'?'Mude a legenda em "Editar conteúdo" (mais abaixo) e clique em "Reenviar textos ajustados".'
+    :novaV?`Nova versão anexada (versão ${versaoAtual(p)}). Confira e reenvie.`
+    :`Envie ${V?'o vídeo corrigido':'a arte corrigida'} no quadro "${V?'Vídeo':'Peças (arte)'}" logo abaixo: ela vira a versão ${(p.vEnviada||1)+1} e a anterior fica guardada. Depois clique em "Subir nova versão e reenviar".`;
+  const btn=team&&(e!=='peca'||novaV)?`<div class="actions" style="margin-top:8px"><button class="btn primary" data-act="newver" data-id="${p.id}">${e==='pauta'?'Reenviar pauta ajustada':e==='texto'?'Reenviar textos ajustados':'Subir nova versão e reenviar'}</button></div>`:'';
+  return `<div class="notice passo ajp"><b>${team?'Ajuste pedido '+onde:'Você pediu ajuste '+onde}</b>${a?` · ${esc(a.quem||'')}${a.quando?' em '+esc(a.quando):''}`:''}${a&&a.txt?`<blockquote>${esc(a.txt)}</blockquote>`:''}<span>${fazer}</span>${btn}</div>`}
+// Próximo passo da Cancha, no topo do item (o envio da arte fica logo abaixo da prévia).
   const temArte=pecasAtuais(p).length>0;
+  const avisoCli=!team&&p.status==='ajuste'?ajusteAviso(p,false):'';
   const V=ehVideo(p),qd=V?'"Vídeo"':'"Peças (arte)"';
   const passo=!team||p.formato==='plano'||!temPauta(p)?'':p.status==='texto_aprovacao'?(V?'<div class="notice passo"><b>Textos com a Spraytec.</b> Você já pode anexar o vídeo da produtora no quadro "Vídeo" logo abaixo. Quando a copy for aprovada, o vídeo vai direto para a aprovação da Spraytec.</div>':'<div class="notice passo"><b>Textos com a Spraytec.</b> Você já pode ir enviando a arte no quadro "Peças (arte)" logo abaixo. Ela só vai para aprovação depois que os textos forem aprovados.</div>')
     :p.status==='producao'&&p.textoOk?(temArte?`<div class="notice passo"><b>${V?'Vídeo anexado':'Arte em criação · arte anexada'}.</b> Confira ${V?'o vídeo':'as peças'} abaixo e envie para a Spraytec aprovar.<div class="actions" style="margin-top:8px"><button class="btn primary" data-act="send" data-id="${p.id}">Enviar peça para aprovação</button></div></div>`
       :V?'<div class="notice passo"><b>Vídeo a anexar · copy aprovada.</b> Anexe o vídeo da produtora no quadro "Vídeo" logo abaixo (do computador ou pelo link do Drive) e clique em "Enviar peça para aprovação".</div>'
       :'<div class="notice passo"><b>Arte em criação · copy aprovada.</b> Agora é a arte: envie no quadro "Peças (arte)" logo abaixo e depois clique em "Enviar peça para aprovação".</div>')
     :p.status==='producao'&&!p.textoOk?'<div class="notice passo"><b>Copy em produção · pauta aprovada.</b> Escreva a legenda (em "Editar conteúdo") e envie os textos para aprovação.</div>'
+    :p.status==='ajuste'?ajusteAviso(p,true)
     :p.status==='aprovado'?`<div class="notice passo"><b>Aprovado pela Spraytec.</b> Agende a publicação na rede (${p.date?fmtLong(p.date)+(p.time?' às '+p.time:''):'sem data'}) e marque aqui.<div class="actions" style="margin-top:8px"><button class="btn primary" data-act="agendar" data-id="${p.id}">Marcar como agendado</button></div></div>`
     :p.status==='agendado'?'<div class="notice passo"><b>Agendado na rede.</b> Depois que for ao ar, marque como publicado e cole o link do post (no fim desta página).</div>':'';
   return `<header><div><div class="eyebrow">${NETNAME[p.rede]} · ${FORMATO[p.formato]}</div><h2>${hid&&!prep?'Em preparação pela Cancha':esc(p.titulo)}</h2></div>${closeBtn()}</header>
   <div class="content">
-   ${passo}
+   ${passo}${avisoCli}
    ${p.formato==='plano'?planoSection().replace('<section class="panel">','<div>').replace(/<\/section>$/,'</div>'):`<div class="pv-lg">${preview(p,{grande:true})}</div><p class="muted" style="font-size:12px;margin:-8px 0 0;text-align:center">${pecasAtuais(p).some(a=>tipoArq(a)==='video')?'Prévia com o vídeo enviado: dê play para assistir.':capaDe(p)?'Prévia com a peça enviada. Clique nas peças abaixo para ver em tamanho real.':'Prévia aproximada. '+(p.drive?`<a href="${esc(p.drive)}" target="_blank" rel="noopener">Abrir a arte no Google Drive</a>`:'A arte fica na pasta do Google Drive.')}</p>`}
    ${p.formato==='plano'?'':arqSecao('p:'+p.id,p,{pode:team&&p.status!=='aprovacao',versoes:true,titulo:ehVideo(p)?'Vídeo':'Peças (arte)',rotulo:ehVideo(p)?'Enviar o vídeo':'Enviar a arte',driveLink:true,dica:p.status==='ajuste'&&(p.vEnviada||0)>=(p.vPeca||1)?'Entra como nova versão':['pauta_aprovacao','texto_aprovacao'].includes(p.status)?'Pode enviar já: a arte vai para aprovação depois que os textos forem aprovados':'',trava:team&&p.status==='aprovacao'?'A arte está em aprovação: para trocar, espere a resposta ou registre o ajuste.':''})}
    <dl class="kv" style="margin:0"><dt>Status</dt><dd>${pill(p)} ${marcas(p)}</dd><dt>Data</dt><dd class="mono">${p.date?fmtLong(p.date)+(p.time?' '+p.time:''):'sem data'}</dd><dt>Pilar</dt><dd>${p.pilar}</dd><dt>Produto</dt><dd>${esc(p.produto)}</dd>${peso?`<dt>Cota de design</dt><dd>${peso} peça${peso>1?'s':''} · rodada ${p.rodada} de 2</dd>`:''}</dl>
@@ -2034,10 +2051,12 @@ async function api(url,corpo){
   return j}
 // Link de arquivo do Drive salvo no item: o portal copia o arquivo para o post sozinho (o mesmo que "Usar do Drive").
 const linkArqDrive=s=>/drive\.google\.com\/(file\/d\/|open\?id=|uc\?)/.test(String(s||''));
-const precisaCopiar=p=>isTeam()&&DRIVE.conectado&&DRIVE.leitura&&p&&p.formato!=='plano'&&p.status!=='aprovacao'&&linkArqDrive(p.drive)&&!(p.arquivos||[]).some(a=>!a.removido&&a.origem===p.drive);
+const linksDrive=s=>String(s||'').split(/[\s,;|]+/).filter(linkArqDrive);
+const linksPendentes=p=>linksDrive(p&&p.drive).filter(l=>!(p.arquivos||[]).some(a=>!a.removido&&a.origem===l));
+const precisaCopiar=p=>isTeam()&&DRIVE.conectado&&DRIVE.leitura&&p&&p.formato!=='plano'&&p.status!=='aprovacao'&&linksPendentes(p).length>0;
 async function copiarPendentes(ids){const L=[...new Set(ids)].map(id=>posts.find(x=>x.id===id)).filter(precisaCopiar);if(!L.length)return;
-  let ok=0;const ruins=[];toast(L.length===1?'Copiando o arquivo do Drive para o post…':'Copiando '+L.length+' arquivos do Drive para os posts…');
-  for(const p of L){try{const j=await api('/api/arquivos/do-drive',{ref:'p:'+p.id,link:p.drive});if(j&&j.dados)aplicar(j);ok++}catch(e){ruins.push('"'+p.titulo+'": '+(e.message||'falhou'))}}
+  const tarefas=L.flatMap(p=>linksPendentes(p).map(l=>[p,l]));let ok=0;const ruins=[];toast(tarefas.length===1?'Copiando o arquivo do Drive para o post…':'Copiando '+tarefas.length+' arquivos do Drive para os posts…');
+  for(const [p,l] of tarefas){try{const j=await api('/api/arquivos/do-drive',{ref:'p:'+p.id,link:l});if(j&&j.dados)aplicar(j);ok++}catch(e){ruins.push('"'+p.titulo+'": '+(e.message||'falhou'))}}
   render();toast(ruins.length?(ok?ok+' copiado'+(ok>1?'s':'')+'. ':'')+'Não deu para copiar '+ruins.join('; '):ok===1?'Arquivo copiado do Drive para o post.':ok+' arquivos copiados do Drive para os posts.')}
 async function acao(nome,dados,depois){
   if(ocupado)return null;ocupado=true;document.body.classList.add('salvando');
@@ -2226,6 +2245,7 @@ document.addEventListener('click',e=>{
       const txt=t.textContent;t.disabled=true;t.textContent='Copiando do Drive…';
       api('/api/arquivos/do-drive',{ref,link}).then(j=>{if(j&&j.dados){aplicar(j);render()}toast('"'+(j&&j.nome||'Arquivo')+'" copiado do Drive para o post.')}).catch(e=>{t.disabled=false;t.textContent=txt;toast(e.message||'Não foi possível usar esse arquivo do Drive.')});break}
     case 'post-excluir':if(p&&confirm('Excluir "'+p.titulo+'"'+(p.date?' ('+fmtLong(p.date)+')':'')+'?\n\nO item sai do calendário para todos. Os arquivos continuam no Google Drive e uma cópia fica no Registro de atividades.'))acao('post-excluir',{id},()=>{closeDrawer();toast('Item excluído.')});break;
+    case 'drive-links':copiarPendentes([id]);break;
     case 'agendar':acao('status',{id,status:'agendado'},()=>toast('Marcado como agendado.'));break;
     case 'st-pub':acao('publicar',{id,link:val('#pub-link')},()=>toast('Marcado como publicado.'));break;
     case 'ver-mud':openDrawer('mud',id);break;

@@ -57,6 +57,16 @@ checa(p('p3').status === 'agendado' && /Agendado na rede/.test(p('p3').hist.at(-
 rodar('post-data', cancha, { id: 'p3', data: '2026-11-09' });
 checa(p('p3').status === 'aprovado', 'mudou a data de um post agendado: volta para "Aprovado" (precisa agendar de novo)');
 
+console.log('Ajuste depois de mudar o status à mão');
+e.posts.push(P('p5', 'agendado', { textoOk: true, legenda: 'Legenda do p5', arquivos: [{ id: 'a1', v: 1, tipo: 'image/png' }, { id: 'a2', v: 1, tipo: 'image/png' }] }));
+rodar('status', cancha, { id: 'p5', status: 'aprovacao' });
+checa(p('p5').status === 'aprovacao' && p('p5').vEnviada === 1, 'mandar para "Em aprovação" pelo seletor marca a versão enviada');
+rodar('ajuste', oper, { id: 'p5', txt: 'Trocar a foto da lâmina 2' });
+checa(p('p5').ajustePedido && p('p5').ajustePedido.txt === 'Trocar a foto da lâmina 2' && p('p5').ajustePedido.quem === 'Matheus' && p('p5').ajustePedido.etapa === 'peca', 'ajuste guarda o que foi pedido, por quem e em qual etapa');
+checa(visaoPara(e, oper).posts.find((x: any) => x.id === 'p5').arquivos.length === 2, 'no ajuste, a Spraytec continua vendo o carrossel que ela avaliou');
+e.posts.push(P('p6', 'ajuste', { etapaAjuste: 'peca', textoOk: true, arquivos: [{ id: 'b1', v: 1, tipo: 'image/png' }] }));
+checa(visaoPara(e, oper).posts.find((x: any) => x.id === 'p6').arquivos.length === 1, 'item antigo em ajuste sem a marca de versão: a Spraytec ainda vê a peça');
+
 console.log('Excluir item');
 e.links.push(['p:p4', 'p:p1']);
 checa(JSON.stringify(ACOES['post-excluir'].papeis) === '["cancha"]', 'só a Cancha exclui itens');
