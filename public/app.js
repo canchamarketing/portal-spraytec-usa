@@ -1869,7 +1869,8 @@ function drawerPost(p){
       if(p.status==='ajuste')b.push(`<button class="btn primary" data-act="newver" data-id="${p.id}">${p.etapaAjuste==='pauta'?'Reenviar pauta ajustada':p.etapaAjuste==='texto'?'Reenviar textos ajustados':'Subir nova versão e reenviar'}</button>`);
       const ext=EM_APROVACAO.includes(p.status)?`<details class="padj" ${S.needExt===p.id?'open':''}><summary class="btn ${S.needExt===p.id?'primary':''}">Registrar aprovação por WhatsApp/e-mail</summary><div class="extbox"><label class="muted" for="ext-quem">Quem da Spraytec aprovou</label><select id="ext-quem" class="pe">${APROVADORES.map(a=>`<option value="${esc(a.id)}">${esc(a.nome)}</option>`).join('')||'<option value="">Nenhuma pessoa da Operação cadastrada</option>'}</select><label class="muted" for="ext-canal">Por onde aprovou</label><select id="ext-canal" class="pe"><option>WhatsApp</option><option>E-mail</option><option>Reunião</option></select><label class="muted" for="ext-link">Link do print ou do e-mail no Drive (recomendado)</label><input id="ext-link" class="pe" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="external" data-id="${p.id}">Registrar aprovação${ehPauta?' da pauta':ehTexto?' dos textos':''}</button><span class="muted" style="font-size:12px">Fica no histórico com o nome de quem aprovou, o seu e o comprovante.</span></div></details>`:'';
       const edita=['pauta','producao','ajuste','espera'].includes(p.status)&&p.formato!=='plano'?`<details class="padj"><summary class="btn">Editar conteúdo</summary><div class="extbox"><label class="muted" for="pe-titulo">Título</label><input id="pe-titulo" class="pe" value="${esc(p.titulo)}">${etapaPautaCli(p)?`<label class="muted" for="pe-pauta">Pauta (tema, ideia e abordagem)</label><textarea id="pe-pauta" class="pe" rows="4">${esc(p.pauta||'')}</textarea>`:''}${temPauta(p)&&(p.status==='pauta'||(p.status==='ajuste'&&p.etapaAjuste==='pauta'))?'':`<label class="muted" for="pe-leg">${({email:'Assunto e texto',design:'Descrição',video:'Descrição'}[p.rede]||'Legenda')}</label><textarea id="pe-leg" class="pe" rows="5">${esc(p.legenda)}</textarea>`}${['video','design'].includes(p.rede)?'':`<label class="muted" for="pe-hora">Horário</label><input id="pe-hora" type="time" class="pe" value="${p.time||''}">`}<label class="muted" for="pe-drive">Link do material no Google Drive</label><input id="pe-drive" class="pe" value="${esc(p.drive||'')}" placeholder="https://drive.google.com/..."><button class="btn primary sm" data-act="post-editar" data-id="${p.id}">Salvar conteúdo</button></div></details>`:'';
-      acts=`<div class="actions">${b.join('')}</div>${ext}${edita}${statusEditor(p)}`;}
+      const exclui=p.formato==='plano'?'':`<details class="padj excl"><summary class="linkbtn">Excluir item</summary><div class="extbox"><span class="muted" style="font-size:12px">Para testes, duplicados ou itens criados por engano. Sai do calendário para todos. Os arquivos continuam no Google Drive, e uma cópia do item fica no Registro de atividades.</span><button class="btn danger sm" data-act="post-excluir" data-id="${p.id}">Excluir "${esc(p.titulo.slice(0,40))}"</button></div></details>`;
+      acts=`<div class="actions">${b.join('')}</div>${ext}${edita}${statusEditor(p)}${exclui}`;}
   }
   const textoLabel={email:'Assunto e texto',ads:'Resumo',design:'Descrição',video:'Descrição'}[p.rede]||'Legenda';
   const naPauta=temPauta(p)&&(['pauta','pauta_aprovacao'].includes(p.status)||(p.status==='ajuste'&&p.etapaAjuste==='pauta'));
@@ -2030,6 +2031,13 @@ async function api(url,corpo){
   if(r.status===401&&!url.startsWith('/api/entrar')){telaEntrar(EU?'Sua sessão terminou. Entre de novo.':undefined);const e=new Error('sem sessão');e.silencioso=true;throw e}
   if(!r.ok){const e=new Error(j.erro||'Não foi possível completar. Tente de novo.');e.codigo=j.codigo;throw e}
   return j}
+// Link de arquivo do Drive salvo no item: o portal copia o arquivo para o post sozinho (o mesmo que "Usar do Drive").
+const linkArqDrive=s=>/drive\.google\.com\/(file\/d\/|open\?id=|uc\?)/.test(String(s||''));
+const precisaCopiar=p=>isTeam()&&DRIVE.conectado&&DRIVE.leitura&&p&&p.formato!=='plano'&&p.status!=='aprovacao'&&linkArqDrive(p.drive)&&!(p.arquivos||[]).some(a=>!a.removido&&a.origem===p.drive);
+async function copiarPendentes(ids){const L=[...new Set(ids)].map(id=>posts.find(x=>x.id===id)).filter(precisaCopiar);if(!L.length)return;
+  let ok=0;const ruins=[];toast(L.length===1?'Copiando o arquivo do Drive para o post…':'Copiando '+L.length+' arquivos do Drive para os posts…');
+  for(const p of L){try{const j=await api('/api/arquivos/do-drive',{ref:'p:'+p.id,link:p.drive});if(j&&j.dados)aplicar(j);ok++}catch(e){ruins.push('"'+p.titulo+'": '+(e.message||'falhou'))}}
+  render();toast(ruins.length?(ok?ok+' copiado'+(ok>1?'s':'')+'. ':'')+'Não deu para copiar '+ruins.join('; '):ok===1?'Arquivo copiado do Drive para o post.':ok+' arquivos copiados do Drive para os posts.')}
 async function acao(nome,dados,depois){
   if(ocupado)return null;ocupado=true;document.body.classList.add('salvando');
   try{const j=await api('/api/acao',Object.assign({acao:nome},dados||{}));aplicar(j);render();if(depois)depois(j);return j}
@@ -2131,7 +2139,7 @@ document.addEventListener('click',e=>{
     case 'imp-modelo':baixarArquivo('modelo-calendario-spraytec.csv','\uFEFF'+[IMP_COLS,...IMP_EXEMPLO].map(l=>l.map(csvCampo).join(';')).join('\r\n'),'text/csv;charset=utf-8');break;
     case 'imp-copiar':{const x=$('#imp-prompt');try{navigator.clipboard.writeText(impPrompt()).then(()=>toast('Pedido copiado.'),()=>{x.select();toast('Selecionei o texto: copie com Ctrl+C.')})}catch(_){x.select()}break}
     case 'imp-confirmar':{const I=S.imp;if(!I)break;const env=I.linhas.filter(l=>l.acao!=='igual');const linhas=env.map(l=>l.dados);const nv=env.filter(l=>l.acao==='novo').length,at=env.length-nv;
-      acao('calendario-importar',{arquivo:I.arquivo,linhas},()=>{S.imp=null;closeDrawer();const m=env.filter(l=>l.acao==='novo').map(l=>l.dados.data).filter(Boolean).sort()[0];if(m)S.month=m.slice(0,7);render();toast([nv?nv+(nv===1?' item novo':' itens novos'):'',at?at+(at===1?' atualizado':' atualizados'):''].filter(Boolean).join(' e ')+'.')});break}
+      const antes=new Set(posts.map(x=>x.id));acao('calendario-importar',{arquivo:I.arquivo,linhas},()=>{copiarPendentes(posts.filter(x=>!antes.has(x.id)||linhas.some(l=>l.id===x.id)).map(x=>x.id));S.imp=null;closeDrawer();const m=env.filter(l=>l.acao==='novo').map(l=>l.dados.data).filter(Boolean).sort()[0];if(m)S.month=m.slice(0,7);render();toast([nv?nv+(nv===1?' item novo':' itens novos'):'',at?at+(at===1?' atualizado':' atualizados'):''].filter(Boolean).join(' e ')+'.')});break}
     case 'exportar-mes':exportarMes();break;
     case 'plano-exportar':readPlanoForm();planoExportar();break;
     case 'pessoa-nova':openDrawer('pessoa',null);setTimeout(()=>{const x=$('#ps-nome');if(x)x.focus()},0);break;
@@ -2171,7 +2179,7 @@ document.addEventListener('click',e=>{
     case 'pa-add':readPlanoForm();getPath(S.pdraft,d.path).push(clone(TPL[d.tpl]));render();break;
     case 'pa-del':readPlanoForm();getPath(S.pdraft,d.path).splice(Number(d.idx),1);render();break;
     case 'cal-add':S.novoTipo=null;openDrawer('novo',d.date||(S.month===TODAY.slice(0,7)?TODAY:S.month+'-01'));setTimeout(()=>{const x=$('#nt-titulo');if(x)x.focus()},0);break;
-    case 'novo-salvar':{const dados=lerNovo();if(!dados)return;acao('calendario-novo',dados,()=>{S.month=dados.data.slice(0,7);S.novoTipo=null;closeDrawer();render();toast('Adicionado ao calendário em '+fmtLong(dados.data)+'.')});break}
+    case 'novo-salvar':{const dados=lerNovo();if(!dados)return;acao('calendario-novo',dados,j=>{if(j&&typeof j.criado==='string'&&j.criado.startsWith('p:'))copiarPendentes([j.criado.slice(2)]);S.month=dados.data.slice(0,7);S.novoTipo=null;closeDrawer();render();toast('Adicionado ao calendário em '+fmtLong(dados.data)+'.')});break}
     case 'rl-novo':S.relDest=null;openDrawer('rel',null);setTimeout(()=>{const x=$('#rl-t');if(x)x.focus()},0);break;
     case 'rl-edit':S.relDest=null;openDrawer('rel',id);break;
     case 'rl-dadd':{const keep=['rl-t','rl-tipo','rl-capa','rl-per','rl-st','rl-dt','rl-link','rl-nota'].map(i=>[i,$('#'+i).value]);readRelDest();S.relDest.push('');renderDrawer();keep.forEach(([i,v])=>{$('#'+i).value=v});const x=document.getElementById('rl-d'+(S.relDest.length-1));if(x)x.focus();break}
@@ -2211,11 +2219,12 @@ document.addEventListener('click',e=>{
     case 'pop-ok':if(popApply()){S.pop=null;renderPop();render();toast('Aplicado ao rascunho.')}break;
     case 'vk-novo':acao('video-novo',{},j=>{openDrawer('video',j.criado);toast('Pauta criada. Dê um nome e envie para a produtora.')});break;
     case 'video-salvar':{const r=$('#vr-'+id);acao('video-salvar',{id,titulo:val('#vt-'+id),roteiro:r?r.value:undefined},()=>toast('Vídeo salvo.'));break}
-    case 'post-editar':acao('post-editar',{id,titulo:val('#pe-titulo'),legenda:$('#pe-leg')?$('#pe-leg').value:undefined,pauta:$('#pe-pauta')?$('#pe-pauta').value:undefined,hora:val('#pe-hora')||null,drive:val('#pe-drive')},()=>toast('Conteúdo salvo.'));break;
+    case 'post-editar':acao('post-editar',{id,titulo:val('#pe-titulo'),legenda:$('#pe-leg')?$('#pe-leg').value:undefined,pauta:$('#pe-pauta')?$('#pe-pauta').value:undefined,hora:val('#pe-hora')||null,drive:val('#pe-drive')},()=>{toast('Conteúdo salvo.');copiarPendentes([id])});break;
     case 'st-save':irParaEtapa(posts.find(x=>x.id===id),$('#st-sel').value);break;
     case 'drive-link':{const ref=t.dataset.ref,inp=document.getElementById('dl-'+ref.replace(':','-')),link=(t.dataset.link||(inp&&inp.value)||'').trim();if(!link){toast('Cole o link do arquivo no Google Drive.');break}
       const txt=t.textContent;t.disabled=true;t.textContent='Copiando do Drive…';
       api('/api/arquivos/do-drive',{ref,link}).then(j=>{if(j&&j.dados){aplicar(j);render()}toast('"'+(j&&j.nome||'Arquivo')+'" copiado do Drive para o post.')}).catch(e=>{t.disabled=false;t.textContent=txt;toast(e.message||'Não foi possível usar esse arquivo do Drive.')});break}
+    case 'post-excluir':if(p&&confirm('Excluir "'+p.titulo+'"'+(p.date?' ('+fmtLong(p.date)+')':'')+'?\n\nO item sai do calendário para todos. Os arquivos continuam no Google Drive e uma cópia fica no Registro de atividades.'))acao('post-excluir',{id},()=>{closeDrawer();toast('Item excluído.')});break;
     case 'agendar':acao('status',{id,status:'agendado'},()=>toast('Marcado como agendado.'));break;
     case 'st-pub':acao('publicar',{id,link:val('#pub-link')},()=>toast('Marcado como publicado.'));break;
     case 'ver-mud':openDrawer('mud',id);break;

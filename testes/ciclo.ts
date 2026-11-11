@@ -57,5 +57,12 @@ checa(p('p3').status === 'agendado' && /Agendado na rede/.test(p('p3').hist.at(-
 rodar('post-data', cancha, { id: 'p3', data: '2026-11-09' });
 checa(p('p3').status === 'aprovado', 'mudou a data de um post agendado: volta para "Aprovado" (precisa agendar de novo)');
 
+console.log('Excluir item');
+e.links.push(['p:p4', 'p:p1']);
+checa(JSON.stringify(ACOES['post-excluir'].papeis) === '["cancha"]', 'só a Cancha exclui itens');
+rodar('post-excluir', cancha, { id: 'p4' });
+checa(!p('p4') && !e.links.some((l: string[]) => l.includes('p:p4')), 'item excluído sai do calendário e das ligações');
+espera(() => rodar('post-excluir', cancha, { id: 'p4' }), 'item que não existe mais não é excluído de novo');
+
 console.log(`\n${ok} ok, ${falhas} falha(s)`);
 process.exit(falhas ? 1 : 0);

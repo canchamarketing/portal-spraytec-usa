@@ -562,6 +562,20 @@ export const ACOES: Record<string, Def> = {
       return { resumo: `Mudou "${p.titulo}" para ${fmt(p.date)}` };
     },
   },
+  // Excluir um item do calendário (teste, duplicado, criado por engano). Só a Cancha.
+  // O item sai para todos; a cópia completa fica no registro de atividades e os arquivos continuam no Drive.
+  'post-excluir': {
+    papeis: C,
+    fn: (c) => {
+      const p = post(c, c.d.id);
+      if (p.formato === 'plano') throw new ErroAcao('O plano de mídia não é excluído por aqui.');
+      const ref = 'p:' + p.id;
+      c.e.posts = c.e.posts.filter((x) => x.id !== p.id);
+      c.e.links = c.e.links.filter((l: string[]) => l[0] !== ref && l[1] !== ref);
+      c.e.videos.forEach((v) => { if (v.postId === p.id) delete v.postId; });
+      return { resumo: `Excluiu "${p.titulo}"${p.date ? ' (' + fmt(p.date) + ')' : ''} do calendário` };
+    },
+  },
   'calendario-novo': {
     papeis: MC,
     fn: (c) => {
