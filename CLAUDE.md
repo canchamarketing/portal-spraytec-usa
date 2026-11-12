@@ -44,7 +44,23 @@ de anúncio).
   com opção de ver o original. Guardar sempre o texto original e a tradução (rastreabilidade).
   Serviço de tradução a decidir com o Diogo (custo e qualidade).
 - **Pessoas da Spraytec USA:** por enquanto só o **Renato** (aprovador).
-- **Fuso:** EUA (confirmar com o Diogo o estado/fuso da Spraytec USA). O servidor está em UTC.
+- **Produtora de vídeo:** nome ainda não definido. Usar o genérico "Produtora de vídeo".
+- **Sede e fuso:** Urbandale, Iowa → fuso **America/Chicago** (Central, com horário de verão).
+  O servidor está em UTC: prazos, lembretes e "hoje" seguem o fuso da Spraytec USA.
+- **Site:** https://spraytecusa.com (WordPress). Produtos, programas e textos estão no site e na
+  pasta do cliente (ver Referências).
+- **CRM:** provavelmente **Salesforce** (confirmar com o Diogo antes de integrar). Integração é futura.
+
+## Ano safra e eventos (usar como EXEMPLO, marcado como exemplo)
+O Diogo ainda não tem o calendário real da Spraytec USA. Pesquisar e montar um exemplo plausível,
+claramente marcado como exemplo, para confirmar com o Renato depois. Pontos de partida (verificar
+datas e se a Spraytec participa):
+- **Ciclo no Meio-Oeste (milho e soja):** planejamento e compra de insumos no inverno (dez–mar),
+  plantio de abril a maio, aplicações foliares de junho a agosto, colheita de setembro a novembro.
+- **Feiras do setor:** Commodity Classic (fev/mar), National Farm Machinery Show (fev, Louisville),
+  World Ag Expo (fev, Califórnia), Farm Progress Show (fim de agosto, alterna Boone/IA e
+  Decatur/IL), Husker Harvest Days (set, Nebraska), Farm Science Review (set, Ohio).
+- Hoje (11/2026) é a janela pós-colheita e de planejamento da próxima safra.
 
 ## O que o Diogo quer no portal (ponto de partida, confirmar o desenho antes de codar)
 1. **Mídia paga:** rotação de anúncios (ciclos de criativos), feedbacks do cliente sobre
@@ -67,7 +83,10 @@ Vitals), registro de alterações nas campanhas, relatório mensal automático n
   baixa, transcreve, classifica o objetivo com IA e gera link de aprovação para o cliente).
   Boa referência para o módulo de rotação de anúncios. Ler o README antes de propor.
 - `App/`: app de catálogo de produtos (Supabase/Vercel, outro projeto). **Não mexer.**
-- `2025-26 Product Guide.pdf`, `Product-Guide-2025-…pdf`, flyers Fulltec: produtos dos EUA.
+- **Conteúdo do site e dos produtos:** `Site/` (produtos, programas, materiais institucionais,
+  imagens), `backupspraytecusa-com-….wpress` (backup completo do WordPress do spraytecusa.com),
+  `2025-26 Product Guide.pdf`, `Product-Guide-2025-…pdf` e flyers Fulltec. O catálogo de produtos
+  do portal sai daqui e do site, não do Brasil.
 - `Plano_Midias_Spraytec_Agosto.xlsx`, `Relatórios/`, `Ads/`, `Emails/`, `LP/`, `Lista Feedback/`.
 - `info.txt` tem credenciais em texto puro: **nunca exibir no chat**.
 
@@ -122,7 +141,7 @@ O mesmo VPS do Portal Brasil, compartilhado com outros projetos da Cancha.
 
 ## Código e GitHub
 - Repositório no GitHub **da Cancha** (organização `canchamarketing`), privado:
-  `canchamarketing/portal-spraytec-usa`. Nunca em conta pessoal.
+  https://github.com/canchamarketing/portal-spraytec-usa (remoto `origin`). Nunca em conta pessoal.
 - Commits com autor "Cancha Marketing" (já configurado neste repositório).
 - O `gh` e o `git push` rodam pelo terminal do Diogo (o Bash interno do Claude usa outra configuração).
 
@@ -130,3 +149,4 @@ O mesmo VPS do Portal Brasil, compartilhado com outros projetos da Cancha.
 - Diogo e Luis, sócios da Cancha Marketing. Diogo não é desenvolvedor: explicar passos de
   terminal um de cada vez, em português, sem pressupor conhecimento.
 - Renato, da Spraytec USA (aprovador).
+- Produtora de vídeo (nome a definir): recebe os roteiros.
