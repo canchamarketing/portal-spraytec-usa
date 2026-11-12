@@ -5,7 +5,7 @@
 // Imagens: só os links do Meta (media_url, full_picture...), que vencem em alguns dias e são renovados
 // a cada coleta. A cópia permanente de fotos e vídeos fica no Drive.
 import type { Consulta } from '../db.ts';
-import { hojeBR } from '../dominio.ts';
+import { hoje } from '../dominio.ts';
 import { driveConectado, salvarArquivo } from './drive.ts';
 
 const BASE = () => (process.env.META_GRAPH_URL || 'https://graph.facebook.com') + '/' + (process.env.META_VERSAO || 'v23.0');
@@ -123,7 +123,7 @@ const IG_STORY = ['reach', 'views', 'replies', 'shares', 'total_interactions', '
 async function coletarIG(q: Consulta, ig: { id: string }, completa: boolean, log?: Log) {
   const perfil = await graph(ig.id, { fields: 'username,name,followers_count,follows_count,media_count,biography,profile_picture_url' });
   await gravar(q, 'ig', 'perfil', 'atual', perfil);
-  await gravar(q, 'ig', 'dia', hojeBR(), { seguidores: perfil.followers_count, publicacoes: perfil.media_count });
+  await gravar(q, 'ig', 'dia', hoje(), { seguidores: perfil.followers_count, publicacoes: perfil.media_count });
   // Stories somem em 24 h: são lidos a cada coleta, enquanto estão no ar, e ficam guardados aqui.
   const stories = await todas(ig.id + '/stories', { fields: 'id,media_type,permalink,timestamp,media_url,thumbnail_url', limit: 50 }, 100);
   for (const s of stories) await gravar(q, 'ig', 'story', s.id, { ...s, metricas: await insights(s.id, 'story', IG_STORY), metricas_em: new Date().toISOString() });
@@ -196,7 +196,7 @@ async function coletarFB(q: Consulta, pg: { id: string; nome?: string; token?: s
   const t = pg.token || process.env.META_TOKEN || '';
   const perfil = await graph(pg.id, { fields: 'name,followers_count,fan_count,link,picture.width(320).height(320){url},cover{source}' }, t);
   await gravar(q, 'fb', 'perfil', 'atual', perfil);
-  await gravar(q, 'fb', 'dia', hojeBR(), { seguidores: perfil.followers_count ?? perfil.fan_count });
+  await gravar(q, 'fb', 'dia', hoje(), { seguidores: perfil.followers_count ?? perfil.fan_count });
   if (!completa) return { pagina: pg.nome };
   const posts = await todas(pg.id + '/posts', {
     fields: 'id,message,created_time,permalink_url,status_type,full_picture,shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)', limit: 50,
@@ -223,7 +223,7 @@ async function coletarAds(q: Consulta) {
   for (const a of ads) await gravar(q, 'ads', 'anuncio', a.id, a);
   // Os números dos últimos 30 dias ainda mudam (atribuição); na primeira coleta, busca 6 meses.
   const { rows } = await q.query(`select 1 from metricas where fonte='ads' and tipo='anuncio_dia' limit 1`);
-  const ate = hojeBR(), de = new Date(Date.parse(ate + 'T12:00:00Z') - (rows.length ? 30 : 180) * 864e5).toISOString().slice(0, 10);
+  const ate = hoje(), de = new Date(Date.parse(ate + 'T12:00:00Z') - (rows.length ? 30 : 180) * 864e5).toISOString().slice(0, 10);
   const linhas = await todas(conta.id + '/insights', {
     level: 'ad', time_increment: 1, time_range: JSON.stringify({ since: de, until: ate }), limit: 500,
     fields: 'ad_id,adset_id,campaign_id,date_start,spend,impressions,reach,clicks,inline_link_clicks,actions',

@@ -3,41 +3,32 @@
 import { clone, type Usuario } from './dominio.ts';
 import type { Estado } from './estado.ts';
 
-// Arquivo tirado do portal continua no Drive e no histórico da Cancha; os outros papéis não recebem.
-const vivos = (l: any) => (Array.isArray(l) ? l.filter((a: any) => !a.removido) : l);
-const temPauta = (p: any) => !['video', 'design'].includes(p.rede) && p.formato !== 'plano';
+const vivos = (l: any) => (Array.isArray(l) ? l.filter((a: any) => !a.removido) : []);
+const semInternos = (l: any) => (Array.isArray(l) ? l.filter((c: any) => !c.interno) : []);
 
 export function visaoPara(e0: Estado, u: Usuario) {
   const e: any = clone(e0);
   if (u.papel === 'cancha') return e;
 
-  if (u.papel === 'produtora') {
-    // A produtora vê só as pautas de vídeo e o que está ligado a elas entre vídeos.
-    return {
-      videos: e.videos.map((v: any) => ({ ...v, postId: undefined, arquivos: vivos(v.arquivos) })),
-      links: e.links.filter((l: string[]) => l[0].startsWith('v:') && l[1].startsWith('v:')),
-      posts: [], demandas: [], threads: [], marcos: [], ano: [], conc: [], aprendizados: [], relatorios: [], materiais: [], ciclos: [], classif: [],
-      plano: null, guia: e.guia, lanes: [], concAcoes: [],
-    };
-  }
+  // Produtora: por enquanto não recebe nada daqui (os roteiros de vídeo chegam na próxima etapa).
+  if (u.papel === 'produtora') return { rotacoes: [], anuncios: [], eventos: [] };
 
-  // Cliente (Matheus, diretoria, leitores): sem comentários internos e sem o texto de rascunhos.
-  e.posts = e.posts.map((p: any) => {
-    const x = { ...p, comments: (p.comments || []).filter((c: any) => !c.interno), arquivos: vivos(p.arquivos) };
-    // Pauta ainda sendo escrita: nada aparece. Em produção: a pauta aprovada aparece; legenda e arte, só na aprovação.
-    if (temPauta(p) && p.status === 'pauta') { x.pauta = ''; x.legenda = ''; delete x.drive; delete x.arquivos; }
-    if (temPauta(p) && p.status === 'producao') { if (!p.textoOk) x.legenda = ''; delete x.drive; delete x.arquivos; }
-    // A arte pode ser anexada enquanto a pauta ou os textos estão em aprovação, mas a Spraytec só a vê quando ela for enviada.
-    if (['pauta_aprovacao', 'texto_aprovacao'].includes(p.status)) { if (!p.vEnviada) delete x.drive; x.arquivos = (x.arquivos || []).filter((a: any) => (a.v || 1) <= (p.vEnviada || 0)); }
-    // Ajuste pedido: a versão nova da peça só aparece para a Spraytec quando for reenviada.
-    if (p.status === 'ajuste' && x.arquivos) x.arquivos = x.arquivos.filter((a: any) => (a.v || 1) <= (p.vEnviada || (p.etapaAjuste === 'peca' ? 1 : 0)));
-    return x;
-  });
-  e.videos = e.videos.map((v: any) => ({ ...v, arquivos: vivos(v.arquivos) }));
-  e.demandas = e.demandas.map((d: any) => ({ ...d, arquivos: vivos(d.arquivos) }));
-  e.materiais = vivos(e.materiais);
-  e.relatorios = e.relatorios.filter((r: any) => r.status !== 'rascunho');
-  // As conversas são entre a Operação Spraytec e a Cancha; diretoria e leitores não recebem.
-  if (u.papel !== 'operacao') e.threads = [];
+  // Spraytec USA (aprovador e leitor): sem comentários internos da Cancha e sem rascunhos.
+  // O anúncio aparece como foi enviado para aprovação (o que a Cancha está ajustando só aparece quando for reenviado).
+  e.anuncios = e.anuncios
+    .filter((a: any) => a.enviado || a.origem === 'continua')
+    .map((a: any) => {
+      const x: any = { ...a, comentarios: semInternos(a.comentarios), nota: undefined };
+      if (a.enviado && ['rascunho', 'ajuste'].includes(a.status)) {
+        const f = a.enviado;
+        Object.assign(x, { titulo: f.titulo, canal: f.canal, formato: f.formato, locais: f.locais, objetivo: f.objetivo, produtos: f.produtos,
+          publico: f.publico, textos: f.textos, linkDrive: f.linkDrive, versao: f.versao });
+        x.arquivos = (a.arquivos || []).filter((y: any) => f.arquivos.includes(y.id));
+        if (a.status === 'rascunho') x.status = 'ajustando';
+      } else x.arquivos = vivos(a.arquivos);
+      delete x.pastaDrive;
+      return x;
+    });
+  e.rotacoes = e.rotacoes.map((r: any) => ({ ...r, comentarios: semInternos(r.comentarios) }));
   return e;
 }

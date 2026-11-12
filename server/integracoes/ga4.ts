@@ -3,7 +3,7 @@
 // Google que enxerga a propriedade, e a autorização fica cifrada no banco com DRIVE_CHAVE.
 // Coleta por dia: totais, canais, páginas e eventos-chave. Nada é apagado, só somado ao que já havia.
 import type { Consulta } from '../db.ts';
-import { hojeBR } from '../dominio.ts';
+import { hoje } from '../dominio.ts';
 import { cifrar, decifrar, driveConfigurado, pedirToken, urlAutorizacao, ErroDrive } from './drive.ts';
 import { gravar, situacao } from './meta.ts';
 
@@ -129,7 +129,7 @@ export async function coletarGA4(q: Consulta, log: Log, forcar = false) {
   const prop = conexao.propriedade;
   try {
     const { rows } = await q.query(`select 1 from metricas where fonte='ga4' and tipo='dia' limit 1`);
-    const ate = hojeBR(), de = new Date(Date.parse(ate + 'T12:00:00Z') - (rows.length ? 10 : 400) * 864e5).toISOString().slice(0, 10);
+    const ate = hoje(), de = new Date(Date.parse(ate + 'T12:00:00Z') - (rows.length ? 10 : 400) * 864e5).toISOString().slice(0, 10);
     const dias = await relatorio(prop.id, de, ate, ['date'], ['sessions', 'totalUsers', 'newUsers', 'engagedSessions', 'screenPageViews', 'keyEvents']);
     for (const r of dias) await gravar(q, 'ga4', 'dia', DIA(r.d[0]), { sessoes: r.m[0], usuarios: r.m[1], novos: r.m[2], engajadas: r.m[3], visualizacoes: r.m[4], eventosChave: r.m[5] });
     const canais = await relatorio(prop.id, de, ate, ['date', 'sessionDefaultChannelGroup'], ['sessions', 'keyEvents']);

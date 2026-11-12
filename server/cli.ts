@@ -4,14 +4,14 @@
 import { abrirBanco, migrar } from './db.ts';
 import { gravarTudo } from './estado.ts';
 import { dadosDemo } from './seed.ts';
-import { hojeBR } from './dominio.ts';
+import { hoje } from './dominio.ts';
 
 const [cmd, arg] = process.argv.slice(2);
 const b = await abrirBanco();
 await migrar(b);
 
 if (cmd === 'restaurar-demo') {
-  const ancora = arg || hojeBR();
+  const ancora = arg || hoje();
   await b.tx(async (q) => {
     await gravarTudo(q, dadosDemo(ancora), 'sistema');
     await q.query(`insert into auditoria (usuario_nome, acao, resumo) values ('sistema', 'demo-restaurar', $1)`, [`Dados iniciais carregados (referência: ${ancora})`]);

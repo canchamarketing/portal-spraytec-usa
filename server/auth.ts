@@ -5,9 +5,11 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Banco } from './db.ts';
 import type { Usuario } from './dominio.ts';
+import { tr } from './i18n.ts';
 
-export const COOKIE_SESSAO = 'spraytec_sessao';
-export const COOKIE_DEMO = 'spraytec_demo';
+// Nomes próprios deste portal (o do Brasil usa outros): os dois podem estar abertos no mesmo navegador.
+export const COOKIE_SESSAO = 'spraytecusa_sessao';
+export const COOKIE_DEMO = 'spraytecusa_demo';
 const DIAS_SESSAO = 30;
 
 const hash = (t: string) => createHash('sha256').update(t).digest('hex');
@@ -40,7 +42,7 @@ export async function usuarioDaRequisicao(b: Banco, req: FastifyRequest): Promis
   const t = req.cookies[COOKIE_SESSAO];
   if (!t) return null;
   const { rows } = await b.query(
-    `select u.id, u.nome, u.papel, u.email, u.demo from sessoes s join usuarios u on u.id = s.usuario_id
+    `select u.id, u.nome, u.papel, u.email, u.demo, u.idioma from sessoes s join usuarios u on u.id = s.usuario_id
      where s.token_hash = $1 and s.expira_em > now() and u.ativo`, [hash(t)]);
   return rows[0] || null;
 }
@@ -89,10 +91,10 @@ export async function verificarSenha(senha: string, armazenado: string | null): 
   const certo = Buffer.from(k, 'base64');
   return !!armazenado && calc.length === certo.length && timingSafeEqual(calc, certo);
 }
-// Regra (decisão da Cancha): no mínimo 8 caracteres.
+// Regra (decisão da Cancha): no mínimo 8 caracteres. Devolve a chave da mensagem.
 export function problemaNaSenha(senha: unknown, _email: string): string | null {
-  if (typeof senha !== 'string' || senha.length < 8) return 'A senha precisa ter pelo menos 8 caracteres.';
-  if (senha.length > 200) return 'A senha está longa demais.';
+  if (typeof senha !== 'string' || senha.length < 8) return 'erro.senha_curta';
+  if (senha.length > 200) return 'erro.senha_longa';
   return null;
 }
 
@@ -138,34 +140,35 @@ export async function enviarEmail(para: string, assunto: string, texto: string, 
   await t.sendMail({ from: process.env.EMAIL_REMETENTE, to: para, subject: assunto, text: texto, html });
 }
 
-function modeloEmail(baseUrl: string, nome: string, paragrafos: string[], botao: string, link: string, aviso: string) {
+// Todo e-mail sai no idioma de quem recebe.
+type Destino = { nome: string; email: string; idioma?: string };
+function modeloEmail(baseUrl: string, lang: string, nome: string, paragrafos: string[], botao: string, link: string, aviso: string) {
+  const ola = tr(lang, 'email.ola', { nome }), rodape = tr(lang, 'email.rodape');
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1E2B22">
 <img src="${baseUrl}/logo.png" alt="Spraytec" height="28" style="display:block;margin-bottom:24px">
-<p style="font-size:16px">Olá, ${escHtml(nome)}.</p>
+<p style="font-size:16px">${escHtml(ola)}</p>
 ${paragrafos.map((p) => `<p style="font-size:15px;line-height:1.5">${escHtml(p)}</p>`).join('\n')}
-<p style="margin:28px 0"><a href="${link}" style="background:#235F3F;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;display:inline-block">${escHtml(botao)}</a></p>
+<p style="margin:28px 0"><a href="${link}" style="background:#1F6B3A;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold;display:inline-block">${escHtml(botao)}</a></p>
 <p style="font-size:13px;color:#666666;line-height:1.5">${escHtml(aviso)}</p>
-<p style="font-size:12px;color:#999999;margin-top:32px">Portal de marketing Spraytec · Cancha Marketing</p></div>`;
-  const texto = `Olá, ${nome}.\n\n${paragrafos.join('\n\n')}\n\n${botao}: ${link}\n\n${aviso}\n\nPortal de marketing Spraytec · Cancha Marketing`;
+<p style="font-size:12px;color:#999999;margin-top:32px">${escHtml(rodape)}</p></div>`;
+  const texto = `${ola}\n\n${paragrafos.join('\n\n')}\n\n${botao}: ${link}\n\n${aviso}\n\n${rodape}`;
   return { html, texto };
 }
-export async function enviarAviso(baseUrl: string, para: { nome: string; email: string }, assunto: string, paragrafos: string[], link: string) {
-  const { html, texto } = modeloEmail(baseUrl, para.nome.split(' ')[0], paragrafos, 'Abrir no portal', link,
-    'Você recebeu este e-mail porque foi mencionado no Portal de marketing Spraytec.');
+const primeiro = (n: string) => n.split(' ')[0];
+export async function enviarAviso(baseUrl: string, para: Destino, assunto: string, paragrafos: string[], link: string) {
+  const l = para.idioma || 'en-US';
+  const { html, texto } = modeloEmail(baseUrl, l, primeiro(para.nome), paragrafos, tr(l, 'email.abrir'), link, tr(l, 'email.aviso_motivo'));
   await enviarEmail(para.email, assunto, texto, html);
 }
-export async function enviarConvite(baseUrl: string, para: { nome: string; email: string }, link: string) {
-  const nome = para.nome.split(' ')[0];
-  const { html, texto } = modeloEmail(baseUrl, nome,
-    ['Você foi convidado para o Portal de marketing Spraytec, onde ficam o calendário de conteúdo, as aprovações, a estratégia e os resultados.',
-      'Para começar, crie a sua senha.'],
-    'Criar minha senha', link, 'O link vale por 7 dias e funciona uma vez só. Depois, é só entrar com o seu e-mail e a senha que criou.');
-  await enviarEmail(para.email, 'Seu acesso ao Portal de marketing Spraytec', texto, html);
+export async function enviarConvite(baseUrl: string, para: Destino, link: string) {
+  const l = para.idioma || 'en-US';
+  const { html, texto } = modeloEmail(baseUrl, l, primeiro(para.nome), [tr(l, 'email.convite.p1'), tr(l, 'email.convite.p2')],
+    tr(l, 'email.convite.botao'), link, tr(l, 'email.convite.aviso'));
+  await enviarEmail(para.email, tr(l, 'email.convite.assunto'), texto, html);
 }
-export async function enviarRedefinicao(baseUrl: string, para: { nome: string; email: string }, link: string) {
-  const nome = para.nome.split(' ')[0];
-  const { html, texto } = modeloEmail(baseUrl, nome,
-    ['Recebemos um pedido para criar uma nova senha para o Portal de marketing Spraytec.'],
-    'Criar nova senha', link, 'O link vale por 1 hora e funciona uma vez só. Se não foi você que pediu, ignore este e-mail: sua senha atual continua valendo.');
-  await enviarEmail(para.email, 'Nova senha do Portal Spraytec', texto, html);
+export async function enviarRedefinicao(baseUrl: string, para: Destino, link: string) {
+  const l = para.idioma || 'en-US';
+  const { html, texto } = modeloEmail(baseUrl, l, primeiro(para.nome), [tr(l, 'email.redefinir.p1')],
+    tr(l, 'email.redefinir.botao'), link, tr(l, 'email.redefinir.aviso'));
+  await enviarEmail(para.email, tr(l, 'email.redefinir.assunto'), texto, html);
 }

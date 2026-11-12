@@ -15,7 +15,7 @@ const UPLOAD = () => (G() || 'https://www.googleapis.com') + '/upload/drive/v3';
 const AUTH_URL = process.env.GOOGLE_AUTH_URL || 'https://accounts.google.com/o/oauth2/v2/auth'; // simulado nos testes
 export const ESCOPO = 'https://www.googleapis.com/auth/drive.file';
 export const ESCOPO_LER = 'https://www.googleapis.com/auth/drive.readonly';
-const RAIZ = 'Portal Spraytec';
+const RAIZ = 'Portal Spraytec USA';
 const PASTA = 'application/vnd.google-apps.folder';
 export const PARTE = 8 * 1024 * 1024; // pedaço de cada envio (múltiplo de 256 KB, exigência do Google)
 

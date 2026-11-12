@@ -7,13 +7,13 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { abrirBanco, migrar } from './db.ts';
 import { carregar, salvar, gravarTudo } from './estado.ts';
-import { ACOES, destinoArquivo, versoesParaArquivar, videosParaConverter, type Aviso } from './acoes.ts';
-import { ffmpegDisponivel, versaoParaPostar } from './integracoes/video.ts';
+import { ACOES, destinoArquivo, type Aviso } from './acoes.ts';
+import { tr, idiomaDoPedido } from './i18n.ts';
 import { visaoPara } from './visao.ts';
 import { coletaRodando, coletarMeta, metaConfigurado } from './integracoes/meta.ts';
 import {
   ErroDrive, PARTE, abrirConteudo, carregarDrive, concluirAutorizacao, desconectarDrive, driveConectado, driveConfigurado, envioDe,
-  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao, copiarDoDrive, idDoLink, registrarCopia, moverPara, baixarPara, enviarDoDisco,
+  enviarParte, iniciarEnvio, miniatura, situacaoDrive, urlAutorizacao, copiarDoDrive, idDoLink, registrarCopia,
 } from './integracoes/drive.ts';
 import {
   carregarGA4, coletaGA4Rodando, coletarGA4, concluirGA4, desconectarGA4, escolherPropriedade, ga4Conectado, ga4Configurado, urlAutorizacaoGA4,
@@ -21,7 +21,7 @@ import {
 import { carregarGAds, coletaGAdsRodando, coletarGAds, concluirGAds, desconectarGAds, escolherClienteGAds, gadsConectado, gadsConfigurado, urlAutorizacaoGAds } from './integracoes/googleads.ts';
 import { carregarYT, coletaYTRodando, coletarYT, concluirYT, desconectarYT, urlAutorizacaoYT, ytConectado, ytConfigurado } from './integracoes/youtube.ts';
 import { dadosDemo, USUARIOS_DEMO } from './seed.ts';
-import { ErroAcao, NOME_PAPEL, PAPEIS, agoraBR, clone, definirFeriadosExtras, hojeBR, novoId, type Usuario } from './dominio.ts';
+import { ErroAcao, PAPEIS, clone, definirFeriadosExtras, hoje, idiomaPadrao, idiomaValido, novoId, type Usuario } from './dominio.ts';
 import {
   COOKIE_DEMO, codigoDemoConfere, consultarToken, criarSessao, criarToken, demoLiberado, emailConfigurado, encerrarSessao,
   enviarAviso, enviarConvite, enviarRedefinicao, bloqueado, hashSenha, liberarDemo, linkDoToken, modoDemo, permitido, problemaNaSenha,
@@ -42,16 +42,16 @@ async function garantirUsuariosDemo() {
   await b.query('update usuarios set ativo=false where demo and not (id = any($1))', [USUARIOS_DEMO.map((u) => u.id)]);
   for (const u of USUARIOS_DEMO)
     await b.query(
-      `insert into usuarios (id, nome, papel, demo, ordem) values ($1,$2,$3,true,$4)
+      `insert into usuarios (id, nome, papel, demo, ordem, idioma) values ($1,$2,$3,true,$4,$5)
        on conflict (id) do update set nome=excluded.nome, papel=excluded.papel, ordem=excluded.ordem, ativo=true`,
-      [u.id, u.nome, u.papel, u.ordem]);
+      [u.id, u.nome, u.papel, u.ordem, u.idioma]);
 }
 async function auditar(q: { query: typeof b.query }, u: Partial<Usuario> | null, acao: string, resumo: string, entrada: any, mudancas: any, ip?: string) {
   await q.query(
     'insert into auditoria (usuario_id, usuario_nome, papel, acao, resumo, entrada, mudancas, ip) values ($1,$2,$3,$4,$5,$6,$7,$8)',
     [u?.id ?? null, u?.nome ?? 'sistema', u?.papel ?? null, acao, resumo, JSON.stringify(entrada ?? null), JSON.stringify(mudancas ?? null), ip ?? null]);
 }
-async function restaurarDemo(u: Partial<Usuario> | null, ancora = process.env.DEMO_HOJE || hojeBR()) {
+async function restaurarDemo(u: Partial<Usuario> | null, ancora = process.env.DEMO_HOJE || hoje()) {
   await b.tx(async (q) => {
     await gravarTudo(q, dadosDemo(ancora), 'sistema');
     await auditar(q, u, 'demo-restaurar', `Dados iniciais carregados (referência: ${ancora})`, null, null);
@@ -92,9 +92,12 @@ app.addHook('preHandler', async (req, rep) => {
   if (o && new URL(o).host !== req.headers.host) return rep.code(403).send({ erro: 'Origem não permitida.' });
 });
 
+// Idioma da resposta: o da pessoa logada; antes do login, o que a tela pediu.
+const lang = (req: FastifyRequest, u?: Usuario | null) => (u?.idioma || idiomaDoPedido(req.headers as any));
+const erro = (req: FastifyRequest, chave: string, params?: Record<string, unknown>, u?: Usuario | null) => ({ erro: tr(lang(req, u), chave, params) });
 async function exigir(req: FastifyRequest, rep: FastifyReply): Promise<Usuario | null> {
   const u = await usuarioDaRequisicao(b, req);
-  if (!u) { rep.code(401).send({ erro: 'Entre de novo para continuar.' }); return null; }
+  if (!u) { rep.code(401).send(erro(req, 'erro.entrar_de_novo')); return null; }
   return u;
 }
 async function versao(): Promise<number> {
@@ -106,11 +109,8 @@ async function pessoasAtivas(q: { query: typeof b.query } = b) {
 }
 async function estadoPara(u: Usuario) {
   const e = await carregar(b);
-  const r: any = { eu: u, hoje: hojeBR(), versao: await versao(), demo: modoDemo(), dados: visaoPara(e, u) };
-  // A Cancha escolhe quem da Operação aprovou quando registra aprovação por WhatsApp ou e-mail.
+  const r: any = { eu: u, hoje: hoje(), versao: await versao(), demo: modoDemo(), dados: visaoPara(e, u) };
   const pessoas = await pessoasAtivas();
-  if (u.papel === 'cancha') r.aprovadores = pessoas.filter((p: any) => p.papel === 'operacao');
-  // Quem pode ser mencionado com @ (quem lê comentários e conversas).
   const dc = driveConectado();
   r.drive = { configurado: driveConfigurado(), conectado: !!dc, ...(u.papel === 'cancha' && dc ? { conta: dc.conta, leitura: dc.leitura } : {}) };
   const ga = ga4Conectado();
@@ -119,7 +119,8 @@ async function estadoPara(u: Usuario) {
   const yt = ytConectado();
   r.yt = { configurado: ytConfigurado(), conectado: !!yt, canal: yt?.canal.titulo || null, ...(u.papel === 'cancha' && yt ? { conta: yt.conta } : {}) };
   r.ga4 = { configurado: ga4Configurado(), conectado: !!ga, propriedade: ga?.propriedade?.nome || null, ...(u.papel === 'cancha' && ga ? { conta: ga.conta, opcoes: ga.propriedade ? [] : ga.opcoes } : {}) };
-  if (['operacao', 'cancha', 'leitor'].includes(u.papel)) r.mencionaveis = pessoas.filter((p: any) => ['operacao', 'cancha', 'leitor'].includes(p.papel) && p.id !== u.id);
+  // Quem pode ser mencionado com @ nos comentários.
+  if (['cancha', 'aprovador'].includes(u.papel)) r.mencionaveis = pessoas.filter((p: any) => ['cancha', 'aprovador', 'leitor'].includes(p.papel) && p.id !== u.id);
   return r;
 }
 
@@ -131,36 +132,35 @@ app.get('/saude', async (_req, rep) => {
 // ---------- login ----------
 app.get('/api/entrar/opcoes', async (req) => {
   const liberado = demoLiberado(req);
-  const pessoas = liberado ? (await b.query('select id, nome, papel from usuarios where demo and ativo order by ordem')).rows : [];
+  const pessoas = liberado ? (await b.query('select id, nome, papel, idioma from usuarios where demo and ativo order by ordem')).rows : [];
   return { demo: modoDemo(), demoLiberado: liberado, pessoas, email: emailConfigurado(), senha: true };
 });
 app.post('/api/entrar/demo-codigo', async (req, rep) => {
-  if (!modoDemo()) return rep.code(404).send({ erro: 'Modo demonstração desligado.' });
-  if (bloqueado('demo:' + req.ip)) return rep.code(429).send({ erro: 'Muitas tentativas erradas. Espere alguns minutos.' });
-  if (!codigoDemoConfere((req.body as any)?.codigo)) { registrar('demo:' + req.ip); return rep.code(400).send({ erro: 'Código incorreto.' }); }
+  if (!modoDemo()) return rep.code(404).send(erro(req, 'erro.demo_desligada'));
+  if (bloqueado('demo:' + req.ip)) return rep.code(429).send(erro(req, 'erro.muitas_tentativas'));
+  if (!codigoDemoConfere((req.body as any)?.codigo)) { registrar('demo:' + req.ip); return rep.code(400).send(erro(req, 'erro.codigo_errado')); }
   liberarDemo(rep);
   return { ok: true };
 });
 app.post('/api/entrar/demo', async (req, rep) => {
-  if (!demoLiberado(req)) return rep.code(403).send({ erro: 'Digite o código de acesso da demonstração.' });
+  if (!demoLiberado(req)) return rep.code(403).send(erro(req, 'erro.digite_codigo'));
   const id = (req.body as any)?.usuarioId;
   const { rows } = await b.query('select id from usuarios where id=$1 and demo and ativo', [id]);
-  if (!rows[0]) return rep.code(400).send({ erro: 'Pessoa não encontrada.' });
+  if (!rows[0]) return rep.code(400).send(erro(req, 'erro.pessoa_nao_encontrada'));
   await encerrarSessao(b, req, rep);
   await criarSessao(b, rows[0].id, req, rep);
   return { ok: true };
 });
 // E-mail e senha. Depois de 5 senhas erradas a conta fica bloqueada por 15 minutos.
 // A resposta de erro é sempre a mesma, para não revelar se o e-mail existe.
-const ERRO_LOGIN = 'E-mail ou senha incorretos.';
 app.post('/api/entrar/senha', async (req, rep) => {
-  if (!permitido('senha:' + req.ip, 30)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
+  if (!permitido('senha:' + req.ip, 30)) return rep.code(429).send(erro(req, 'erro.muitas_tentativas'));
   const email = String((req.body as any)?.email || '').trim().toLowerCase().slice(0, 200);
   const senha = String((req.body as any)?.senha || '').slice(0, 200);
   const u = (await b.query(
     `select id, nome, papel, senha_hash, bloqueado_ate > now() as bloqueado from usuarios where lower(email)=$1 and ativo and not demo`, [email])).rows[0];
   const ok = await verificarSenha(senha, u ? u.senha_hash : null);
-  if (u && u.bloqueado) return rep.code(429).send({ erro: 'Conta bloqueada por alguns minutos depois de várias tentativas. Tente de novo mais tarde ou use "Esqueci minha senha".' });
+  if (u && u.bloqueado) return rep.code(429).send(erro(req, 'erro.conta_bloqueada'));
   if (!u || !ok) {
     if (u) {
       const r = (await b.query(`update usuarios set falhas_login = falhas_login + 1 where id=$1 returning falhas_login`, [u.id])).rows[0];
@@ -169,7 +169,7 @@ app.post('/api/entrar/senha', async (req, rep) => {
         await auditar(b, { id: u.id, nome: u.nome, papel: u.papel }, 'login-bloqueado', 'Conta bloqueada por 15 minutos depois de 5 senhas erradas', null, null, req.ip);
       }
     }
-    return rep.code(400).send({ erro: ERRO_LOGIN });
+    return rep.code(400).send(erro(req, 'erro.login'));
   }
   await b.query(`update usuarios set falhas_login = 0, bloqueado_ate = null where id=$1`, [u.id]);
   await encerrarSessao(b, req, rep);
@@ -178,21 +178,21 @@ app.post('/api/entrar/senha', async (req, rep) => {
 });
 // Página de criar senha: mostra de quem é o link (sem gastar o link).
 app.get('/api/senha/link', async (req, rep) => {
-  if (!permitido('link:' + req.ip, 40)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
+  if (!permitido('link:' + req.ip, 40)) return rep.code(429).send(erro(req, 'erro.muitas_tentativas'));
   const t = String((req.query as any)?.t || '');
   const r = t && (await consultarToken(b, t));
-  if (!r) return rep.code(400).send({ erro: 'Este link já foi usado ou venceu. Peça um novo.' });
+  if (!r) return rep.code(400).send(erro(req, 'erro.link_vencido'));
   return { nome: r.nome, email: r.email, tipo: r.tipo };
 });
 app.post('/api/senha/definir', async (req, rep) => {
-  if (!permitido('link:' + req.ip, 40)) return rep.code(429).send({ erro: 'Muitas tentativas. Espere alguns minutos.' });
+  if (!permitido('link:' + req.ip, 40)) return rep.code(429).send(erro(req, 'erro.muitas_tentativas'));
   const t = String((req.body as any)?.t || ''), senha = (req.body as any)?.senha;
   const antes = t && (await consultarToken(b, t));
-  if (!antes) return rep.code(400).send({ erro: 'Este link já foi usado ou venceu. Peça um novo.' });
+  if (!antes) return rep.code(400).send(erro(req, 'erro.link_vencido'));
   const problema = problemaNaSenha(senha, antes.email);
-  if (problema) return rep.code(400).send({ erro: problema });
+  if (problema) return rep.code(400).send(erro(req, problema));
   const r = await usarToken(b, t);
-  if (!r) return rep.code(400).send({ erro: 'Este link já foi usado ou venceu. Peça um novo.' });
+  if (!r) return rep.code(400).send(erro(req, 'erro.link_vencido'));
   await b.query(`update usuarios set senha_hash=$2, senha_definida_em=now(), falhas_login=0, bloqueado_ate=null where id=$1`, [r.id, await hashSenha(senha)]);
   await b.query('delete from sessoes where usuario_id=$1', [r.id]); // sai dos outros aparelhos
   await encerrarSessao(b, req, rep);
@@ -202,16 +202,25 @@ app.post('/api/senha/definir', async (req, rep) => {
   return { ok: true };
 });
 app.post('/api/senha/esqueci', async (req, rep) => {
-  if (!permitido('esqueci:' + req.ip, 5)) return rep.code(429).send({ erro: 'Muitos pedidos. Espere alguns minutos.' });
-  if (!emailConfigurado()) return rep.code(503).send({ erro: 'O envio de e-mail ainda não está configurado. Peça à Cancha um link para criar uma nova senha.' });
+  if (!permitido('esqueci:' + req.ip, 5)) return rep.code(429).send(erro(req, 'erro.muitas_tentativas'));
+  if (!emailConfigurado()) return rep.code(503).send(erro(req, 'erro.sem_email_senha'));
   const email = String((req.body as any)?.email || '').trim().toLowerCase().slice(0, 200);
-  const u = (await b.query(`select id, nome, email, papel from usuarios where lower(email)=$1 and ativo and not demo`, [email])).rows[0];
+  const u = (await b.query(`select id, nome, email, papel, idioma from usuarios where lower(email)=$1 and ativo and not demo`, [email])).rows[0];
   if (u) {
     const t = await criarToken(b, u.id, 'redefinir', 1);
     await enviarRedefinicao(BASE_URL, u, linkDoToken(BASE_URL, t, 'redefinir')).catch((err) => req.log.error({ err }, 'falha ao enviar redefinição'));
     await auditar(b, u, 'senha-esqueci', 'Pediu link para criar nova senha', null, null, req.ip);
   }
-  return { ok: true, msg: 'Se o e-mail estiver cadastrado, o link para criar uma nova senha chega em instantes.' };
+  return { ok: true, msg: tr(lang(req), 'login.esqueci_enviado') };
+});
+// Idioma escolhido pela própria pessoa.
+app.post('/api/eu/idioma', async (req, rep) => {
+  const u = await exigir(req, rep); if (!u) return;
+  const idioma = idiomaValido((req.body as any)?.idioma);
+  if (!idioma) return rep.code(400).send(erro(req, 'erro.escolha', { campo: 'campo.idioma' }, u));
+  await b.query('update usuarios set idioma=$2, atualizado_em=now() where id=$1', [u.id, idioma]);
+  if (idioma !== u.idioma) await auditar(b, u, 'idioma', `Trocou o idioma para ${idioma}`, { idioma }, null, req.ip);
+  return { ok: true };
 });
 app.post('/api/sair', async (req, rep) => { await encerrarSessao(b, req, rep); return { ok: true }; });
 app.post('/api/sair-demo', async (req, rep) => { await encerrarSessao(b, req, rep); rep.clearCookie(COOKIE_DEMO, { path: '/' }); return { ok: true }; });
@@ -234,8 +243,11 @@ app.get('/api/versao', async (req, rep) => { const u = await exigir(req, rep); i
 async function avisar(avisos: Aviso[], autor: Usuario) {
   if (autor.demo || !emailConfigurado()) return;
   for (const a of avisos) {
-    const { rows } = await b.query(`select id, nome, email from usuarios where id = any($1) and ativo and not demo and email is not null`, [a.para]);
-    for (const p of rows) if (p.id !== autor.id) await enviarAviso(BASE_URL, p, a.assunto, a.paragrafos, `${BASE_URL}/?abrir=${encodeURIComponent(a.abrir)}`);
+    if (!a.para.length) continue;
+    const { rows } = await b.query(`select id, nome, email, idioma from usuarios where id = any($1) and ativo and not demo and email is not null`, [a.para]);
+    // Cada pessoa recebe no próprio idioma.
+    for (const p of rows) if (p.id !== autor.id)
+      await enviarAviso(BASE_URL, p, tr(p.idioma, a.assunto[0], a.assunto[1]), a.paragrafos.map(([k, x]) => tr(p.idioma, k, x)), `${BASE_URL}/?abrir=${encodeURIComponent(a.abrir)}`);
   }
 }
 
@@ -245,140 +257,80 @@ async function executarAcao(u: Usuario, acao: string, d: any, ip?: string) {
   const res = await emFila(() => b.tx(async (q) => {
     const e = await carregar(q);
     const antes = clone(e);
-    definirFeriadosExtras(e.marcos);
-    const r = def.fn({ e, u, d, hoje: hojeBR(), agora: agoraBR(), pessoas: await pessoasAtivas(q) });
+    definirFeriadosExtras(e.eventos);
+    const r = def.fn({ e, u, d, hoje: hoje(), agora: new Date().toISOString(), pessoas: await pessoasAtivas(q) });
     const mud = await salvar(q, antes, e, u.nome);
     if (!def.semAuditoria) await auditar(q, u, acao, r.resumo, d, mud, ip);
     return r;
   }));
   if (res.avisos?.length) avisar(res.avisos, u).catch((err) => app.log.error({ err }, 'falha ao enviar aviso'));
-  if (acao !== 'versoes-arquivadas' && acao !== 'video-leve') {
-    setTimeout(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 500);
-    setTimeout(() => converterVideos().catch((err) => app.log.error({ err }, 'falha na fila de vídeos')), 1500);
-  }
   return res;
 }
-
-// Arte ou vídeo aprovado: o portal move no Drive as outras versões do post para "Versões antigas".
-// Roda depois de cada ação e de hora em hora (se o Drive estiver fora do ar, tenta de novo depois).
-const SISTEMA: Usuario = { id: 'sistema', nome: 'Portal (automático)', papel: 'cancha', email: null, demo: false } as any;
-let arquivando = false;
-async function arquivarVersoes() {
-  if (arquivando || !driveConectado()) return;
-  arquivando = true;
-  try {
-    for (const x of versoesParaArquivar(await carregar(b))) {
-      const feitos: string[] = [];
-      for (const id of x.ids) {
-        try { await moverPara(b, id, x.caminho); feitos.push(id); }
-        catch (err) { if (err instanceof ErroDrive && err.status === 404) feitos.push(id); else app.log.warn({ err, post: x.id }, 'não moveu versão antiga'); }
-      }
-      if (feitos.length) await executarAcao(SISTEMA, 'versoes-arquivadas', { id: x.id, ids: feitos });
-    }
-  } finally { arquivando = false; }
-}
-setTimeout(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 90e3);
-
-// Versão para postar dos vídeos (ver integracoes/video.ts): um vídeo por vez, com prioridade baixa no servidor.
-let convertendo = false, temFfmpeg: boolean | null = null;
-async function converterVideos() {
-  if (convertendo || !driveConectado()) return;
-  if (temFfmpeg === null) temFfmpeg = await ffmpegDisponivel();
-  if (!temFfmpeg) return;
-  convertendo = true;
-  const { mkdtemp, rm } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os');
-  const { join, extname } = await import('node:path');
-  try {
-    for (;;) {
-      const x = videosParaConverter(await carregar(b))[0];
-      if (!x) break;
-      const a = x.arquivo, pasta = await mkdtemp(join(tmpdir(), 'spraytec-video-'));
-      try {
-        const ent = join(pasta, 'original' + (extname(a.nome || '') || '.mp4')), sai = join(pasta, 'para-postar.mp4');
-        const t0 = Date.now();
-        await baixarPara(a.id, ent);
-        const r = await versaoParaPostar(ent, sai, 2);
-        if (r.feito === 'convertido') {
-          const nome = String(a.nome || 'video').replace(/\.[^.]+$/, '') + ' · para postar.mp4';
-          const arq = await enviarDoDisco(b, 'p:' + x.id, x.caminho, nome, 'video/mp4', sai);
-          await executarAcao(SISTEMA, 'video-leve', { id: x.id, de: a.id, arquivo: arq, ssim: r.ssim });
-          app.log.info({ post: x.id, de: r.info.tam, para: r.saida.tam, ssim: r.ssim, crf: r.crf, s: Math.round((Date.now() - t0) / 1000) }, 'versão para postar criada');
-        } else await executarAcao(SISTEMA, 'video-leve', { id: x.id, de: a.id, ok: r.motivo });
-      } catch (err) {
-        app.log.warn({ err, post: x.id, arquivo: a.id }, 'não fez a versão para postar');
-        await executarAcao(SISTEMA, 'video-leve', { id: x.id, de: a.id, erro: (err as Error).message }).catch(() => {});
-      } finally { await rm(pasta, { recursive: true, force: true }).catch(() => {}); }
-    }
-  } finally { convertendo = false; }
-}
-setTimeout(() => converterVideos().catch((err) => app.log.error({ err }, 'falha na fila de vídeos')), 120e3);
-setInterval(() => converterVideos().catch((err) => app.log.error({ err }, 'falha na fila de vídeos')), 3600e3);
-setInterval(() => arquivarVersoes().catch((err) => app.log.error({ err }, 'falha ao arquivar versões antigas')), 3600e3);
 
 app.post('/api/acao', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
   const { acao, ...d } = (req.body as any) || {};
   const def = ACOES[acao];
-  if (!def) return rep.code(400).send({ erro: 'Ação desconhecida.' });
-  if (!def.papeis.includes(u.papel)) return rep.code(403).send({ erro: 'Seu papel não permite esta ação.' });
+  if (!def) return rep.code(400).send(erro(req, 'erro.acao_desconhecida', undefined, u));
+  if (!def.papeis.includes(u.papel)) return rep.code(403).send(erro(req, 'erro.sem_permissao', undefined, u));
   try {
     const res = await executarAcao(u, acao, d, req.ip);
     return { ok: true, criado: res.criado, ...(await estadoPara(u)) };
   } catch (err) {
-    if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message, codigo: err.codigo });
+    if (err instanceof ErroAcao) return rep.code(400).send({ ...erro(req, err.message, err.params, u), codigo: err.codigo });
     req.log.error({ err }, 'falha na ação');
-    return rep.code(500).send({ erro: 'Não foi possível salvar. Nada foi alterado.' });
+    return rep.code(500).send(erro(req, 'erro.nao_salvou', undefined, u));
   }
 });
 
 // Atividade recente (registro de auditoria) para a equipe da Cancha.
 app.get('/api/atividade', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
-  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha vê o registro completo.' });
-  const { rows } = await b.query(`select id, em, usuario_nome, papel, acao, resumo from auditoria order by id desc limit 100`);
+  if (u.papel !== 'cancha') return rep.code(403).send(erro(req, 'erro.sem_permissao', undefined, u));
+  const { rows } = await b.query(`select id, em, usuario_nome, papel, acao, resumo from auditoria order by id desc limit 200`);
   return { itens: rows };
 });
 
 // ---------- pessoas (quem entra no portal) — só a Cancha gerencia ----------
 app.get('/api/pessoas', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
-  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha gerencia os acessos.' });
-  const { rows } = await b.query(`select id, nome, email, papel, ativo, visto_em, senha_definida_em is not null as tem_senha, convite_enviado_em from usuarios where not demo order by ativo desc, papel, nome`);
-  return { pessoas: rows, papeis: NOME_PAPEL, email: emailConfigurado() };
+  if (u.papel !== 'cancha') return rep.code(403).send(erro(req, 'erro.sem_permissao', undefined, u));
+  const { rows } = await b.query(`select id, nome, email, papel, idioma, ativo, visto_em, senha_definida_em is not null as tem_senha, convite_enviado_em from usuarios where not demo order by ativo desc, papel, nome`);
+  return { pessoas: rows, papeis: PAPEIS, email: emailConfigurado() };
 });
 app.post('/api/pessoas/salvar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
-  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha gerencia os acessos.' });
+  if (u.papel !== 'cancha') return rep.code(403).send(erro(req, 'erro.sem_permissao', undefined, u));
   const d = (req.body as any) || {};
   const nome = String(d.nome || '').trim().slice(0, 120);
   const email = String(d.email || '').trim().toLowerCase().slice(0, 200);
   const papel = String(d.papel || '');
   const ativo = d.ativo !== false;
-  if (!nome) return rep.code(400).send({ erro: 'Preencha o nome.' });
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return rep.code(400).send({ erro: 'E-mail inválido.' });
-  if (!(PAPEIS as readonly string[]).includes(papel)) return rep.code(400).send({ erro: 'Papel inválido.' });
-  if (d.id === u.id && (!ativo || papel !== 'cancha')) return rep.code(400).send({ erro: 'Você não pode tirar o seu próprio acesso de Cancha.' });
+  const idioma = idiomaValido(d.idioma) || idiomaPadrao(papel);
+  if (!nome) return rep.code(400).send(erro(req, 'erro.preencha', { campo: 'campo.nome' }, u));
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return rep.code(400).send(erro(req, 'erro.email_invalido', undefined, u));
+  if (!(PAPEIS as readonly string[]).includes(papel)) return rep.code(400).send(erro(req, 'erro.escolha', { campo: 'campo.papel' }, u));
+  if (d.id === u.id && (!ativo || papel !== 'cancha')) return rep.code(400).send(erro(req, 'erro.proprio_acesso', undefined, u));
   const dup = (await b.query('select id from usuarios where lower(email)=$1 and id <> $2', [email, d.id || ''])).rows[0];
-  if (dup) return rep.code(400).send({ erro: 'Já existe uma pessoa com este e-mail.' });
+  if (dup) return rep.code(400).send(erro(req, 'erro.email_repetido', undefined, u));
   const r = await b.tx(async (q) => {
     let antes: any = null, id = d.id;
     if (id) {
-      antes = (await q.query('select nome, email, papel, ativo from usuarios where id=$1 and not demo', [id])).rows[0];
-      if (!antes) throw new ErroAcao('Pessoa não encontrada.');
-      await q.query('update usuarios set nome=$2, email=$3, papel=$4, ativo=$5, atualizado_em=now() where id=$1', [id, nome, email, papel, ativo]);
+      antes = (await q.query('select nome, email, papel, ativo, idioma from usuarios where id=$1 and not demo', [id])).rows[0];
+      if (!antes) throw new ErroAcao('erro.pessoa_nao_encontrada');
+      await q.query('update usuarios set nome=$2, email=$3, papel=$4, ativo=$5, idioma=$6, atualizado_em=now() where id=$1', [id, nome, email, papel, ativo, idioma]);
       if (!ativo || antes.papel !== papel) await q.query('delete from sessoes where usuario_id=$1', [id]);
     } else {
       id = novoId('u-');
-      await q.query('insert into usuarios (id, nome, email, papel, ativo) values ($1,$2,$3,$4,$5)', [id, nome, email, papel, ativo]);
+      await q.query('insert into usuarios (id, nome, email, papel, ativo, idioma) values ($1,$2,$3,$4,$5,$6)', [id, nome, email, papel, ativo, idioma]);
     }
-    const resumo = !antes ? `Cadastrou ${nome} (${email}) como ${NOME_PAPEL[papel]}`
+    const resumo = !antes ? `Cadastrou ${nome} (${email}) como ${tr('pt-BR', 'papel.' + papel)}`
       : !ativo && antes.ativo ? `Desativou o acesso de ${nome}`
       : ativo && !antes.ativo ? `Reativou o acesso de ${nome}`
-      : `Atualizou o cadastro de ${nome} (${NOME_PAPEL[papel]})`;
-    await auditar(q, u, 'pessoa-salvar', resumo, { id, nome, email, papel, ativo }, { antes }, req.ip);
+      : `Atualizou o cadastro de ${nome} (${tr('pt-BR', 'papel.' + papel)})`;
+    await auditar(q, u, 'pessoa-salvar', resumo, { id, nome, email, papel, ativo, idioma }, { antes }, req.ip);
     return { id };
-  }).catch((err) => { if (err instanceof ErroAcao) return { erro: err.message }; throw err; });
+  }).catch((err) => { if (err instanceof ErroAcao) return erro(req, err.message, err.params, u); throw err; });
   if ((r as any).erro) return rep.code(400).send(r);
   return { ok: true, id: (r as any).id };
 });
@@ -387,22 +339,22 @@ app.post('/api/pessoas/salvar', async (req, rep) => {
 // Com e-mail configurado, envia; sem e-mail, a Cancha copia o link e manda por outro canal.
 app.post('/api/pessoas/convite', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
-  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a equipe da Cancha gerencia os acessos.' });
+  if (u.papel !== 'cancha') return rep.code(403).send(erro(req, 'erro.sem_permissao', undefined, u));
   const d = (req.body as any) || {};
-  const p = (await b.query('select id, nome, email, senha_definida_em is not null as tem_senha from usuarios where id=$1 and ativo and not demo', [d.id])).rows[0];
-  if (!p) return rep.code(400).send({ erro: 'Pessoa não encontrada ou com acesso desativado.' });
-  if (!p.email) return rep.code(400).send({ erro: 'Cadastre o e-mail da pessoa antes.' });
+  const p = (await b.query('select id, nome, email, idioma, senha_definida_em is not null as tem_senha from usuarios where id=$1 and ativo and not demo', [d.id])).rows[0];
+  if (!p) return rep.code(400).send(erro(req, 'erro.pessoa_nao_encontrada', undefined, u));
+  if (!p.email) return rep.code(400).send(erro(req, 'erro.preencha', { campo: 'campo.email' }, u));
   const tipo = p.tem_senha ? 'redefinir' : 'convite';
   const link = linkDoToken(BASE_URL, await criarToken(b, p.id, tipo, tipo === 'convite' ? 24 * 7 : 24), tipo);
   let enviado = false;
   if (d.enviar) {
-    if (!emailConfigurado()) return rep.code(503).send({ erro: 'O envio de e-mail ainda não está configurado. Use "Copiar link".' });
+    if (!emailConfigurado()) return rep.code(503).send(erro(req, 'erro.sem_email_convite', undefined, u));
     try {
       await (tipo === 'convite' ? enviarConvite(BASE_URL, p, link) : enviarRedefinicao(BASE_URL, p, link));
       enviado = true;
     } catch (err) {
       req.log.error({ err }, 'falha ao enviar convite');
-      return rep.code(502).send({ erro: 'Não consegui enviar o e-mail agora. Tente de novo ou use "Copiar link".' });
+      return rep.code(502).send(erro(req, 'erro.email_falhou', undefined, u));
     }
   }
   await b.query('update usuarios set convite_enviado_em = now() where id=$1', [p.id]);
@@ -600,19 +552,19 @@ app.get('/api/drive/situacao', async (req, rep) => {
 const MAX_ARQUIVO = 5 * 1024 ** 3;
 app.post('/api/arquivos/iniciar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
-  if (!driveConectado()) return rep.code(503).send({ erro: 'O Google Drive da Spraytec ainda não está conectado ao portal. Fale com a Cancha.' });
+  if (!driveConectado()) return rep.code(503).send(erro(req, 'erro.drive_desconectado', undefined, u));
   const d = (req.body as any) || {};
   const ref = String(d.ref || ''), nome = String(d.nome || '').trim().slice(0, 200), tam = Number(d.tam);
   const tipo = /^[\w.+-]+\/[\w.+-]+$/.test(String(d.tipo || '')) ? String(d.tipo) : 'application/octet-stream';
-  if (!nome) return rep.code(400).send({ erro: 'Arquivo sem nome.' });
-  if (!Number.isInteger(tam) || tam < 1) return rep.code(400).send({ erro: `"${nome}" está vazio.` });
-  if (tam > MAX_ARQUIVO) return rep.code(400).send({ erro: `"${nome}" passa de 5 GB. Comprima o arquivo antes de enviar.` });
+  if (!nome) return rep.code(400).send(erro(req, 'erro.arquivo_sem_nome', undefined, u));
+  if (!Number.isInteger(tam) || tam < 1) return rep.code(400).send(erro(req, 'erro.arquivo_vazio', { nome }, u));
+  if (tam > MAX_ARQUIVO) return rep.code(400).send(erro(req, 'erro.arquivo_grande', { nome }, u));
   try {
     const caminho = destinoArquivo(await carregar(b), u, ref);
     const ev = await iniciarEnvio(b, u.id, ref, caminho, nome, tipo, tam);
     return { envio: ev.token, parte: PARTE };
   } catch (err) {
-    if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message });
+    if (err instanceof ErroAcao) return rep.code(400).send(erro(req, err.message, err.params, u));
     req.log.error({ err }, 'falha ao iniciar envio ao Drive');
     return rep.code(err instanceof ErroDrive && err.status === 503 ? 503 : 502).send({ erro: err instanceof ErroDrive ? err.message : 'Não foi possível falar com o Google Drive. Tente de novo.' });
   }
@@ -620,19 +572,19 @@ app.post('/api/arquivos/iniciar', async (req, rep) => {
 // Arquivo que já está no Drive (link colado ou o link do calendário): o Google copia para a pasta do item.
 app.post('/api/arquivos/do-drive', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
-  if (u.papel !== 'cancha') return rep.code(403).send({ erro: 'Só a Cancha usa arquivos do Drive pelo link.' });
-  if (!driveConectado()) return rep.code(503).send({ erro: 'O Google Drive da Spraytec ainda não está conectado ao portal.' });
+  if (u.papel !== 'cancha') return rep.code(403).send(erro(req, 'erro.sem_permissao', undefined, u));
+  if (!driveConectado()) return rep.code(503).send(erro(req, 'erro.drive_desconectado', undefined, u));
   const d = (req.body as any) || {};
   const ref = String(d.ref || ''), id = idDoLink(String(d.link || ''));
-  if (!ref.startsWith('p:')) return rep.code(400).send({ erro: 'Item inválido.' });
-  if (!id) return rep.code(400).send({ erro: 'Cole o link de um arquivo do Google Drive (drive.google.com/file/d/…).' });
+  if (!ref.startsWith('a:')) return rep.code(400).send(erro(req, 'erro.nao_encontrado', undefined, u));
+  if (!id) return rep.code(400).send(erro(req, 'erro.link_drive', undefined, u));
   try {
     const caminho = destinoArquivo(await carregar(b), u, ref);
     const arq = await copiarDoDrive(b, id, caminho);
     await executarAcao(u, 'arquivo-anexar', { envio: registrarCopia(u.id, ref, { ...arq, origem: String(d.link).trim().slice(0, 600) }) }, req.ip);
     return { feito: true, nome: arq.nome, ...(await estadoPara(u)) };
   } catch (err) {
-    if (err instanceof ErroAcao) return rep.code(400).send({ erro: err.message });
+    if (err instanceof ErroAcao) return rep.code(400).send(erro(req, err.message, err.params, u));
     if (err instanceof ErroDrive) return rep.code(err.status >= 400 && err.status < 500 ? 400 : 502).send({ erro: err.message });
     req.log.error({ err }, 'falha ao copiar arquivo do Drive');
     return rep.code(502).send({ erro: 'Não foi possível falar com o Google Drive. Tente de novo.' });
@@ -654,7 +606,7 @@ app.put('/api/arquivos/enviar/:token', { bodyLimit: PARTE + 1024 }, async (req, 
   if (!ev.arquivo) return { feito: false, recebido: ev.recebido };
   try { await executarAcao(u, 'arquivo-anexar', { envio: ev.token }, req.ip); }
   catch (err) {
-    if (err instanceof ErroAcao) return rep.code(400).send({ erro: `O arquivo chegou ao Drive, mas não foi registrado: ${err.message}` });
+    if (err instanceof ErroAcao) return rep.code(400).send(erro(req, 'erro.arquivo_nao_registrado', { motivo: tr(u.idioma, err.message, err.params) }, u));
     throw err;
   }
   return { feito: true, recebido: ev.tam, ...(await estadoPara(u)) };
@@ -666,14 +618,7 @@ async function arquivoVisivel(u: Usuario, id: string): Promise<any> {
   const v = await versao();
   if (memoEstado.v !== v) memoEstado = { v, e: await carregar(b) };
   const e: any = visaoPara(memoEstado.e, u);
-  for (const l of ['posts', 'videos', 'demandas']) for (const x of e[l] || []) { const a = (x.arquivos || []).find((y: any) => y.id === id); if (a) return a; }
-  const m = (e.materiais || []).find((x: any) => x.id === id);
-  if (m) return m;
-  if (u.papel !== 'produtora') {
-    // Cópia do story (vídeo ou imagem) e, nos vídeos, a capa guardada à parte.
-    const s = (await b.query(`select dados from metricas where fonte='ig' and tipo='story' and (dados->>'drive'=$1 or dados->>'drive_capa'=$1)`, [id])).rows[0];
-    if (s) return s.dados.drive === id ? { nome: 'story', tipo: s.dados.drive_tipo } : { nome: 'capa do story', tipo: 'image/jpeg' };
-  }
+  for (const x of e.anuncios || []) { const a = (x.arquivos || []).find((y: any) => y.id === id); if (a) return a; }
   return null;
 }
 // Imagem, vídeo, áudio e PDF abrem no navegador; o resto só baixa (um HTML ou script enviado nunca roda no portal).
@@ -715,7 +660,7 @@ app.get('/api/arquivos/:id/miniatura', async (req, rep) => {
 // Recarregar os dados fictícios (só em demonstração, só a Cancha).
 app.post('/api/demo/restaurar', async (req, rep) => {
   const u = await exigir(req, rep); if (!u) return;
-  if (!modoDemo() || u.papel !== 'cancha') return rep.code(403).send({ erro: 'Não permitido.' });
+  if (!modoDemo() || u.papel !== 'cancha') return rep.code(403).send(erro(req, 'erro.sem_permissao', undefined, u));
   await emFila(() => restaurarDemo(u));
   return { ok: true };
 });
@@ -723,12 +668,12 @@ app.post('/api/demo/restaurar', async (req, rep) => {
 // ---------- arquivos da interface ----------
 await app.register(fstatic, { root: join(import.meta.dirname, '..', 'public'), index: 'index.html', cacheControl: false });
 app.setNotFoundHandler((req, rep) => {
-  if (req.url.startsWith('/api/')) return rep.code(404).send({ erro: 'Não encontrado.' });
+  if (req.url.startsWith('/api/')) return rep.code(404).send(erro(req, 'erro.nao_encontrado'));
   return rep.sendFile('index.html');
 });
 
 await app.listen({ port: PORTA, host: '0.0.0.0' });
-app.log.info({ banco: b.tipo, migracoes: aplicadas, demo: modoDemo(), meta: metaConfigurado(), drive: driveConectado() ? 'conectado' : driveConfigurado() ? 'configurado' : 'sem chave' }, 'Portal Spraytec no ar');
+app.log.info({ banco: b.tipo, migracoes: aplicadas, demo: modoDemo(), meta: metaConfigurado(), drive: driveConectado() ? 'conectado' : driveConfigurado() ? 'configurado' : 'sem chave' }, 'Portal Spraytec USA no ar');
 // Coleta do Meta: a primeira meio minuto depois de subir, depois de hora em hora.
 if (metaConfigurado()) {
   const coletar = () => coletarMeta(b, app.log).catch((err) => app.log.error({ err }, 'falha na coleta do Meta'));

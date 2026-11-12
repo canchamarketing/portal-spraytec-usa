@@ -1,31 +1,29 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Portal Spraytec Brasil</title>
+<title>Spraytec USA</title>
 <meta name="robots" content="noindex,nofollow">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="/favicon-192.png" sizes="192x192" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<div class="app">
-  <div class="demo" id="demo" hidden></div>
-  <header class="top">
-    <div class="brand"><picture class="wm"><source srcset="/logo-branca.png" media="(prefers-color-scheme: dark)"><img src="/logo.png" alt="Spraytec" height="26"></picture><span class="client">Portal de marketing</span><span class="byc">por <img src="/cancha-horizontal.png" alt="Cancha Marketing" height="16"></span></div>
-    <div class="quem" id="roles"></div>
-  </header>
-  <div class="body">
-    <nav class="side" id="nav" aria-label="Seções"></nav>
-    <main id="main"><p class="muted" style="padding:20px">Carregando…</p></main>
-  </div>
+<div class="demo" id="demo" hidden></div>
+<header class="topo">
+  <a class="marca" href="#/inicio"><img src="/logo.png" alt="Spraytec" height="28"><span id="marca-sub"></span></a>
+  <span class="por">by <img src="/cancha-horizontal.png" alt="Cancha Marketing" height="14"></span>
+  <div id="quem"></div>
+</header>
+<div class="corpo">
+  <nav class="menu" id="nav" aria-label="Menu"></nav>
+  <main id="main"><p class="carregando">…</p></main>
 </div>
-<div id="layer"></div>
-<script src="/app.js"></script>
+<script type="module" src="/js/app.js"></script>
 </body>
 </html>

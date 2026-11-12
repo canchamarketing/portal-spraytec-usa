@@ -1,41 +1,24 @@
 // Estado do portal: carregado do banco, alterado pelas ações e gravado de volta só no que mudou.
+// Cada item é um registro na tabela "docs" (coleção + id), o que deixa a auditoria por item (antes/depois).
 import type { Consulta } from './db.ts';
 
-export const LISTAS = ['posts', 'videos', 'demandas', 'threads', 'marcos', 'ano', 'conc', 'aprendizados', 'relatorios', 'materiais', 'ciclos', 'classif'] as const;
-export const CONFIGS = ['plano', 'guia', 'lanes', 'concAcoes', 'links'] as const;
+// rotacoes: ciclos de anúncios (normalmente 15 dias)
+// anuncios: cada anúncio de uma rotação (o que continua da rotação anterior vira uma cópia ligada à original)
+// eventos:  calendário do ano safra (fases da lavoura, feiras, produtos em foco, campanhas, recessos)
+export const LISTAS = ['rotacoes', 'anuncios', 'eventos'] as const;
+export const CONFIGS = [] as const;
 
-export type Estado = {
-  posts: any[]; videos: any[]; demandas: any[]; threads: any[]; marcos: any[]; ano: any[]; conc: any[];
-  aprendizados: any[]; relatorios: any[]; materiais: any[]; ciclos: any[]; classif: any[];
-  plano: any; guia: any; lanes: any[]; concAcoes: any[]; links: [string, string][];
-};
+export type Estado = { rotacoes: any[]; anuncios: any[]; eventos: any[] };
 
 export function estadoVazio(): Estado {
-  const e: any = {};
-  for (const l of LISTAS) e[l] = [];
-  e.plano = null; e.guia = { tom: [], evitar: [], termos: [], produtos: [], hashtags: [] }; e.lanes = []; e.concAcoes = []; e.links = [];
-  return e;
+  return { rotacoes: [], anuncios: [], eventos: [] };
 }
 
 export async function carregar(q: Consulta): Promise<Estado> {
   const e: any = estadoVazio();
   const { rows } = await q.query<{ colecao: string; id: string; dados: any }>('select colecao, id, dados from docs order by ordem');
-  for (const r of rows) {
-    if (r.colecao === 'config') { if ((CONFIGS as readonly string[]).includes(r.id)) e[r.id] = r.dados; }
-    else if ((LISTAS as readonly string[]).includes(r.colecao)) e[r.colecao].push(r.dados);
-  }
-  e.posts.forEach(separarPauta);
+  for (const r of rows) if ((LISTAS as readonly string[]).includes(r.colecao)) e[r.colecao].push(r.dados);
   return e;
-}
-
-// Até 27/10/2026 a pauta ficava no campo da legenda. Itens ainda na etapa de pauta passam o texto
-// para o campo próprio; nos demais a pauta fica vazia e a legenda continua onde estava.
-function separarPauta(p: any) {
-  if (p.pauta !== undefined) return;
-  const etapaPauta = !['video', 'design'].includes(p.rede) && p.formato !== 'plano'
-    && (['pauta', 'pauta_aprovacao'].includes(p.status) || (p.status === 'ajuste' && p.etapaAjuste === 'pauta'));
-  p.pauta = etapaPauta ? p.legenda || '' : '';
-  if (etapaPauta) p.legenda = '';
 }
 
 export type Mudanca = { colecao: string; id: string; antes: any; depois: any };
@@ -52,10 +35,6 @@ export async function salvar(q: Consulta, antes: Estado, depois: Estado, por: st
     }
     for (const [id, x] of a) if (!d.has(id)) mud.push({ colecao: l, id: id as string, antes: x, depois: null });
   }
-  for (const c of CONFIGS) {
-    const a = (antes as any)[c], d = (depois as any)[c];
-    if (JSON.stringify(a) !== JSON.stringify(d)) mud.push({ colecao: 'config', id: c, antes: a ?? null, depois: d ?? null });
-  }
   for (const m of mud) {
     if (m.depois === null) await q.query('delete from docs where colecao=$1 and id=$2', [m.colecao, m.id]);
     else await q.query(
@@ -70,6 +49,4 @@ export async function gravarTudo(q: Consulta, e: Estado, por: string) {
   await q.query('delete from docs');
   for (const l of LISTAS) for (const x of (e as any)[l])
     await q.query('insert into docs (colecao, id, dados, atualizado_por) values ($1,$2,$3,$4)', [l, x.id, JSON.stringify(x), por]);
-  for (const c of CONFIGS) if ((e as any)[c] != null)
-    await q.query('insert into docs (colecao, id, dados, atualizado_por) values ($1,$2,$3,$4)', ['config', c, JSON.stringify((e as any)[c]), por]);
 }

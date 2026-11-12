@@ -1,309 +1,206 @@
-// Dados FICTÍCIOS de demonstração. Vêm do protótipo, com as datas trazidas para perto de "hoje"
-// (o protótipo simulava 16/11/2026 como hoje). Nada aqui é dado real da Spraytec.
-import { addDays, dow, fmt, FERIADOS } from './dominio.ts';
+// Dados de demonstração (fictícios, marcados como EXEMPLO na tela). Só entram em modo demonstração.
+// As datas são relativas a "ancora" (hoje), para a demonstração sempre parecer atual.
+// As imagens são anúncios reais da Spraytec USA feitos pela Cancha (public/dados/exemplo).
+import { addBiz, addDays, type Papel } from './dominio.ts';
 import { estadoVazio, type Estado } from './estado.ts';
 
-export const USUARIOS_DEMO = [
-  { id: 'u-operacao', nome: 'Operação Spraytec', papel: 'operacao', ordem: 1 },
-  { id: 'u-diretoria', nome: 'Diretoria Spraytec', papel: 'diretoria', ordem: 2 },
-  { id: 'u-atendimento', nome: 'Atendimento Cancha', papel: 'cancha', ordem: 3 },
-  { id: 'u-produtora', nome: 'Produtora de vídeo', papel: 'produtora', ordem: 4 },
+export const USUARIOS_DEMO: { id: string; nome: string; papel: Papel; idioma: string; ordem: number }[] = [
+  { id: 'u-cancha', nome: 'Cancha (demo)', papel: 'cancha', idioma: 'pt-BR', ordem: 1 },
+  { id: 'u-renato', nome: 'Renato (demo)', papel: 'aprovador', idioma: 'en-US', ordem: 2 },
+  { id: 'u-leitor', nome: 'Spraytec USA reader (demo)', papel: 'leitor', idioma: 'en-US', ordem: 3 },
+  { id: 'u-produtora', nome: 'Video producer (demo)', papel: 'produtora', idioma: 'en-US', ordem: 4 },
 ];
 
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-const MESES_C = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-const PROTO_HOJE = '2026-11-16';
+const CANCHA = { por: 'Cancha (demo)', papel: 'cancha' };
+const RENATO = { por: 'Renato (demo)', papel: 'aprovador' };
+const ts = (dia: string, h = 14) => `${dia}T${String(h).padStart(2, '0')}:00:00.000Z`;
 
-export function dadosDemo(hoje: string): Estado {
-  const desloc = Math.round((Date.parse(hoje) - Date.parse(PROTO_HOJE)) / 864e5);
-  // D: data do protótipo -> data real. Datas pontuais que caem no fim de semana vão para o dia útil mais perto.
-  const D = (iso: string | null, ajustar = true): string | null => {
-    if (!iso) return null;
-    let d = addDays(iso, desloc);
-    if (ajustar && iso !== PROTO_HOJE) { if (dow(d) === 6) d = addDays(d, -1); else if (dow(d) === 0) d = addDays(d, 1); }
-    return d;
-  };
-  const dm = (iso: string) => fmt(D(iso));
-  const dmr = (iso: string) => fmt(D(iso, false));
-  const [ah, mh] = hoje.split('-').map(Number);
-  const mesRel = (k: number) => { const t = (ah * 12 + (mh - 1)) + k; return { a: Math.floor(t / 12), m: t % 12 }; };
-  const mes = (k: number) => MESES[mesRel(k).m];
-  const Mes = (k: number) => mes(k)[0].toUpperCase() + mes(k).slice(1);
-  const ym = (k: number) => { const r = mesRel(k); return r.a + '-' + String(r.m + 1).padStart(2, '0'); };
-  const mesLbl = (k: number) => MESES_C[mesRel(k).m] + '/' + String(mesRel(k).a).slice(2);
-  const ultimoDia = (k: number) => { const r = mesRel(k); return new Date(Date.UTC(r.a, r.m + 1, 0)).getUTCDate(); };
-  const mm = (k: number) => String(mesRel(k).m + 1).padStart(2, '0');
-  const segunda = (iso: string) => addDays(iso, -((dow(iso) + 6) % 7));
-  const semanaISO = (iso: string) => { const d = new Date(iso + 'T12:00:00Z'); const dia = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dia + 3); const j = new Date(Date.UTC(d.getUTCFullYear(), 0, 4)); return 1 + Math.round(((d.getTime() - j.getTime()) / 864e5 - 3 + ((j.getUTCDay() + 6) % 7)) / 7); };
-
+export function dadosDemo(ancora: string): Estado {
   const e = estadoVazio();
-  const temPauta = (p: any) => !['video', 'design'].includes(p.rede) && p.formato !== 'plano';
-  let uid = 1;
-  function P(date: string | null, time: string | null, rede: string, formato: string, titulo: string, pilar: string, produto: string, status: string, extra?: any) {
-    const corpo = ({
-      Manejo: 'Cada fase da lavoura pede um cuidado diferente. O time de agronomia da Spraytec mostra o que observar no campo e o momento certo de agir.\n\nFale com o RTV da sua região para montar o manejo da sua área.',
-      Campo: 'Direto do campo: produtores e o time Spraytec mostrando, na prática, como a nutrição certa faz diferença na lavoura.\n\nQuer ver isso na sua área? Chame o RTV Spraytec.',
-      Produto: 'Veja como a linha Spraytec trabalha na planta e em que momento ela entra no manejo.\n\nRecomendações sempre conforme a bula e com acompanhamento do seu agrônomo.',
-      Educação: 'Salve para consultar na próxima aplicação. Informação técnica, direto ao ponto, validada pela agronomia da Spraytec.',
-      Institucional: 'Por trás de cada produto Spraytec existe uma equipe dedicada a quem produz. Conheça um pouco do nosso dia a dia.',
-      Relacionamento: 'Queremos ouvir você: conte nos comentários como está a sua lavoura nesta safra.',
-      Eventos: 'Anote na agenda e venha conversar com o time Spraytec. Inscrições pelo link na bio.',
-    } as any)[pilar] || 'Conteúdo do time Spraytec para quem produz.';
-    const leg = ({
-      email: 'Assunto: ' + titulo + '\nPré-cabeçalho: o manejo do mês, direto ao ponto.\n\nOlá, produtor!\n\nSeparamos o que mais importa para a sua lavoura nesta fase da safra, com recomendações do time de agronomia da Spraytec.\n\nLeia a matéria completa no site e fale com o RTV da sua região.',
-      ads: 'Plano de mídia.', design: 'Peças criadas a partir do calendário aprovado, entregues em feed, stories e anúncio.',
-      video: 'Produção de vídeo com a produtora contratada pela Spraytec.',
-    } as any)[rede] || titulo + '.\n\n' + corpo + '\n\n#Spraytec #NutriçãoVegetal #Soja';
-    return Object.assign({ id: 'p' + uid++, date: D(date), _proto: date, time, rede, formato, titulo, pilar, produto, status, rodada: 1, legenda: leg, comments: [] as any[], hist: [] as any[] }, extra || {});
+  const d = (n: number) => addDays(ancora, n);
+  let seq = 0;
+  const id = (p: string) => `${p}demo${++seq}`;
+  const H = (k: string, quem: any, em: string, p: any = {}) => ({ k, p, por: quem.por, papel: quem.papel, em });
+
+  // ---------- anúncios-base (o conteúdo de cada criativo) ----------
+  const base: Record<string, any> = {
+    usefeed: {
+      titulo: 'Use it once… Trust it always (feed)', canal: 'meta', formato: 'imagem', locais: ['feed'], objetivo: 'contatos',
+      produtos: [], publico: 'Corn and soybean growers in Iowa, Illinois, Nebraska, Minnesota and South Dakota, 25–65.',
+      textos: { titulo: 'Use it once… Trust it always.', texto: 'Nutrition, plant health and application technology in one solution. Talk to a Spraytec specialist today.', cta: 'Learn more', link: 'https://spraytecusa.com/programs' },
+      exemploImg: '/dados/exemplo/anuncio-2.jpg',
+    },
+    usestories: {
+      titulo: 'Use it once… Trust it always (Stories)', canal: 'meta', formato: 'imagem', locais: ['stories', 'reels'], objetivo: 'contatos',
+      produtos: [], publico: 'Same audience as the feed version.',
+      textos: { titulo: 'Use it once… Trust it always.', texto: 'Boost your productivity with Fulltec.', cta: 'Learn more', link: 'https://spraytecusa.com/programs' },
+      exemploImg: '/dados/exemplo/anuncio-3.jpg',
+    },
+    future: {
+      titulo: 'Anticipating the agriculture of the future', canal: 'meta', formato: 'imagem', locais: ['feed'], objetivo: 'marca',
+      produtos: [], publico: 'Broad: farmers and ag retailers in the Midwest, plus lookalikes of current customers.',
+      textos: { titulo: 'Anticipating the agriculture of the future', texto: 'Spraytec technology: the right nutrient, in the right form, at the right time.', cta: 'Learn more', link: 'https://spraytecusa.com' },
+      exemploImg: '/dados/exemplo/anuncio-5.jpg',
+    },
+    lowrates: {
+      titulo: 'Low rates, high yields', canal: 'meta', formato: 'imagem', locais: ['feed'], objetivo: 'contatos',
+      produtos: ['fulltec-cube', 'fulltec-boron-max'], publico: 'Corn and soybean growers, 500+ acres, Midwest.',
+      textos: { titulo: 'Low rates, high yields.', texto: 'Fulltec products work at a few ounces per acre. Ask how much you could save next season.', cta: 'Get a quote', link: 'https://spraytecusa.com/products' },
+      exemploImg: '/dados/exemplo/anuncio-8.jpg',
+    },
+    marca: {
+      titulo: 'Google Search: "Spraytec" (brand)', canal: 'google', formato: 'texto', locais: ['pesquisa'], objetivo: 'protecao',
+      produtos: [], publico: 'Anyone searching for "Spraytec", "Fulltec" or product names.',
+      textos: { titulo: 'Spraytec Fertilizers | Fulltec Product Line', texto: 'Adjuvants, seed treatments and foliar nutrition from Urbandale, Iowa. Find a dealer near you.', cta: 'Contact us', link: 'https://spraytecusa.com/contact' },
+    },
+    display: {
+      titulo: 'Anticipating the future (Google Display, remarketing)', canal: 'google', formato: 'imagem', locais: ['display'], objetivo: 'lembrar',
+      produtos: [], publico: 'People who visited spraytecusa.com in the last 30 days.',
+      textos: { titulo: 'Anticipating the agriculture of the future', texto: 'Come back and see the 2026-27 Product Guide.', cta: 'See the guide', link: 'https://spraytecusa.com/products' },
+      exemploImg: '/dados/exemplo/anuncio-4.jpg',
+    },
+    tractus: {
+      titulo: 'Tractus Carbon: fall soil health (Search)', canal: 'google', formato: 'texto', locais: ['pesquisa'], objetivo: 'contatos',
+      produtos: ['tractus-carbon'], publico: 'Searches for "soil health product", "fall fertilizer", "regenerative agriculture inputs".',
+      textos: { titulo: 'Tractus Carbon | Build Soil Health This Fall', texto: 'Apply 22 lb/acre after harvest and start next season ahead. Talk to a Spraytec specialist.', cta: 'Get a quote', link: 'https://spraytecusa.com/products/tractus-carbon' },
+    },
+    seed: {
+      titulo: 'Early order: Fulltec Plus ST + Nodofix', canal: 'meta', formato: 'imagem', locais: ['feed', 'stories'], objetivo: 'contatos',
+      produtos: ['fulltec-plus-st', 'nodofix'], publico: 'Soybean growers, Midwest, 25–65.',
+      textos: { titulo: 'Start strong in 2027', texto: 'Book your seed treatment now. Stronger roots, better nodulation.', cta: 'Book now', link: 'https://spraytecusa.com/programs' },
+      exemploImg: '/dados/exemplo/anuncio-6.jpg',
+    },
+  };
+  const foto = (a: any) => ({ versao: a.versao, titulo: a.titulo, canal: a.canal, formato: a.formato, locais: a.locais, objetivo: a.objetivo, produtos: a.produtos, publico: a.publico, textos: a.textos, linkDrive: '', arquivos: [] });
+  const res = (inv: number, imp: number, cli: number, cont: number) => ({ origem: 'exemplo', investimento: inv, impressoes: imp, cliques: cli, contatos: cont });
+  function novo(k: string, rot: any, extra: any = {}) {
+    const a: any = { id: id('a-'), rotacaoId: rot.id, origem: 'novo', versao: 1, linkDrive: '', arquivos: [], comentarios: [], hist: [], nota: '', ...JSON.parse(JSON.stringify(base[k])), criadoEm: ts(rot.criada), ...extra };
+    e.anuncios.push(a);
+    return a;
   }
-  const T = {
-    pecas1: `Peças da 1ª quinzena de ${mes(1)}`, pecas2: `Peças da 2ª quinzena de ${mes(1)}`,
-    agendaCampo: `Agenda: dia de campo em ${mes(1)}`, conviteCampo: `Convite: dia de campo de ${mes(1)}`,
-    contagem: `Contagem regressiva: dia de campo de ${mes(1)}`, newsEnsaio: 'Newsletter: o que o ensaio de campo mostrou',
-    lab: 'Bastidores do laboratório de qualidade', rtv: 'Um dia com o RTV no campo', numeros: 'Spraytec em números: a safra até aqui',
-  };
-  const com = (proto: string, hora: string) => `${dm(proto)} ${hora}`;
-  e.posts = [
-    P('2026-09-22', '11:30', 'ig', 'post', 'Planejamento da safra de verão', 'Manejo', '—', 'publicado', { metrics: { alcance: 3100, eng: 3.4 }, anterior: true }),
-    P('2026-09-26', '12:00', 'fb', 'post', 'Spraytec na feira regional', 'Eventos', '—', 'publicado', { metrics: { alcance: 1450, eng: 1.6 }, anterior: true }),
-    P('2026-10-01', '11:30', 'ig', 'carrossel', 'Análise de solo antes do plantio', 'Educação', '—', 'publicado', { metrics: { alcance: 4200, eng: 3.9 }, anterior: true }),
-    P('2026-10-06', '18:00', 'ig', 'reel', 'Máquinas no campo: começa o plantio', 'Campo', '—', 'publicado', { metrics: { alcance: 6900, eng: 4.6 }, anterior: true }),
-    P('2026-10-10', '17:00', 'yt', 'video', 'Webinar: nutrição da soja', 'Educação', '—', 'publicado', { metrics: { alcance: 1100, eng: 5.1 }, anterior: true }),
-    P('2026-10-15', '11:30', 'ig', 'post', 'Quem ensina no campo: os RTVs da Spraytec', 'Institucional', '—', 'publicado', { metrics: { alcance: 2600, eng: 2.9 }, anterior: true }),
-    P('2026-10-22', '11:30', 'ig', 'post', 'Emergência da soja: o que observar', 'Manejo', '—', 'publicado'),
-    P('2026-10-24', '18:00', 'ig', 'reel', 'Equipe de campo no oeste do Paraná', 'Campo', '—', 'publicado'),
-    P('2026-10-28', '12:00', 'fb', 'post', 'Homenagem ao time de campo', 'Institucional', '—', 'publicado'),
-    P('2026-10-30', '11:30', 'ig', 'carrossel', 'Tratamento de sementes em 4 passos', 'Educação', 'Linha de sementes', 'publicado'),
-    P('2026-10-31', '17:00', 'yt', 'short', 'Regulagem da plantadeira em 60 segundos', 'Manejo', '—', 'publicado'),
-    P('2026-11-03', '11:30', 'ig', 'carrossel', 'Checklist do plantio: 5 pontos antes de entrar na área', 'Manejo', 'Linha de sementes', 'publicado', { metrics: { alcance: 6120, eng: 4.8 } }),
-    P('2026-11-04', '18:00', 'ig', 'reel', 'Do campo: semeadura no oeste do Paraná', 'Campo', '—', 'publicado', { metrics: { alcance: 11840, eng: 6.1 } }),
-    P('2026-11-05', '08:00', 'email', 'newsletter', `Newsletter de ${mes(0)}: reta final do plantio`, 'Manejo', '—', 'publicado'),
-    P('2026-11-06', '12:00', 'fb', 'post', 'Tratamento de sementes: por que começar certo', 'Produto', 'Linha de sementes', 'publicado', { metrics: { alcance: 2310, eng: 2.2 } }),
-    P('2026-11-09', '11:30', 'ig', 'post', 'Nutrição foliar no V4: o que observar', 'Manejo', 'Linha foliar', 'publicado', { metrics: { alcance: 5480, eng: 5.3 } }),
-    P('2026-11-10', null, 'video', 'gravacao', 'Gravação: bastidores da fábrica', 'Institucional', '—', 'publicado'),
-    P('2026-11-11', '17:00', 'yt', 'video', 'Visita técnica: soja em Cascavel', 'Campo', '—', 'publicado', { metrics: { alcance: 1980, eng: 7.4 } }),
-    P('2026-11-12', null, 'design', 'producao', 'Templates de carrossel educativo', 'Educação', '—', 'publicado'),
-    P('2026-11-13', '11:30', 'ig', 'carrossel', 'Mitos e verdades sobre micronutrientes', 'Educação', 'Linha foliar', 'publicado', { metrics: { alcance: 8930, eng: 6.8 } }),
-    P('2026-11-17', '18:00', 'ig', 'reel', 'Bastidores da fábrica em Maringá', 'Institucional', '—', 'agendado'),
-    P('2026-11-18', '12:00', 'fb', 'post', T.agendaCampo, 'Eventos', '—', 'agendado'),
-    P('2026-11-18', null, 'design', 'producao', T.pecas1, 'Manejo', '—', 'producao'),
-    P('2026-11-19', '08:00', 'email', 'newsletter', T.conviteCampo, 'Eventos', '—', 'agendado'),
-    P('2026-11-19', '09:00', 'ig', 'story', 'Enquete: como está a sua lavoura?', 'Relacionamento', '—', 'agendado'),
-    P('2026-11-20', null, 'video', 'gravacao', 'Gravação: entrevista com agrônomo', 'Campo', '—', 'producao'),
-    P('2026-11-23', '11:30', 'ig', 'post', 'Depoimento: produtor de Toledo', 'Campo', 'Linha foliar', 'aprovado'),
-    P('2026-11-25', '17:00', 'yt', 'short', 'Dica rápida: calibragem do pulverizador', 'Manejo', '—', 'aprovado'),
-    P('2026-11-25', null, 'design', 'producao', T.pecas2, 'Institucional', '—', 'pauta'),
-    P('2026-11-27', '11:30', 'ig', 'carrossel', 'Fechamento do plantio: números da safra', 'Institucional', '—', 'aprovado'),
-    P('2026-11-27', null, 'video', 'entrega', 'Entrega: entrevista com agrônomo', 'Campo', '—', 'pauta'),
-    P('2026-11-30', '12:00', 'fb', 'post', `${Mes(0)} na Spraytec`, 'Institucional', '—', 'aprovado'),
-    P('2026-12-01', null, 'ads', 'plano', `Plano de mídia de ${mes(1)}`, 'Produto', 'Bioestimulante', 'aprovacao'),
-    P('2026-12-02', '11:30', 'ig', 'carrossel', 'Pós-emergência: a janela certa de aplicação', 'Manejo', 'Linha foliar', 'aprovacao'),
-    P('2026-12-03', '08:00', 'email', 'newsletter', `Newsletter de ${mes(1)}: florescimento sem estresse`, 'Manejo', 'Bioestimulante', 'aprovacao'),
-    P('2026-12-04', '18:00', 'ig', 'reel', 'Resultado de campo: ensaio safra 25/26', 'Campo', 'Bioestimulante', 'aprovacao', { validacao: true, comments: [{ who: 'Matheus', text: 'Mandei para a agronomia conferir os números do ensaio antes de aprovar.', interno: false, quando: com('2026-11-14', '10:12') }] }),
-    P('2026-12-05', null, 'design', 'pecas', 'Peças de anúncio: florescimento', 'Produto', 'Bioestimulante', 'aprovacao'),
-    P('2026-12-07', '12:00', 'fb', 'post', 'Cuidados com o calor no florescimento', 'Manejo', 'Bioestimulante', 'ajuste', { etapaAjuste: 'peca', comments: [{ who: 'Matheus', text: 'Trocar a foto: essa lavoura é de milho. Usar uma de soja em R1.', interno: false, quando: com('2026-11-14', '09:40') }] }),
-    P('2026-12-08', '09:00', 'ig', 'story', 'Bastidores: chegada da linha foliar nas revendas', 'Produto', 'Linha foliar', 'aprovacao'),
-    P('2026-12-09', '11:30', 'ig', 'post', 'Linha foliar: guia rápido de produtos', 'Produto', 'Linha foliar', 'aprovacao'),
-    P('2026-12-09', null, 'video', 'gravacao', 'Gravação: calibragem do pulverizador (Short)', 'Manejo', '—', 'pauta'),
-    P('2026-12-10', null, 'design', 'producao', `Peças de ${mes(2)} (lote 1)`, 'Manejo', '—', 'pauta'),
-    P('2026-12-11', '17:00', 'yt', 'video', 'Entrevista com agrônomo Spraytec', 'Campo', '—', 'producao', { comments: [{ who: 'Atendimento Cancha', text: `Produtora confirmou gravação dia ${dm('2026-11-20')}. Roteiro v2 aprovado.`, interno: true, quando: com('2026-11-13', '16:05') }] }),
-    P('2026-12-14', '11:30', 'ig', 'carrossel', '5 erros comuns na aplicação foliar', 'Educação', 'Linha foliar', 'aprovacao'),
-    P('2026-12-16', '09:00', 'ig', 'story', T.contagem, 'Eventos', '—', 'pauta_aprovacao'),
-    P('2026-12-17', '08:00', 'email', 'newsletter', T.newsEnsaio, 'Campo', 'Bioestimulante', 'producao'),
-    P('2026-12-18', '12:00', 'fb', 'post', T.lab, 'Institucional', '—', 'pauta_aprovacao'),
-    P('2026-12-21', '18:00', 'ig', 'reel', T.rtv, 'Campo', '—', 'aprovacao'),
-    P('2026-12-23', '11:30', 'ig', 'post', T.numeros, 'Institucional', '—', 'aprovado'),
-    P(null, null, 'ig', 'post', 'Lançamento: novo produto (aguardando registro MAPA)', 'Produto', 'Novo produto', 'espera'),
-  ];
-  const prazoCal = D('2026-11-17');
-  // Pauta: o tema e a ideia que a Spraytec aprova antes da produção (a legenda é o texto final).
-  const IDEIA: any = {
-    Manejo: 'Mostrar o que observar na lavoura nesta fase e o momento certo de agir, com a palavra da agronomia. Fechar chamando o RTV.',
-    Campo: 'Imagens reais de lavoura de cliente, com o produtor contando como foi. Tom de conversa, sem prometer número.',
-    Produto: 'Explicar como o produto age na planta e em que momento entra no manejo, sempre conforme a bula.',
-    Educação: 'Conteúdo para salvar: passo a passo curto e técnico, validado pela agronomia.',
-    Institucional: 'Bastidores da Spraytec: pessoas, fábrica e o cuidado com quem produz.',
-    Relacionamento: 'Puxar conversa com o produtor com uma pergunta simples sobre a safra.',
-    Eventos: 'Divulgar data, local e como participar, com chamada para inscrição.',
-  };
-  for (const p of e.posts) {
-    const proto = p._proto; delete p._proto;
-    p.pauta = temPauta(p) ? `Tema: ${p.titulo}. ${IDEIA[p.pilar] || 'Conteúdo do time Spraytec para quem produz.'}` : '';
-    if (temPauta(p) && ['pauta', 'pauta_aprovacao'].includes(p.status)) p.legenda = '';
-    p.hist.push({ q: '—', t: 'Criado pela Cancha' });
-    if (['aprovado', 'agendado', 'publicado'].includes(p.status) && !['video', 'design'].includes(p.rede))
-      p.hist.push({ q: dm(proto && proto < '2026-12-01' ? '2026-10-22' : '2026-11-13'), t: 'Aprovado por Matheus · portal' });
-    if (p.status === 'publicado') p.hist.push({ q: fmt(p.date), t: p.anterior ? 'Publicado pela agência anterior' : 'Concluído' });
-    if (p.status === 'pauta_aprovacao') { p.prazo = prazoCal; p.hist.push({ q: dm('2026-11-13'), t: 'Pauta enviada para aprovação' }); }
-    if (p.status === 'aprovacao') { p.prazo = prazoCal; if (temPauta(p)) p.hist.push({ q: dm('2026-11-06'), t: 'Pauta aprovada por Matheus · portal' }); p.hist.push({ q: dm('2026-11-13'), t: 'Enviado para aprovação' }); }
+  function continua(de: any, rot: any, extra: any = {}) {
+    const a: any = { ...JSON.parse(JSON.stringify(de)), id: id('a-'), rotacaoId: rot.id, origem: 'continua', anteriorId: de.id, status: 'continua', comentarios: [], semaforo: null, semaforoMotivo: '', resultado: null, ...extra };
+    a.hist = [H('hist.continua', CANCHA, ts(rot.criada), { de: `${de._rot.ini} → ${de._rot.fim}` })];
+    e.anuncios.push(a);
+    return a;
   }
-  const byT = (t: string) => e.posts.find((p) => p.titulo === t);
-
-  e.videos = [
-    { id: 'v1', titulo: 'Entrevista com agrônomo Spraytec', stage: 'gravacao', viavel: true, gravacao: dm('2026-11-20'), parecer: 'Viável. Gravamos na fazenda experimental.', roteiro: 'Abertura: problema do calor no florescimento.\nBloco 1: o que acontece na planta.\nBloco 2: manejo nutricional.\nFechamento: chamada para falar com o RTV.', postTitle: 'Entrevista com agrônomo Spraytec' },
-    { id: 'v2', titulo: 'Ensaio de campo safra 25/26', stage: 'entregue', viavel: true, gravacao: dm('2026-11-06'), parecer: 'Viável.', roteiro: `Roteiro aprovado em ${dm('2026-10-30')}.`, postTitle: 'Resultado de campo: ensaio safra 25/26' },
-    { id: 'v3', titulo: 'Short: calibragem do pulverizador', stage: 'roteiro', viavel: true, gravacao: dm('2026-12-09'), parecer: `Viável, cabe na diária do dia ${dm('2026-12-09')}.`, roteiro: 'Gancho em 2 s: "Seu pulverizador está jogando produto fora?"\nPasso 1, 2, 3 em tela.\nCTA: salve para a próxima aplicação.', prazo: D('2026-11-19') },
-    { id: 'v4', titulo: 'Bastidores da fábrica, parte 2', stage: 'viabilidade', viavel: null, gravacao: '—', parecer: '', roteiro: '' },
-    { id: 'v6', titulo: 'Depoimento de produtor no MT', stage: 'pauta', viavel: null, gravacao: '—', parecer: '', roteiro: '' },
-    { id: 'v7', titulo: 'Melhores momentos da safra', stage: 'roteiro', viavel: true, gravacao: '—', parecer: 'Viável com material do acervo.', roteiro: 'Montagem com o acervo da safra. Texto em tela, sem locução.', prazo: D('2026-11-19') },
-  ];
-  for (const v of e.videos) { v.hist = []; if (v.postTitle) { const p = byT(v.postTitle); if (p) v.postId = p.id; } delete v.postTitle; }
-
-  e.marcos = [
-    { id: 'm1', tipo: 'safra', nome: 'Plantio da soja: reta final (PR/MT)', ini: D('2026-11-01', false), fim: D('2026-11-20', false) },
-    { id: 'm2', tipo: 'safra', nome: 'Pós-emergência e nutrição V3–V6', ini: D('2026-11-10', false), fim: D('2026-11-30', false) },
-    { id: 'm3', tipo: 'comercial', nome: 'Linha foliar', ini: D('2026-11-01', false), fim: D('2026-11-30', false) },
-    { id: 'm4', tipo: 'evento', nome: 'Dia de campo em Cascavel', ini: D('2026-11-17'), fim: D('2026-11-17') },
-    { id: 'm5', tipo: 'safra', nome: 'Florescimento da soja (PR)', ini: D('2026-12-01', false), fim: D('2026-12-31', false) },
-    { id: 'm6', tipo: 'comercial', nome: 'Bioestimulante', ini: D('2026-12-01', false), fim: D('2026-12-22', false) },
-    { id: 'm7', tipo: 'evento', nome: 'Feira regional: estande Spraytec', ini: D('2026-12-22'), fim: D('2026-12-24') },
-  ];
-
-  e.demandas = [
-    { id: 'd1', quem: 'cancha', t: `Entregar calendário de ${mes(1)}`, data: D('2026-11-13'), feito: true },
-    { id: 'd2', quem: 'cancha', t: `Relatório de ${mes(-1)}`, data: D('2026-11-10'), feito: true },
-    { id: 'd3', quem: 'spraytec', t: `Aprovar calendário de ${mes(1)}`, data: D('2026-11-17'), det: `Enviado em ${dm('2026-11-13')}. Prazo de 2 dias úteis (cláusula 3.2).` },
-    { id: 'd4', quem: 'spraytec', t: 'Aprovar alterações do plano de mídia (versão 3)', data: D('2026-11-17') },
-    { id: 'd5', quem: 'spraytec', t: 'Liberar acesso de administrador no Google Ads', data: D('2026-10-24'), det: `Pedido em ${dm('2026-10-22')}. Sem esse acesso a etapa 1 do Google Ads fica parada, e o prazo da Cancha fica suspenso (cláusula 3.2).` },
-    { id: 'd6', quem: 'cancha', t: `Roteiros de ${mes(1)}`, data: D('2026-11-18') },
-    { id: 'd7', quem: 'spraytec', t: 'Enviar lista de produtos e registros MAPA', data: D('2026-11-18') },
-    { id: 'd11', quem: 'spraytec', t: 'Fotos do dia de campo na pasta do Drive', data: D('2026-11-18') },
-    { id: 'd8', quem: 'cancha', t: 'Reunião semanal', data: D('2026-11-19') },
-    { id: 'd9', quem: 'spraytec', t: 'Validar números do ensaio com a agronomia', data: D('2026-11-19') },
-    { id: 'd10', quem: 'cancha', t: T.pecas1, data: D('2026-11-18') },
-    { id: 'd12', quem: 'cancha', t: 'Reunião semanal', data: D('2026-11-26') },
-    { id: 'd13', quem: 'cancha', t: `Relatório de ${mes(0)}`, data: D('2026-12-10') },
-    { id: 'd14', quem: 'cancha', t: `Calendário de ${mes(2)}`, data: D('2026-12-15') },
-    { id: 'd15', quem: 'cancha', t: `Plano de mídia de ${mes(2)}`, data: D('2026-12-15') },
-    { id: 'd16', quem: 'spraytec', t: `Aprovar calendário de ${mes(2)}`, data: D('2026-12-17') },
-  ];
-  const dT = (t: string) => e.demandas.find((d) => d.t === t);
-
-  // Ligações entre itens
-  const ref = (kind: 'p' | 'd', t: string) => { const x = kind === 'p' ? byT(t) : dT(t); return x ? kind + ':' + x.id : null; };
-  const link = (...refs: (string | null)[]) => { const r = refs.filter(Boolean) as string[]; for (let i = 1; i < r.length; i++) e.links.push([r[0], r[i]]); };
-  link(ref('p', T.pecas1), ref('p', 'Pós-emergência: a janela certa de aplicação'), ref('p', 'Cuidados com o calor no florescimento'), ref('p', 'Linha foliar: guia rápido de produtos'), ref('p', 'Bastidores: chegada da linha foliar nas revendas'), ref('p', `Newsletter de ${mes(1)}: florescimento sem estresse`), ref('p', 'Peças de anúncio: florescimento'), ref('d', T.pecas1));
-  link(ref('p', T.pecas2), ref('p', '5 erros comuns na aplicação foliar'), ref('p', T.contagem), ref('p', T.lab), ref('p', T.numeros), ref('p', T.newsEnsaio));
-  link('v:v1', ref('p', 'Gravação: entrevista com agrônomo'), ref('p', 'Entrega: entrevista com agrônomo'), ref('p', 'Entrevista com agrônomo Spraytec'));
-  link(ref('p', 'Entrevista com agrônomo Spraytec'), ref('p', 'Gravação: entrevista com agrônomo'), ref('p', 'Entrega: entrevista com agrônomo'));
-  link(ref('p', 'Gravação: bastidores da fábrica'), ref('p', 'Bastidores da fábrica em Maringá'));
-  link('v:v3', ref('p', 'Gravação: calibragem do pulverizador (Short)'), ref('d', `Roteiros de ${mes(1)}`));
-  link('v:v7', ref('d', `Roteiros de ${mes(1)}`), ref('p', T.rtv));
-  link('v:v2', ref('p', 'Resultado de campo: ensaio safra 25/26'), ref('d', 'Validar números do ensaio com a agronomia'));
-  link(ref('p', 'Resultado de campo: ensaio safra 25/26'), ref('d', 'Validar números do ensaio com a agronomia'));
-  link(ref('p', `Plano de mídia de ${mes(1)}`), ref('d', 'Aprovar alterações do plano de mídia (versão 3)'), ref('p', 'Peças de anúncio: florescimento'));
-  link(ref('p', 'Templates de carrossel educativo'), ref('p', 'Mitos e verdades sobre micronutrientes'), ref('p', '5 erros comuns na aplicação foliar'));
-  link(ref('p', T.agendaCampo), ref('p', T.conviteCampo), ref('d', 'Fotos do dia de campo na pasta do Drive'));
-
-  // Conversas
-  const proxFeriado = Object.keys(FERIADOS).sort().find((d) => d > addDays(hoje, 3)) || addDays(hoje, 10);
-  e.threads = [
-    { id: 't1', tema: `Calendário de ${mes(1)}`, ref: ref('d', `Aprovar calendário de ${mes(1)}`), unread: { spraytec: 0, cancha: 0 }, msgs: [
-      { de: 'cancha', nome: 'Atendimento Cancha', q: com('2026-11-13', '17:02'), txt: `Matheus, o calendário de ${mes(1)} está no portal, em Aprovação. O prazo é ${dm('2026-11-17')}.` },
-      { de: 'spraytec', nome: 'Matheus', q: com('2026-11-14', '10:15'), txt: 'Vi sim. Mandei o reel do ensaio para a agronomia conferir os números. O resto aprovo até o prazo.' },
-      { de: 'cancha', nome: 'Atendimento Cancha', q: com('2026-11-14', '10:21'), txt: 'Combinado. O post do calor no florescimento está com a foto sendo trocada e volta para você hoje.' }] },
-    { id: 't2', tema: 'Acesso ao Google Ads', ref: ref('d', 'Liberar acesso de administrador no Google Ads'), unread: { spraytec: 0, cancha: 0 }, msgs: [
-      { de: 'cancha', nome: 'Luís', q: com('2026-10-22', '09:30'), txt: 'Para rodar a etapa 1 do Google Ads precisamos de acesso de administrador na conta. Pode liberar para o e-mail da Cancha?' },
-      { de: 'cancha', nome: 'Atendimento Cancha', q: com('2026-11-05', '11:00'), txt: 'Passando para lembrar do acesso. Enquanto isso, a campanha de pesquisa segue parada.' },
-      { de: 'spraytec', nome: 'Matheus', q: com('2026-11-06', '14:40'), txt: 'O TI está vendo. Quem tem o acesso hoje é a agência anterior, estou cobrando.' }] },
-    { id: 't3', tema: 'Fotos do dia de campo', ref: ref('d', 'Fotos do dia de campo na pasta do Drive'), unread: { spraytec: 0, cancha: 1 }, msgs: [
-      { de: 'spraytec', nome: 'Matheus', q: com('2026-11-15', '18:05'), txt: 'As fotos do dia de campo chegam amanhã. Coloco na pasta do Drive.' }] },
-    { id: 't4', tema: `Feriado de ${fmt(proxFeriado)}`, ref: null, unread: { spraytec: 1, cancha: 1 }, msgs: [
-      { de: 'spraytec', nome: 'Matheus', q: fmt(hoje) + ' 09:20', txt: `A expedição não funciona no feriado de ${fmt(proxFeriado)}. Dá para incluir um story avisando um dia antes?` },
-      { de: 'cancha', nome: 'Atendimento Cancha', q: fmt(hoje) + ' 09:34', txt: 'Dá sim. Montamos hoje e mandamos para sua aprovação até 14h.' }] },
-  ];
-
-  // Plano de mídia (versão 2 aprovada, versão 3 esperando aprovação)
-  const dados = {
-    objetivo: 'Gerar contatos qualificados para o bioestimulante no florescimento da soja',
-    objItens: ['Manter a Spraytec presente no dia a dia do produtor, no ritmo da safra'],
-    metas: { contatos: 220, cpl: 90 },
-    jornada: [
-      { n: 'Descobrir', d: 'Produtores que ainda não conhecem a Spraytec', v: 5000, ind: 'alcance', acoes: [{ c: 'social', t: 'Reels de campo e conteúdo de manejo' }, { c: 'video', t: 'Entrevista com agrônomo e vídeos de ensaio' }, { c: 'trafego', t: 'YouTube e Meta para produtores de soja do PR, MT e MS' }] },
-      { n: 'Considerar', d: 'Quem já viu a marca e quer entender o produto', v: 9000, ind: 'cliques', acoes: [{ c: 'design', t: 'Carrosséis educativos sobre nutrição foliar' }, { c: 'trafego', t: 'Remarketing de quem visitou as páginas de produto' }, { c: 'email', t: 'Newsletter com o manejo do mês' }] },
-      { n: 'Falar com a Spraytec', d: 'Contato com o RTV ou a revenda', v: 4000, ind: 'contatos', acoes: [{ c: 'trafego', t: 'Anúncios de contato e pesquisa no Google' }, { c: 'social', t: 'Chamada para o RTV nas publicações de produto' }] },
-      { n: 'Continuar junto', d: 'Clientes, revendas e time de campo', v: 0, ind: 'interacoes', acoes: [{ c: 'social', t: 'Repost diário das marcações do time de campo' }, { c: 'email', t: 'Convites para dias de campo e eventos' }] }],
-    temas: [
-      { n: 'Florescimento sem estresse', prod: 'Bioestimulante', periodo: `${dmr('2026-12-01')} a ${dmr('2026-12-22')}`, msg: 'O florescimento define a produtividade. Proteja essa fase.', acoes: [{ c: 'social', t: 'Carrossel de pós-emergência e reel do ensaio de campo' }, { c: 'trafego', t: 'Remarketing com as peças do florescimento' }, { c: 'email', t: `Newsletter de ${mes(1)} com o tema` }, { c: 'design', t: 'Peças de anúncio em feed, stories e anúncio' }, { c: 'video', t: 'Entrevista com agrônomo sobre calor no florescimento' }] },
-      { n: 'Prova de campo', prod: 'Linha completa', periodo: `${dmr('2026-12-16')} a ${dmr('2026-12-31')}`, msg: 'Resultado de campo vale mais que promessa.', acoes: [{ c: 'social', t: 'Números da safra e um dia com o RTV' }, { c: 'email', t: 'Newsletter com o resultado do ensaio' }, { c: 'video', t: 'Melhores momentos da safra' }] }],
-    ritmo: [{ num: '3 a 4', unid: 'posts por semana', c: 'social' }, { num: '2', unid: 'roteiros de vídeo', c: 'video' }, { num: '10', unid: 'peças por mês', c: 'design' }, { num: '1', unid: 'newsletter por mês', c: 'email' }],
-    verba: [{ k: 'Meta Ads', v: 9000 }, { k: 'Google Ads', v: 6000 }, { k: 'YouTube Ads', v: 3000 }],
-    fases: [{ n: 'Presença e rastreamento', d: 'Calendário no ritmo da safra, repost diário e o site medindo tudo' }, { n: 'Remarketing e contatos', d: 'Quem já conhece a marca volta a ver o produto e chama o RTV' }, { n: 'Funil fechado', d: 'Cada venda ligada à origem: rede, anúncio ou e-mail' }], fase: 2,
-    crono: [{ d: D('2026-12-01'), t: 'Campanhas de florescimento no ar' }, { d: D('2026-12-08'), t: 'Troca de criativos do teste A/B' }, { d: D('2026-12-15'), t: `Calendário e plano de ${mes(2)}` }, { d: D('2027-01-10'), t: 'Resultados no relatório' }],
-    pedidos: ['Acesso de administrador ao Google Ads', 'Lista de produtos e registros MAPA'],
-  };
-  const v3 = JSON.parse(JSON.stringify(dados));
-  v3.ritmo[0].num = '4'; v3.ritmo[3] = { num: '2', unid: `newsletters em ${mes(1)}`, c: 'email' }; v3.verba[0].v = 10000; v3.verba[2].v = 2000;
-  v3.temas[0].acoes.push({ c: 'email', t: `Newsletter extra em ${dm('2026-12-10')} sobre o florescimento` });
-  v3.jornada[0].v = 4000; v3.jornada[1].v = 10000; v3.jornada[1].acoes.push({ c: 'email', t: 'Newsletter extra sobre o florescimento' });
-  e.plano = {
-    versao: 2, aprovado: dm('2026-11-13'), dados,
-    pendente: { versao: 3, por: 'Atendimento Cancha', em: com('2026-11-16', '10:05'), nota: 'Ajuste para o florescimento: mais verba no Meta, que hoje tem o menor custo por contato, e uma newsletter extra.', ajuste: null, dados: v3 },
-    hist: [{ v: 1, q: dm('2026-10-22'), t: 'Plano inicial aprovado por Matheus' }, { v: 2, q: dm('2026-11-13'), t: 'Fase 2 (remarketing e contatos) aprovada por Matheus' }],
-  };
-  const pi = e.posts.find((p) => p.formato === 'plano');
-  pi.titulo = 'Plano de mídia · versão 3'; pi.date = hoje; pi.time = null; pi.prazo = prazoCal;
-
-  // Ano safra: 12 meses a partir do mês atual
-  const ANO = [
-    ['Plantio da soja', 'arranque', 'Linha foliar no arranque', 'Ser lembrado no momento da primeira aplicação foliar.', 'Linha foliar · Adjuvantes', '120 contatos qualificados', ['social', 'trafego', 'email', 'video'], 18000, 9700],
-    ['Desenvolvimento da soja', 'arranque', 'Florescimento sem estresse', 'Mostrar manejo de estresse antes do florescimento.', 'Bioestimulantes · Linha foliar', '100 contatos qualificados', ['social', 'trafego', 'email'], 18000, null],
-    ['Enchimento de grãos', 'enchimento', 'Bioestimulante no enchimento', 'Ligar a aplicação ao peso de grão.', 'Bioestimulantes', '90 contatos qualificados', ['social', 'trafego', 'video'], 16000, null],
-    ['Colheita da soja · plantio do milho', 'colheita', 'Arranque do milho safrinha', 'Capturar a decisão rápida do plantio do milho.', 'Tratamento de sementes · Linha foliar', '140 contatos qualificados', ['social', 'trafego', 'email', 'video'], 20000, null],
-    ['Milho safrinha', 'colheita', 'Nutrição do milho', 'Provar resultado com dados de campo.', 'Linha foliar', '110 contatos qualificados', ['social', 'trafego', 'email'], 18000, null],
-    ['Milho safrinha', 'colheita', 'Resultados de campo', 'Transformar resultados da soja em prova social.', 'Linha completa', '80 contatos qualificados', ['social', 'video'], 14000, null],
-    ['Trigo e culturas de inverno', 'inverno', 'Linha para trigo', 'Abrir a conversa com o produtor de inverno no Sul.', 'Linha foliar · Adjuvantes', '60 contatos qualificados', ['social', 'trafego'], 12000, null],
-    ['Trigo e culturas de inverno', 'inverno', 'Dias de campo de inverno', 'Levar público aos dias de campo.', 'Linha para trigo', '300 inscritos nos dias de campo', ['social', 'email'], 12000, null],
-    ['Planejamento da safra', 'compra', 'Planejamento 27/28', 'Entrar na lista de compra antecipada.', 'Linha completa', '50 oportunidades com revendas', ['email', 'trafego'], 10000, null],
-    ['Pré-plantio', 'compra', 'Tratamento de sementes', 'Fechar pedidos antes do plantio.', 'Tratamento de sementes', '70 oportunidades', ['social', 'trafego', 'email'], 15000, null],
-    ['Plantio da soja', 'plantio', 'Início do plantio', 'Estar presente na janela de plantio.', 'Tratamento de sementes · Linha foliar', '130 contatos qualificados', ['social', 'trafego', 'email', 'video'], 20000, null],
-    ['Plantio da soja', 'plantio', 'Emergência e arranque', 'Repetir o arranque com a prova da safra anterior.', 'Linha foliar', '130 contatos qualificados', ['social', 'trafego', 'video'], 20000, null],
-  ] as const;
-  e.ano = ANO.map((x, i) => ({ id: 'a' + i, m: ym(i), fase: x[0], mo: x[1], tema: x[2], obj: x[3], prods: x[4], kpi: x[5], fr: [...x[6]], p: x[7], e: x[8] }));
-  e.lanes = [
-    { l: 'Soja', k: 'safra', it: [[0, 1, 'Plantio'], [1, 2, 'Desenvolvimento'], [3, 2, 'Colheita'], [10, 2, 'Plantio 27/28']] },
-    { l: 'Milho safrinha', k: 'safra', it: [[3, 2, 'Plantio'], [5, 2, 'Desenvolvimento'], [7, 2, 'Colheita']] },
-    { l: 'Trigo', k: 'safra', it: [[6, 2, 'Plantio'], [8, 2, 'Desenvolvimento'], [10, 2, 'Colheita']] },
-    { l: 'Janela comercial', k: 'comercial', it: [[0, 2, 'Reposição foliar'], [2, 2, 'Pedidos do milho'], [6, 1, 'Inverno'], [7, 4, 'Compra antecipada 27/28']] },
-    { l: 'Eventos', k: 'evento', it: [[3, 1, 'Show Rural'], [4, 1, 'Expodireto'], [5, 1, 'Agrishow'], [7, 1, 'Dias de campo']] }];
-
-  e.conc = [
-    { id: 'k1', nome: 'Concorrente A', cor: '#4F7BB5', ads: 14, novos: 4, dur: 52, fmt: [55, 30, 15], tr: [6, 7, 7, 8, 9, 9, 10, 11, 12, 12, 13, 14], tem: { prod: 3, foliar: 1, bio: 1, prova: 3, preco: 0, tec: 1 }, amea: 'alta', pilar: 'Campo', dest: 'Produtor conta o ganho de 6 sacas', leitura: 'Aumentou os anúncios no florescimento e usa depoimento de produtor como prova.' },
-    { id: 'k2', nome: 'Concorrente B', cor: '#C98A12', ads: 6, novos: 1, dur: 18, fmt: [0, 20, 80], tr: [8, 8, 7, 7, 6, 6, 6, 5, 6, 6, 6, 6], tem: { prod: 1, foliar: 0, bio: 0, prova: 0, preco: 3, tec: 0 }, amea: 'baixa', pilar: 'Produto', dest: `Condição especial até ${dm('2026-11-30')}`, leitura: 'Comunica oferta e prazo de pagamento. Pouco conteúdo técnico.' },
-    { id: 'k3', nome: 'Concorrente C', cor: '#9A6BC2', ads: 21, novos: 6, dur: 74, fmt: [70, 20, 10], tr: [12, 13, 14, 14, 15, 16, 17, 18, 18, 19, 20, 21], tem: { prod: 2, foliar: 3, bio: 1, prova: 2, preco: 0, tec: 3 }, amea: 'alta', pilar: 'Manejo', dest: 'Agrônomo explica a foliar no V4', leitura: 'Volume alto de vídeos com agrônomo. É o mais parecido com a linha editorial da Spraytec.' }];
-  e.concAcoes = [
-    { t: `Prova de campo é o tema em que mais apanhamos: transformar os resultados da soja em depoimentos em ${mes(5)}.`, ref: 'Estratégia · ' + mesLbl(5) },
-    { t: `Ninguém fala de manejo de estresse no florescimento com conteúdo técnico. Ocupar esse espaço em ${mes(1)}.`, ref: 'Estratégia · ' + mesLbl(1) },
-    { t: 'Concorrente C cresce com vídeo de agrônomo: testar 2 vídeos curtos com o agrônomo da Spraytec.', ref: 'Aprendizados' }];
-
-  e.aprendizados = [
-    { id: 'l1', frente: 'trafego', t: 'Carrossel educativo × reel de campo no remarketing', hip: 'O carrossel explica melhor o produto e gera contatos mais baratos.', res: 'Carrossel venceu: custo por contato de R$ 69 contra R$ 93 do reel.', dec: 'Carrossel passa a ser o formato principal do remarketing do florescimento.', data: D('2026-11-13'), status: 'concluido' },
-    { id: 'l2', frente: 'social', t: 'Horário dos posts: 11h30 × 18h', hip: 'O produtor olha o celular no almoço.', res: '11h30 teve 22% mais alcance médio em 3 semanas.', dec: 'Posts de feed às 11h30 e reels às 18h.', data: D('2026-11-10'), status: 'concluido' },
-    { id: 'l3', frente: 'trafego', t: 'Termos de marca numa campanha separada', hip: 'Separar os termos de marca reduz o custo por clique.', res: 'O custo por clique de marca caiu de R$ 1,90 para R$ 0,70.', dec: 'Campanha de marca separada mantida.', data: D('2026-11-06'), status: 'concluido' },
-    { id: 'l4', frente: 'email', t: 'Assunto com pergunta × assunto direto', hip: 'Pergunta no assunto aumenta a abertura.', res: `Teste em andamento até ${dm('2026-12-05')}.`, dec: '', data: D('2026-12-05'), status: 'teste' }];
-
-  e.guia = {
-    tom: ['Técnico, mas fácil de entender', 'Fala com o produtor de igual para igual', 'Mostra resultado de campo, sem exagero'],
-    evitar: ['Promessa de produtividade garantida', 'Dose ou mistura fora da bula', 'Preço e condição comercial em post', 'Comparação direta com concorrente'],
-    termos: ['bioestimulante | produto milagroso', 'nutrição foliar | adubo foliar barato', 'RTV Spraytec | vendedor'],
-    produtos: ['Linha foliar | registro MAPA a preencher | Nutrição no momento certo da cultura', 'Bioestimulante | registro MAPA a preencher | Ajuda a planta a atravessar o estresse do florescimento'],
-    hashtags: ['#Spraytec', '#NutriçãoVegetal', '#Soja', '#Agro'],
+  const aprovado = (a: any, dia: string, todos = false) => {
+    a.enviado = foto(a); a.enviadoEm = ts(dia, 13); a.status = 'aprovado';
+    a.aprovadoPor = RENATO.por; a.aprovadoPorId = 'u-renato'; a.aprovadoEm = ts(dia, 19); a.aprovadoVersao = a.versao;
+    a.hist.push(H('hist.anuncio_criado', CANCHA, ts(dia, 11)), H('hist.enviado', CANCHA, ts(dia, 13), { versao: a.versao }), H(todos ? 'hist.aprovado_todos' : 'hist.aprovado', RENATO, ts(dia, 19), { versao: a.versao }));
   };
 
-  const seg = segunda(hoje), s1 = addDays(seg, -7), s2 = addDays(seg, -14), s3 = addDays(seg, -21);
-  const sem = (s: string) => `${fmt(s)} a ${fmt(addDays(s, 6))}`;
-  e.relatorios = [
-    { id: 'r1', t: `Relatório de ${mes(0)} de ${mesRel(0).a}`, capa: `${Mes(0)} ${mesRel(0).a}`, tipo: 'Relatório mensal', per: `01/${mm(0)} a ${ultimoDia(0)}/${mm(0)} · social, tráfego pago e e-mail`, entrega: `${ym(1)}-10`, status: 'previsto', nota: 'Os números do mês são fechados no dia 1º.' },
-    { id: 'r2', t: 'Resultado da campanha: dia de campo', capa: 'Dia de campo', tipo: 'Campanha', per: `Convite, posts e mídia do evento de ${dm('2026-12-17')}`, entrega: D('2026-12-22'), status: 'previsto', nota: 'Sai uma semana depois do evento.' },
-    { id: 'r3', t: `Relatório de ${mes(-1)} de ${mesRel(-1).a}`, capa: `${Mes(-1)} ${mesRel(-1).a}`, tipo: 'Relatório mensal', per: `${dm('2026-10-22')} a ${ultimoDia(-1)}/${mm(-1)} · primeiros dias de operação`, entrega: `${ym(0)}-10`, status: 'entregue', dest: [`Calendário de ${mes(0)} aprovado no prazo`, 'Rastreamento completo no site (etapa 1)', 'Repost diário em todos os dias úteis'] },
-    { id: 'rx1', t: `Executivo · semana de ${fmt(s1)}`, capa: `Semana ${semanaISO(s1)}`, tipo: 'Executivo semanal', per: sem(s1), entrega: seg, status: 'rascunho', frase: 'Semana com o melhor custo por contato desde o início: o carrossel educativo puxou o resultado do remarketing.', dest: ['52 contatos na semana, 18% a mais que a anterior', 'Custo por contato caiu de R$ 91 para R$ 82', `Calendário de ${mes(1)} enviado no prazo`], aten: 'O acesso de administrador ao Google Ads segue pendente e trava a campanha de marca.', prox: `Aprovar o calendário de ${mes(1)} até ${dm('2026-11-17')}.\nGravar a entrevista com agrônomo (${dm('2026-11-20')}).\nPublicar a campanha de florescimento em ${dm('2026-12-01')}.` },
-    { id: 'rx2', t: `Executivo · semana de ${fmt(s2)}`, capa: `Semana ${semanaISO(s2)}`, tipo: 'Executivo semanal', per: sem(s2), entrega: s1, status: 'entregue', k: { cont: 44, contP: 39, cpl: 91, cplP: 96, alc: 19800, alcP: 15400 }, frase: 'Primeira semana com o rastreamento completo: agora cada contato tem origem conhecida.', dest: ['44 contatos na semana', 'Rastreamento do site concluído (etapa 1)', 'Repost diário em todos os dias úteis'], aten: 'Termos de marca disputando verba com a prospecção no Google.', prox: `Separar a campanha de marca.\nFechar o calendário de ${mes(1)} até ${dm('2026-11-13')}.` },
-    { id: 'r5', t: `Gerencial · semana de ${fmt(seg)}`, capa: `Semana ${semanaISO(seg)}`, tipo: 'Gerencial semanal', per: sem(seg) + ' · todas as frentes', entrega: addDays(seg, 7), status: 'previsto', nota: 'Sai toda segunda.' },
-    { id: 'r6', t: `Gerencial · semana de ${fmt(s1)}`, capa: `Semana ${semanaISO(s1)}`, tipo: 'Gerencial semanal', per: sem(s1) + ' · todas as frentes', entrega: seg, status: 'rascunho', dest: ['Teste A/B: carrossel venceu o reel', 'Custo por contato caiu para R$ 82'] },
-    { id: 'r7', t: `Gerencial · semana de ${fmt(s2)}`, capa: `Semana ${semanaISO(s2)}`, tipo: 'Gerencial semanal', per: sem(s2) + ' · todas as frentes', entrega: s1, status: 'entregue', dest: ['Verba movida do Display para Pesquisa'] },
-    { id: 'r8', t: `Gerencial · semana de ${fmt(s3)}`, capa: `Semana ${semanaISO(s3)}`, tipo: 'Gerencial semanal', per: sem(s3) + ' · todas as frentes', entrega: s2, status: 'entregue', dest: ['Primeira semana com rastreamento completo'] },
-    { id: 'r9', t: 'Lançamento do calendário de safra no Instagram', capa: 'Calendário de safra', tipo: 'Campanha', per: `Série de posts de ${dm('2026-11-01')} a ${dm('2026-11-15')}`, entrega: D('2026-11-18'), status: 'previsto', nota: 'Fecha depois do último post da série.' },
-    { id: 'r4', t: 'Diagnóstico inicial: redes, mídia e dados', capa: 'Diagnóstico', tipo: 'Diagnóstico', per: `Imersão de ${dm('2026-10-08')} a ${dm('2026-10-21')}`, entrega: D('2026-10-21'), status: 'entregue', dest: ['Situação de cada rede e do site', 'O que medir e como', 'Primeiros passos do plano de mídia'] },
-  ];
+  // ---------- Rotação 1: encerrada ----------
+  const r1: any = { id: id('r-'), ini: d(-20), fim: d(-7), prazo: addBiz(d(-20), -3), status: 'encerrada', criada: d(-26), saem: [], comentarios: [], hist: [],
+    foco: 'Post-harvest: brand awareness and leads for the 2027 season.', idioma: 'en-US',
+    traducoes: { 'pt-BR': { foco: 'Pós-colheita: marca conhecida e contatos para a safra 2027.' } },
+    noArEm: d(-20), encerradaEm: d(-6), criadaEm: ts(d(-26)),
+    resumo: 'Brand search kept a low cost per contact. "Low rates, high yields" got tired in the second week (frequency above 4).',
+  };
+  r1.traducoes['pt-BR'].resumo = 'A busca pela marca manteve o custo por contato baixo. "Low rates, high yields" cansou na segunda semana (frequência acima de 4).';
+  r1.hist.push(H('hist.rotacao_criada', CANCHA, ts(d(-26))), H('hist.rotacao_enviada', CANCHA, ts(d(-25)), { n: 4 }), H('hist.rotacao_aprovada', RENATO, ts(d(-24))),
+    H('hist.rotacao_no_ar', CANCHA, ts(d(-20)), { data: d(-20) }), H('hist.rotacao_encerrada', CANCHA, ts(d(-6))));
+  e.rotacoes.push(r1);
+  const a1 = novo('usefeed', r1), a2 = novo('future', r1), a3 = novo('lowrates', r1), a4 = novo('marca', r1);
+  for (const a of [a1, a2, a3, a4]) { aprovado(a, d(-24), true); a.status = 'encerrado'; a.hist.push(H('hist.no_ar', CANCHA, ts(d(-20)), { data: d(-20) })); a._rot = r1; }
+  Object.assign(a1, { semaforo: 'bem', semaforoMotivo: '', resultado: res(612, 48200, 1060, 21) });
+  Object.assign(a2, { semaforo: 'atencao', semaforoMotivo: 'Good reach, but few contacts. Keep one more cycle and watch.', resultado: res(540, 61500, 720, 6) });
+  Object.assign(a3, { semaforo: 'cansado', semaforoMotivo: 'Cost per contact went up 40% in the second week; people saw it 4+ times.', resultado: res(498, 39800, 410, 5) });
+  Object.assign(a4, { semaforo: 'bem', semaforoMotivo: '', resultado: res(210, 3900, 520, 17) });
+  a2.idioma = 'en-US'; a3.idioma = 'en-US';
+  a2.traducoes = { 'pt-BR': { semaforoMotivo: 'Bom alcance, mas poucos contatos. Fica mais um ciclo, de olho.' } };
+  a3.traducoes = { 'pt-BR': { semaforoMotivo: 'O custo por contato subiu 40% na segunda semana; as pessoas viram 4 vezes ou mais.' } };
+  for (const a of [a1, a2, a3, a4]) a.hist.push(H('hist.avaliado', CANCHA, ts(d(-6)), { semaforo: 'semaforo.' + a.semaforo }));
+
+  // ---------- Rotação 2: no ar ----------
+  const r2: any = { id: id('r-'), ini: d(-6), fim: d(7), prazo: addBiz(d(-6), -3), status: 'no_ar', criada: d(-11), anteriorId: r1.id, comentarios: [], hist: [],
+    saem: [{ anuncioId: a3.id, titulo: a3.titulo, motivo: 'Tired: cost per contact up 40%.', idioma: 'en-US', traducoes: { 'pt-BR': { motivo: 'Cansou: custo por contato subiu 40%.' } } }],
+    foco: 'Year-end: Tractus Carbon (fall application) and brand.', idioma: 'en-US',
+    traducoes: { 'pt-BR': { foco: 'Fim de ano: Tractus Carbon (aplicação de outono) e marca.' } }, noArEm: d(-6), criadaEm: ts(d(-11)) };
+  r2.hist.push(H('hist.rotacao_criada', CANCHA, ts(d(-11))), H('hist.rotacao_enviada', CANCHA, ts(d(-10)), { n: 1 }), H('hist.rotacao_aprovada', RENATO, ts(d(-9))),
+    H('hist.rotacao_no_ar', CANCHA, ts(d(-6)), { data: d(-6) }));
+  e.rotacoes.push(r2);
+  const b1 = continua(a1, r2), b2 = continua(a2, r2), b4 = continua(a4, r2);
+  const b5 = novo('usestories', r2);
+  aprovado(b5, d(-9));
+  for (const a of [b1, b2, b4, b5]) { a.status = 'no_ar'; a.hist.push(H('hist.no_ar', CANCHA, ts(d(-6)), { data: d(-6) })); a._rot = r2; }
+  b1.resultado = res(301, 22100, 470, 9); b2.resultado = res(288, 33400, 300, 2); b4.resultado = res(96, 1800, 240, 8); b5.resultado = res(180, 26500, 210, 4);
+  b2.comentarios.push({ id: id('c-'), ...RENATO, porId: 'u-renato', em: ts(d(-3), 15), texto: 'This one brings reach but our dealers say they are not hearing about it. Maybe swap it next time?', idioma: 'en-US',
+    traducoes: { 'pt-BR': 'Este traz alcance, mas nossos revendedores dizem que ninguém comenta sobre ele. Talvez trocar na próxima?' } });
+  b2.comentarios.push({ id: id('c-'), ...CANCHA, porId: 'u-cancha', em: ts(d(-3), 17), texto: 'Concordo, os números confirmam (2 contatos). Vai sair na próxima rotação.', idioma: 'pt-BR', interno: true });
+
+  // ---------- Rotação 3: em aprovação ----------
+  const r3: any = { id: id('r-'), ini: d(8), fim: d(21), prazo: addBiz(d(8), -3), status: 'aprovacao', criada: d(-2), anteriorId: r2.id, comentarios: [], hist: [],
+    saem: [{ anuncioId: b2.id, titulo: b2.titulo, motivo: 'Few contacts (2 in the cycle). Renato also asked to swap it.', idioma: 'en-US' }],
+    foco: 'Early order for 2027: seed treatment and Tractus Carbon. Iowa Ag Expo coming in February.', idioma: 'en-US',
+    traducoes: { 'pt-BR': { foco: 'Compra antecipada da safra 2027: tratamento de sementes e Tractus Carbon. Iowa Ag Expo em fevereiro.' } }, criadaEm: ts(d(-2)) };
+  r3.saem[0].traducoes = { 'pt-BR': { motivo: 'Poucos contatos (2 no ciclo). O Renato também pediu para trocar.' } };
+  r3.hist.push(H('hist.rotacao_criada', CANCHA, ts(d(-2))), H('hist.rotacao_enviada', CANCHA, ts(d(-1)), { n: 3 }));
+  e.rotacoes.push(r3);
+  continua(b1, r3); continua(b5, r3); continua(b4, r3);
+  const c1 = novo('display', r3);
+  aprovado(c1, d(-1));
+  const c2 = novo('lowrates', r3, { titulo: 'Low rates, high yields (new copy)' });
+  c2.textos.texto = 'A few ounces per acre, measurable results. See the 2026-27 Product Guide.';
+  c2.enviado = foto(c2); c2.enviadoEm = ts(d(-1), 13); c2.status = 'aprovacao';
+  c2.hist.push(H('hist.anuncio_criado', CANCHA, ts(d(-2), 11)), H('hist.enviado', CANCHA, ts(d(-1), 13), { versao: 1 }));
+  const c3 = novo('tractus', r3);
+  c3.textos = { ...c3.textos, texto: 'Build soil health this fall. Talk to a Spraytec specialist.' };
+  c3.enviado = foto(c3); c3.hist.push(H('hist.anuncio_criado', CANCHA, ts(d(-2), 11)), H('hist.enviado', CANCHA, ts(d(-2), 13), { versao: 1 }));
+  c3.ajustePedido = { texto: 'Please mention the rate (22 lb/acre) and that it goes on after harvest.', por: RENATO.por, em: ts(d(-2), 18), versao: 1 };
+  c3.comentarios.push({ id: id('c-'), ...RENATO, porId: 'u-renato', em: ts(d(-2), 18), texto: c3.ajustePedido.texto, idioma: 'en-US', ajuste: true,
+    traducoes: { 'pt-BR': 'Por favor, cite a dose (22 lb/acre) e que é aplicado depois da colheita.' } });
+  c3.hist.push(H('hist.ajuste_pedido', RENATO, ts(d(-2), 18), { versao: 1 }));
+  c3.textos = { ...base.tractus.textos };
+  c3.versao = 2; c3.enviado = foto(c3); c3.enviadoEm = ts(d(-1), 10); c3.status = 'aprovacao';
+  c3.hist.push(H('hist.enviado', CANCHA, ts(d(-1), 10), { versao: 2 }));
+  // Rascunho da Cancha: a Spraytec não vê.
+  const c4 = novo('seed', r3, { status: 'rascunho', nota: 'Esperar a tabela de preços do early order antes de enviar.' });
+  c4.hist.push(H('hist.anuncio_criado', CANCHA, ts(d(0), 12)));
+  r3.comentarios.push({ id: id('c-'), ...CANCHA, porId: 'u-cancha', em: ts(d(-1), 13), texto: '@Renato (demo) três anúncios novos para aprovar. O de Tractus Carbon já tem a dose que você pediu.', idioma: 'pt-BR',
+    traducoes: { 'en-US': '@Renato (demo) three new ads to approve. The Tractus Carbon one now has the rate you asked for.' } });
+
+  for (const a of e.anuncios) delete a._rot;
+  for (const r of e.rotacoes) delete r.criada;
+  e.eventos = eventosExemplo(ancora);
   return e;
+}
+
+// Calendário do ano safra: EXEMPLO montado pela Cancha (pesquisa de 11/11/2026), para confirmar com o Renato.
+// Fases da lavoura de milho e soja em Iowa; feiras com as datas divulgadas para 2027.
+function eventosExemplo(ancora: string) {
+  const y = Number(ancora.slice(0, 4)) + (Number(ancora.slice(5, 7)) >= 10 ? 1 : 0); // ano da próxima safra
+  const p = String(y - 1), a = String(y);
+  let n = 0;
+  const ev = (tipo: string, ini: string, fim: string, en: string, pt: string, extra: any = {}) => ({
+    id: 'e-demo' + ++n, tipo, ini, fim, nome: en, idioma: 'en-US', traducoes: { 'pt-BR': { nome: pt, ...(extra.notaPt ? { nota: extra.notaPt } : {}) } },
+    local: extra.local || '', produtos: extra.produtos || [], nota: extra.nota || '', link: extra.link || '', exemplo: true, hist: [],
+  });
+  return [
+    // fases da lavoura
+    ev('fase', `${p}-11-01`, `${p}-12-31`, 'Post-harvest and planning', 'Pós-colheita e planejamento', { nota: 'Year-end prepay: many farmers buy inputs before Dec 31 for tax reasons.', notaPt: 'Compra antecipada de fim de ano: muitos produtores compram insumos antes de 31/12 por causa do imposto.' }),
+    ev('fase', `${a}-01-01`, `${a}-03-31`, 'Input purchasing', 'Compra de insumos'),
+    ev('fase', `${a}-04-15`, `${a}-05-20`, 'Planting (best window)', 'Plantio (janela ideal)', { nota: 'Iowa State: best yields when planted from mid-April to about May 15–20. Final insurance planting date: May 31 (corn), June 15 (soybean).', notaPt: 'Iowa State: melhores produtividades com plantio de meados de abril até ~15–20 de maio. Data final do seguro: 31/5 (milho) e 15/6 (soja).' }),
+    ev('fase', `${a}-05-20`, `${a}-07-10`, 'Post-emergence and early foliar', 'Pós-emergência e primeiras foliares'),
+    ev('fase', `${a}-07-10`, `${a}-08-31`, 'Reproductive stages, fungicide passes', 'Fase reprodutiva e fungicidas'),
+    ev('fase', `${a}-09-15`, `${a}-11-15`, 'Harvest', 'Colheita'),
+    // feiras (datas de 2027 divulgadas pelos organizadores; participação da Spraytec a confirmar)
+    ev('feira', `${a}-02-02`, `${a}-02-04`, 'Iowa Ag Expo', 'Iowa Ag Expo', { local: 'Des Moines, IA', link: 'https://iowaagexpo.com' }),
+    ev('feira', `${a}-02-09`, `${a}-02-11`, 'World Ag Expo', 'World Ag Expo', { local: 'Tulare, CA', link: 'https://worldagexpo.com' }),
+    ev('feira', `${a}-02-10`, `${a}-02-13`, 'National Farm Machinery Show', 'National Farm Machinery Show', { local: 'Louisville, KY', link: 'https://farmmachineryshow.org' }),
+    ev('feira', `${a}-03-03`, `${a}-03-05`, 'Commodity Classic', 'Commodity Classic', { local: 'New Orleans, LA', link: 'https://commodityclassic.com' }),
+    ev('feira', `${a}-07-29`, `${a}-07-29`, 'Ag PhD Field Day (date not announced)', 'Ag PhD Field Day (data não divulgada)', { local: 'Baltic, SD', nota: 'Usually the last Thursday of July. Spraytec has an "Ag PhD" contact list.', notaPt: 'Costuma ser na última quinta de julho. A Spraytec tem uma lista de contatos "Ag PhD".' }),
+    ev('feira', `${a}-08-31`, `${a}-09-02`, 'Farm Progress Show', 'Farm Progress Show', { local: 'Decatur, IL', nota: 'Back in Boone, Iowa in 2028.', notaPt: 'Volta a Boone, Iowa, em 2028.', link: 'https://www.farmprogressshow.com' }),
+    ev('feira', `${a}-09-14`, `${a}-09-16`, 'Husker Harvest Days', 'Husker Harvest Days', { local: 'Grand Island, NE' }),
+    ev('feira', `${a}-09-21`, `${a}-09-23`, 'Farm Science Review', 'Farm Science Review', { local: 'London, OH' }),
+    // produtos em foco em cada época
+    ev('foco', `${p}-11-01`, `${p}-12-31`, 'Soil health after harvest', 'Saúde do solo depois da colheita', { produtos: ['tractus-carbon'] }),
+    ev('foco', `${a}-01-05`, `${a}-04-30`, 'Seed treatment (early order)', 'Tratamento de sementes (compra antecipada)', { produtos: ['fulltec-plus-st', 'nodofix', 'fulltec-carbon-seed'] }),
+    ev('foco', `${a}-04-01`, `${a}-07-15`, 'Adjuvants for the herbicide season', 'Adjuvantes na época dos herbicidas', { produtos: ['fulltec-adjuvant', 'fulltec-oil-max', 'fulltec-top-mix', 'omega'] }),
+    ev('foco', `${a}-05-15`, `${a}-06-30`, 'Early foliar (V2–R1)', 'Primeiras foliares (V2–R1)', { produtos: ['fulltec-plus-foliar', 'fulltec-nitro', 'fulltec-ultra', 'fulltec-zinc'] }),
+    ev('foco', `${a}-06-15`, `${a}-07-31`, 'With the fungicide (V5–R3)', 'Junto com o fungicida (V5–R3)', { produtos: ['fulltec-cube', 'fulltec-boron-max'] }),
+    ev('foco', `${a}-07-15`, `${a}-08-31`, 'Grain fill (R stages)', 'Enchimento de grãos (fase R)', { produtos: ['fulltec-k', 'fulltec-cube-ir', 'fulltec-finish-max', 'fulltec-arrow', 'fulltec-drone'] }),
+    // campanha de exemplo
+    ev('campanha', `${p}-11-15`, `${p}-12-31`, 'Year-end prepay campaign', 'Campanha de compra antecipada de fim de ano'),
+  ];
 }

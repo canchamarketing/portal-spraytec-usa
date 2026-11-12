@@ -42,9 +42,38 @@ de anúncio).
   (en-US: MM/DD/YYYY, US$).
 - **Tradução automática nas conversas e comentários:** cada mensagem aparece no idioma de quem lê,
   com opção de ver o original. Guardar sempre o texto original e a tradução (rastreabilidade).
-  Serviço de tradução a decidir com o Diogo (custo e qualidade).
+  Serviço de tradução: **gratuito** (Diogo, 11/11). Proposta: Google Cloud Translation dentro da
+  cota grátis mensal, com contador e trava no portal. DeepL grátis não serve (guarda os textos).
 - **Pessoas da Spraytec USA:** por enquanto só o **Renato** (aprovador).
 - **Produtora de vídeo:** nome ainda não definido. Usar o genérico "Produtora de vídeo".
+  Fica **nos EUA** e trabalha **em inglês**.
+- **E-mail marketing:** a ferramenta de envio é o **Brevo** (integração por API).
+- **TikTok Ads:** inativo. Deixar "canal" genérico para incluir depois se precisar.
+- **Feiras:** o Diogo não sabe de quais a Spraytec participa. Calendário de feiras é só EXEMPLO.
+- **Sem IA no portal por enquanto** (Diogo, 11/11): nada de transcrição, classificação ou resumo
+  automático. A ferramenta Rotation (com IA) continua **separada**, não é integrada.
+- **Rotação de anúncios no portal:** só o necessário para o Renato aprovar. A Cancha cadastra os
+  anúncios à mão (arquivo no Drive ou link, canal, campanha, objetivo em palavras simples, produto)
+  e o Renato aprova ou pede ajuste, com tudo registrado. Simples e didático.
+- **Desenho do portal aprovado** pelo Diogo em 11/11/2026 (telas, papéis, fluxos, idioma).
+
+## Ordem de construção (definida em 11/11/2026)
+A tela do Brasil (`public/app.js`, toda amarrada a posts) foi **refeita do zero**, já em dois idiomas.
+O servidor foi mantido (login, convites, auditoria, banco, Drive, integrações) e o domínio trocado.
+1. **Fundação + Rotação:** idiomas pt-BR/en-US por pessoa, fuso America/Chicago e feriados dos EUA,
+   papéis (`cancha`, `aprovador`, `leitor`, `produtora`), Início, Rotação de anúncios, Ano safra
+   (exemplo), Produtos, Pessoas, Histórico.
+2. Feedbacks, Planejamento do mês, Roteiros de vídeo (kanban + produtora).
+3. E-mails (Brevo), Site e landing pages (checklist de publicação), SEO e GEO (manual).
+4. Integrações (Google Ads, Meta, GA4 + Search Console, Brevo, PageSpeed), tradução automática,
+   alertas de integração sem dados.
+5. **Antes do primeiro convite:** backup fora da Hostinger com restauração testada, monitor externo,
+   publicação em `/opt/spraytecusa`.
+
+**Situação em 11/11/2026:** etapa 1 pronta e testada localmente (não publicada, nada commitado ainda).
+Pendências conhecidas da etapa 1: rotas de conectar integrações (`/api/*/conectar`) ainda com mensagens
+só em português (só a Cancha usa); `public/privacidade.html` ainda é a do Brasil (reescrever antes de
+conectar Google/Meta); datas dentro dos e-mails de aviso saem em AAAA-MM-DD.
 - **Sede e fuso:** Urbandale, Iowa → fuso **America/Chicago** (Central, com horário de verão).
   O servidor está em UTC: prazos, lembretes e "hoje" seguem o fuso da Spraytec USA.
 - **Site:** https://spraytecusa.com (WordPress). Produtos, programas e textos estão no site e na

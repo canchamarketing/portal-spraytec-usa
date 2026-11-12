@@ -3,7 +3,7 @@
 // de uma conta de marca, o Google pergunta qual canal na hora). Autorização cifrada no banco com DRIVE_CHAVE.
 // Coleta a cada 2 horas: canal, vídeos (com números de cada um) e números do canal por dia.
 import type { Consulta } from '../db.ts';
-import { hojeBR } from '../dominio.ts';
+import { hoje } from '../dominio.ts';
 import { cifrar, decifrar, driveConfigurado, pedirToken, urlAutorizacao, ErroDrive } from './drive.ts';
 import { gravar, marcarSumidos, situacao } from './meta.ts';
 
@@ -143,7 +143,7 @@ export async function coletarYT(q: Consulta, log: Log, forcar = false) {
     // vídeo apagado do canal sai da lista de envios: marcado como removido
     if (ids.length < 1000) await marcarSumidos(q, 'yt', 'video', new Map(ids.map((id) => [id, ''])), true, log);
     // retenção por vídeo (desde sempre) e números do canal por dia; o YouTube Analytics atrasa uns 2 dias
-    const ate = hojeBR();
+    const ate = hoje();
     try {
       for (const r of await relatorio({ startDate: '2010-01-01', endDate: ate, dimensions: 'video', metrics: 'estimatedMinutesWatched,averageViewDuration,averageViewPercentage', sort: '-estimatedMinutesWatched', maxResults: '200' }))
         if (ids.includes(r.video)) await gravar(q, 'yt', 'video', r.video, { minutos: r.estimatedMinutesWatched, mediaVisto: r.averageViewDuration, pctVisto: r.averageViewPercentage });

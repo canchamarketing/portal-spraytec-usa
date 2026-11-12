@@ -4,7 +4,7 @@
 // conta que é usuária do MCC; a autorização fica cifrada no banco com DRIVE_CHAVE.
 // Coleta a cada 6 horas: campanhas e anúncios, com investimento, impressões, cliques e conversões por dia.
 import type { Consulta } from '../db.ts';
-import { hojeBR } from '../dominio.ts';
+import { hoje } from '../dominio.ts';
 import { cifrar, decifrar, driveConfigurado, pedirToken, urlAutorizacao, ErroDrive } from './drive.ts';
 import { gravar, situacao } from './meta.ts';
 
@@ -169,7 +169,7 @@ export async function coletarGAds(q: Consulta, log: Log, forcar = false) {
   const cid = conexao.cliente.id;
   try {
     const { rows } = await q.query(`select 1 from metricas where fonte='gads' and tipo='campanha_dia' limit 1`);
-    const ate = hojeBR(), de = new Date(Date.parse(ate + 'T12:00:00Z') - (rows.length ? 30 : 400) * 864e5).toISOString().slice(0, 10);
+    const ate = hoje(), de = new Date(Date.parse(ate + 'T12:00:00Z') - (rows.length ? 30 : 400) * 864e5).toISOString().slice(0, 10);
     const camps = await consulta(cid, `SELECT campaign.id, campaign.name, campaign.status, campaign.advertising_channel_type, campaign_budget.amount_micros FROM campaign WHERE campaign.status != 'REMOVED'`);
     for (const r of camps) await gravar(q, 'gads', 'campanha', String(r.campaign.id), {
       id: String(r.campaign.id), nome: r.campaign.name, status: r.campaign.status, tipo: r.campaign.advertisingChannelType, orcamentoDia: reais(r.campaignBudget?.amountMicros),

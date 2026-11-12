@@ -1,8 +1,8 @@
 {
-  "name": "portal-spraytec",
+  "name": "portal-spraytec-usa",
   "version": "0.1.0",
   "private": true,
-  "description": "Portal de marketing da Spraytec Brasil, feito pela Cancha Marketing",
+  "description": "Portal de marketing da Spraytec USA, feito pela Cancha Marketing",
   "type": "module",
   "engines": {
     "node": ">=24"
