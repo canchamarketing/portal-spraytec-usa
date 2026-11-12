@@ -16,7 +16,7 @@ for (const a of arqs) {
 }
 // Famílias montadas no código (chave + variável).
 const fam = {
-  nav: ['inicio', 'rotacoes', 'safra', 'produtos', 'resultados', 'feedbacks', 'planejamento', 'roteiros', 'emails', 'site', 'seo', 'pessoas', 'historico', 'conta'],
+  nav: ['inicio', 'conversas', 'performance', 'redes', 'integracoes', 'mensagens', 'rotacoes', 'safra', 'produtos', 'resultados', 'feedbacks', 'planejamento', 'roteiros', 'emails', 'site', 'seo', 'pessoas', 'historico', 'conta'],
   papel: ['cancha', 'aprovador', 'leitor', 'produtora', 'cancha.explica', 'aprovador.explica', 'leitor.explica', 'produtora.explica'],
   st_anuncio: ['rascunho', 'aprovacao', 'ajuste', 'ajustando', 'aprovado', 'continua', 'no_ar', 'encerrado'],
   st_rotacao: ['montando', 'aprovacao', 'aprovada', 'no_ar', 'encerrada'],
@@ -29,6 +29,8 @@ const fam = {
   evento: ['fase', 'feira', 'foco', 'campanha', 'recesso'].flatMap((e) => [e, e + '.plural']),
   cat: ['adjuvante', 'semente', 'fitoestimulante', 'forrageira', 'solo'],
   janela: ['all', 'aerial', 'plantio', 'veg', 'rep', 'preplant'],
+  'perf.aba': ['funil', 'midia', 'site', 'social', 'email'], 'chat.canal': ['spraytec', 'produtora'],
+  funil: ['vistos', 'cliques', 'visitas', 'contatos', 'vendas'].flatMap((k) => [k, k + '.ajuda', k + '.de']),
   'painel.p': ['7', '30', '90', 'mes', 'mes_passado'],
   soc: ['novos', 'alcance', 'interacoes', 'engajamento'].flatMap((k) => [k, k + '.ajuda']),
   'soc.tipo': ['imagem', 'reel', 'carrossel', 'video', 'post'], 'soc.ordem': ['recentes', 'melhores'],
@@ -63,7 +65,7 @@ const fam = {
 };
 for (const [p, L] of Object.entries(fam)) for (const k of L) usadas.add(p + '.' + k);
 for (const k of ['rot.prazo.ajuda', 'anuncio.publico.ajuda', 'anuncio.link.ajuda', 'rv.explica', 'rv.explica_produtora', 'plano.vazio_cancha', 'plano.vazio_cliente',
-  'res.brevo_dica', 'res.ga4_dica', 'res.digitar_brevo', 'res.digitar_ga4', 'inicio.kpi_em_andamento', 'inicio.kpi_tarefas', 'inicio.nada_produtora', 'app.por', 'res.cansando.ajuda', 'gsc.ajuda', 'seo.aba.site', 'res.f_contatos_mais', 'res.f_contatos_menos', 'res.f_cpl_caiu', 'res.f_cpl_subiu']) usadas.add(k);
+  'res.brevo_dica', 'res.ga4_dica', 'res.digitar_brevo', 'res.digitar_ga4', 'inicio.kpi_em_andamento', 'inicio.kpi_tarefas', 'inicio.nada_produtora', 'app.por', 'res.cansando.ajuda', 'gsc.ajuda', 'seo.aba.site', 'res.f_contatos_mais', 'res.f_contatos_menos', 'res.f_cpl_caiu', 'res.f_cpl_subiu', 'redes.compartilhamentos', 'redes.visualizacoes']) usadas.add(k);
 // Chaves montadas com prefixo + variável terminam em ponto no código: não são chaves de verdade.
 for (const k of [...usadas]) if (k.endsWith('.')) usadas.delete(k);
 let falhas = 0;

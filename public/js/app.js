@@ -18,9 +18,10 @@ import * as emails from './telas/emails.js';
 import * as site from './telas/site.js';
 import * as seo from './telas/seo.js';
 import { telaDe } from './telas/item.js';
-import * as resultados from './telas/resultados.js';
+import * as performance from './telas/performance.js';
 import * as redes from './telas/redes.js';
 import * as integracoes from './telas/integracoes.js';
+import * as conversas from './telas/conversas.js';
 
 // Estado que veio do servidor (já filtrado pelo papel de quem está logado).
 export const S = { eu: null, hoje: '', dados: {}, demo: false, mencionaveis: [], drive: {}, catalogo: null, versao: 0, filtro: { preset: '30' } };
@@ -32,8 +33,9 @@ export const souAprovador = () => S.eu?.papel === 'aprovador';
 const TODOS = ['cancha', 'aprovador', 'leitor', 'produtora'], SPRAYTEC = ['cancha', 'aprovador', 'leitor'];
 const SECOES = [
   { id: 'inicio', tela: inicio, papeis: TODOS },
+  { id: 'conversas', tela: conversas, papeis: TODOS, pend: () => conversas.totalNaoLidas(), alerta: true },
   { id: 'rotacoes', tela: rotacoes, papeis: SPRAYTEC, pend: () => pendentesAnuncios() },
-  { id: 'resultados', tela: resultados, papeis: SPRAYTEC },
+  { id: 'performance', tela: performance, papeis: SPRAYTEC },
   { id: 'redes', tela: redes, papeis: SPRAYTEC },
   { id: 'feedbacks', tela: feedbacks, papeis: SPRAYTEC, pend: () => S.dados.feedbacks.filter((f) => (souCancha() && f.status === 'aberto') || (souAprovador() && f.status === 'respondido')).length },
   { id: 'planejamento', tela: planejamento, papeis: SPRAYTEC, pend: () => pendentesItens('planos') },
@@ -48,7 +50,7 @@ const SECOES = [
   { id: 'historico', tela: historico, papeis: ['cancha'], grupo: 'adm' },
 ];
 // Telas que não estão no menu (abertas por link) e a seção do menu que fica marcada.
-const OUTRAS = { rotacao: [rotacoes, 'rotacoes'], anuncio: [anuncio, 'rotacoes'], conta: [conta, ''], roteiro: [telaDe('roteiros'), 'roteiros'], email: [telaDe('emails'), 'emails'], lp: [telaDe('paginas'), 'site'] };
+const OUTRAS = { resultados: [performance, 'performance'], rotacao: [rotacoes, 'rotacoes'], anuncio: [anuncio, 'rotacoes'], conta: [conta, ''], roteiro: [telaDe('roteiros'), 'roteiros'], email: [telaDe('emails'), 'emails'], lp: [telaDe('paginas'), 'site'] };
 // O que espera por quem está olhando (o número ao lado do item do menu).
 function pendentesAnuncios() {
   const A = S.dados.anuncios;
@@ -86,12 +88,15 @@ export function desenhar() {
   desenharMenu(sec?.id ?? OUTRAS[nome]?.[1] ?? nome);
 }
 
+let menuAtivo = '';
+export const atualizarMenu = () => desenharMenu(menuAtivo);
 function desenharMenu(ativo) {
+  menuAtivo = ativo;
   const L = SECOES.filter((s) => s.papeis.includes(S.eu.papel));
   const item = (s) => {
     const n = s.pend ? s.pend() : 0;
     return `<a href="#/${s.id}" class="${s.id === ativo ? 'ativo' : ''}${s.breve ? ' breve' : ''}" ${s.id === ativo ? 'aria-current="page"' : ''}>
-    <span>${esc(t('nav.' + s.id))}</span>${n ? `<span class="conta" aria-label="${esc(t('nav.pendentes', { n }))}">${n}</span>` : ''}</a>`;
+    <span>${esc(t('nav.' + s.id))}</span>${n ? `<span class="conta${s.alerta ? ' alerta' : ''}" aria-label="${esc(t(s.alerta ? 'nav.mensagens' : 'nav.pendentes', { n }))}">${n}</span>` : ''}</a>`;
   };
   const prontas = L.filter((s) => !s.breve && !s.grupo), breves = L.filter((s) => s.breve), adm = L.filter((s) => s.grupo === 'adm');
   $('#nav').innerHTML = prontas.map((s) => (s.sep ? '<span class="nav-sep"></span>' : '') + item(s)).join('')
@@ -130,14 +135,20 @@ export async function acao(nome, dados = {}, { ok } = {}) {
   }
 }
 
-// Atualiza sozinho quando outra pessoa mudou algo (confere a cada 30 s, só com a aba visível).
+// Atualiza sozinho quando outra pessoa mudou algo: a cada 30 s, ou a cada 8 s com o chat aberto (só com a aba visível).
+let ultimaConferencia = 0;
 setInterval(async () => {
-  if (!S.eu || document.hidden || document.querySelector('.janela-fundo') || document.activeElement?.matches('textarea,input')) return;
+  if (!S.eu || document.hidden || document.querySelector('.janela-fundo')) return;
+  const chat = !!document.querySelector('.chat');
+  if (!chat && Date.now() - ultimaConferencia < 30000) return;
+  ultimaConferencia = Date.now();
+  const ativo = document.activeElement;
+  if (ativo?.matches('textarea,input') && !(chat && ativo.matches('textarea[data-chat]') && !ativo.value)) return;
   try {
     const { versao } = await api('/api/versao');
     if (versao !== S.versao) { await recarregar(); desenhar(); }
   } catch {}
-}, 30000);
+}, 8000);
 
 export async function catalogo() {
   if (!S.catalogo) S.catalogo = await (await fetch('/dados/produtos.json')).json();
@@ -202,7 +213,7 @@ async function iniciar() {
   if (abrir) {
     history.replaceState(null, '', '/');
     const [k, id] = [abrir.slice(0, 1), abrir.slice(2)];
-    const destino = { r: 'rotacao', a: 'anuncio', f: 'feedbacks', p: 'planejamento', v: 'roteiro', e: 'email', l: 'lp', d: 'site' }[k];
+    const destino = { r: 'rotacao', a: 'anuncio', f: 'feedbacks', p: 'planejamento', v: 'roteiro', e: 'email', l: 'lp', d: 'site', t: 'conversas' }[k];
     location.hash = destino ? `#/${destino}/${id}` : '#/inicio';
   }
   await catalogo();

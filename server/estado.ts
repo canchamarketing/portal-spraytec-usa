@@ -10,7 +10,8 @@ import type { Consulta } from './db.ts';
 // roteiros: roteiros de vídeo (aprovação do texto, produtora, vídeo final)
 // emails / paginas: e-mails do Brevo e landing pages, com aprovação e checklist
 // pedidos: pedidos de ajuste no site · palavras: SEO (posição no Google) · geo: presença nas respostas de IA
-export const LISTAS = ['rotacoes', 'anuncios', 'eventos', 'feedbacks', 'observacoes', 'planos', 'roteiros', 'emails', 'paginas', 'pedidos', 'palavras', 'geo'] as const;
+// conversas: chat por tema entre a Spraytec e a Cancha (e um canal só entre a Cancha e a produtora)
+export const LISTAS = ['rotacoes', 'anuncios', 'eventos', 'feedbacks', 'observacoes', 'planos', 'roteiros', 'emails', 'paginas', 'pedidos', 'palavras', 'geo', 'conversas'] as const;
 export const CONFIGS = [] as const;
 
 export type Estado = Record<(typeof LISTAS)[number], any[]>;

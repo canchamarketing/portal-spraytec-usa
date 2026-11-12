@@ -116,6 +116,22 @@ rodar('geo-verificar', cancha, { id: g, mes: '2026-11', ferramenta: 'chatgpt', r
 espera(() => rodar('geo-verificar', cancha, { id: g, mes: '2026-11', ferramenta: 'bing', resultado: 'sim' }), 'erro.escolha', 'ferramenta fora da lista é recusada');
 checa(e.geo[0].verificacoes[0].concorrentes === 'Brand A', 'verificação de IA registrada');
 
+console.log('Conversas (chat)');
+const tc = rodar('conversa-criar', renato, { tema: 'Booth at Iowa Ag Expo' }).criado!;
+const T = () => e.conversas.find((x: any) => x.id === tc);
+checa(T().canal === 'spraytec', 'conversa aberta pela Spraytec vai para o canal Spraytec');
+const m1 = rodar('conversa-enviar', renato, { id: tc, texto: 'Booth 1417 confirmed' });
+checa(m1.avisos![0].para.includes('ana') && T().msgs[0].idioma === 'en-US', 'primeira mensagem avisa a Cancha e guarda o idioma de quem escreveu');
+const m2 = rodar('conversa-enviar', cancha, { id: tc, texto: 'Ótimo, obrigado!' });
+checa(!m2.avisos?.length, 'mensagens seguintes só avisam quem for mencionado com @');
+espera(() => rodar('conversa-enviar', leitor, { id: tc, texto: 'oi' }), 'erro.sem_permissao', 'o leitor lê, mas não escreve');
+espera(() => rodar('conversa-enviar', prod, { id: tc, texto: 'oi' }), 'erro.nao_encontrado', 'a produtora não escreve no canal da Spraytec');
+const tp = rodar('conversa-criar', cancha, { tema: 'Shoot schedule', canal: 'produtora' }).criado!;
+checa(visaoPara(e, prod).conversas.length === 1 && visaoPara(e, prod).conversas[0].id === tp, 'a produtora só vê o canal dela');
+checa(!visaoPara(e, renato).conversas.some((x: any) => x.id === tp) && visaoPara(e, leitor).conversas.some((x: any) => x.id === tc), 'a Spraytec não vê o canal da produtora; o leitor vê o da Spraytec');
+rodar('conversa-lida', leitor, { id: tc });
+checa(T().lidoAte.leitor === 2 && ACOES['conversa-lida'].semAuditoria, 'marcar como lida guarda até onde a pessoa leu (sem entrar no registro)');
+
 console.log('Dados de exemplo das novas seções');
 const d = dadosDemo('2026-11-11');
 const vr = visaoPara(d as any, renato), vpr = visaoPara(d as any, prod);

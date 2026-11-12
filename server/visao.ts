@@ -2,7 +2,8 @@
 // esconder só na tela não basta.
 import { clone, type Usuario } from './dominio.ts';
 import { estadoVazio, type Estado } from './estado.ts';
-import { CAMPOS, COLECOES_APROVACAO } from './modulos.ts';
+import { CAMPOS, COLECOES_APROVACAO, CANAIS_CONVERSA } from './modulos.ts';
+const conversasDe = (e: any, papel: string) => (e.conversas || []).filter((x: any) => CANAIS_CONVERSA[x.canal]?.le.includes(papel));
 
 const vivos = (l: any) => (Array.isArray(l) ? l.filter((a: any) => !a.removido) : []);
 const semInternos = (l: any) => (Array.isArray(l) ? l.filter((c: any) => !c.interno) : []);
@@ -27,6 +28,7 @@ export function visaoPara(e0: Estado, u: Usuario) {
     const v: any = estadoVazio();
     v.roteiros = e.roteiros.filter((r: any) => ['producao', 'corte', 'ajuste_corte', 'entregue'].includes(r.status))
       .map((r: any) => comoEnviado(r, CAMPOS.roteiros.map((c) => c.k)));
+    v.conversas = conversasDe(e, 'produtora');
     return v;
   }
 
@@ -47,6 +49,7 @@ export function visaoPara(e0: Estado, u: Usuario) {
     });
   e.rotacoes = e.rotacoes.map((r: any) => ({ ...r, comentarios: semInternos(r.comentarios) }));
   for (const col of COLECOES_APROVACAO) e[col] = e[col].filter((x: any) => x.enviado).map((x: any) => comoEnviado(x, CAMPOS[col].map((c) => c.k)));
+  e.conversas = conversasDe(e, u.papel);
   for (const col of ['feedbacks', 'pedidos']) e[col] = e[col].map((x: any) => ({ ...x, comentarios: semInternos(x.comentarios) }));
   return e;
 }

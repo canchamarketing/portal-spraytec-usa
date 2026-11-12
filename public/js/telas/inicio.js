@@ -4,6 +4,10 @@ import { t, tn, data, periodo, mesAno } from '../i18n.js';
 import { esc, conteudo, eyebrow } from '../ui.js';
 import { S, souCancha, souAprovador } from '../app.js';
 import { rotacoesOrdenadas, anunciosDe, nomeRotacao, statusRotacao, cartaoAnuncio } from './comum.js';
+import { painelChat, depoisChat, cliquesChat, formulariosChat } from './conversas.js';
+export const depois = depoisChat;
+export const cliques = cliquesChat;
+export const formularios = formulariosChat;
 
 const dias = (de, ate) => Math.round((Date.parse(ate) - Date.parse(de)) / 864e5);
 const addDias = (iso, n) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -74,7 +78,7 @@ export function render() {
   if (S.eu.papel === 'produtora') {
     return `<div class="pagina"><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('inicio.ola', { nome }))}</span></h1>${kpis}
       <section class="bloco"><h2>${esc(t('inicio.para_voce'))}</h2>${lista(T, 'inicio.nada_produtora')}<p class="dica">${esc(t('inicio.produtora'))}</p>
-      <p><a class="btn" href="#/roteiros">${esc(t('nav.roteiros'))}</a> <a class="btn" href="#/produtos">${esc(t('nav.produtos'))}</a></p></section></div>`;
+      <p><a class="btn" href="#/roteiros">${esc(t('nav.roteiros'))}</a> <a class="btn" href="#/produtos">${esc(t('nav.produtos'))}</a></p></section>${painelChat({ inicio: true })}</div>`;
   }
   const R = rotacoesOrdenadas();
   const noAr = R.find((r) => r.status === 'no_ar');
@@ -85,6 +89,7 @@ export function render() {
     <p class="explica">${esc(t('inicio.hoje', { data: data(S.hoje) }))}${fase ? ' · ' + esc(t('inicio.fase')) + ' ' : ''}${fase ? `<b>${conteudo(fase, 'nome')}</b>` : ''}</p>
     ${kpis}
     <section class="bloco"><h2>${esc(souAprovador() ? t('inicio.para_voce') : souCancha() ? t('inicio.para_cancha') : t('inicio.resumo'))}</h2>${lista(T, 'inicio.nada')}</section>
+    ${painelChat({ inicio: true })}
     ${E.length ? `<section class="bloco"><h2>${esc(t('inicio.com_outros'))}</h2><ul class="tarefas">${E.map((x) => `<li class="espera"><span>${esc(x.txt)}</span><a class="btn" href="${x.href}">${esc(t('inicio.abrir'))}</a></li>`).join('')}</ul></section>` : ''}
     ${noAr ? `<section class="bloco"><h2>${esc(t('inicio.no_ar'))} <a class="miudo" href="#/rotacao/${esc(noAr.id)}">${esc(nomeRotacao(noAr))}</a> ${statusRotacao(noAr)}</h2>
       <div class="faixa-anuncios">${anunciosDe(noAr.id).map(cartaoAnuncio).join('')}</div></section>` : ''}

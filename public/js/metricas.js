@@ -71,7 +71,9 @@ function montar(r) {
   const igReal = real('ig', r?.ig?.perfil);
   fonte('ig', igReal);
   M.ig = igReal ? {
-    perfil: { nome: r.ig.perfil.username, seguidores: r.ig.perfil.followers_count, publicacoes: r.ig.perfil.media_count, foto: r.ig.perfil.profile_picture_url },
+    perfil: { nome: r.ig.perfil.username, titulo: r.ig.perfil.name, bio: r.ig.perfil.biography || '', seguidores: r.ig.perfil.followers_count, seguindo: r.ig.perfil.follows_count, publicacoes: r.ig.perfil.media_count, foto: r.ig.perfil.profile_picture_url },
+    // Stories: só os das últimas 24 h (os links das imagens vencem; guardar cópia depende do Drive).
+    stories: (r.ig.stories || []).filter((x) => Date.now() - Date.parse(x.timestamp) < 864e5).map((x) => ({ id: x.id, ts: x.timestamp, img: x.thumbnail_url || x.media_url || '', link: x.permalink, alcance: x.metricas?.reach ?? null, views: x.metricas?.views ?? null })),
     seguidores: r.ig.dias.map((x) => ({ d: x.d, v: x.seguidores })).sort((a, b) => a.d.localeCompare(b.d)),
     posts: r.ig.posts.map((m) => ({ id: m.id, d: (m.timestamp || '').slice(0, 10), ts: m.timestamp, tipo: m.media_product_type === 'REELS' ? 'reel' : m.media_type === 'CAROUSEL_ALBUM' ? 'carrossel' : m.media_type === 'VIDEO' ? 'video' : 'imagem',
       texto: m.caption || '', img: m.thumbnail_url || m.media_url || '', link: m.permalink, alcance: m.metricas?.reach ?? null, views: m.metricas?.views ?? null,
@@ -82,7 +84,7 @@ function montar(r) {
   const fbReal = real('fb', r?.fb?.perfil);
   fonte('fb', fbReal);
   M.fb = fbReal ? {
-    perfil: { nome: r.fb.perfil.name, seguidores: r.fb.perfil.followers_count ?? r.fb.perfil.fan_count, foto: r.fb.perfil.picture?.data?.url },
+    perfil: { nome: r.fb.perfil.name, seguidores: r.fb.perfil.followers_count ?? r.fb.perfil.fan_count, foto: r.fb.perfil.picture?.data?.url, capa: r.fb.perfil.cover?.source || '', link: r.fb.perfil.link },
     seguidores: r.fb.dias.map((x) => ({ d: x.d, v: x.seguidores })).sort((a, b) => a.d.localeCompare(b.d)),
     posts: r.fb.posts.map((p) => ({ id: p.id, d: (p.created_time || '').slice(0, 10), ts: p.created_time, tipo: 'post', texto: p.message || '', img: p.full_picture || '', link: p.permalink_url,
       alcance: p.metricas?.post_impressions_unique ?? null, cliques: p.metricas?.post_clicks ?? null, curtidas: p.reacoes || 0, comentarios: p.comentarios || 0, compart: p.compartilhamentos || 0,
@@ -198,9 +200,10 @@ function exemplo(hoje) {
     return L;
   };
   const seguidores = (ini, ganho) => dias.map((d, i) => ({ d, v: Math.round(ini + ganho * i + Math.sin(i / 9) * 6) }));
-  const ig = { perfil: { nome: 'spraytecusa', seguidores: 0, publicacoes: 412 }, seguidores: seguidores(4310, 2.9), posts: posts('ig', 2100) };
+  const ig = { perfil: { nome: 'spraytecusa', titulo: 'Spraytec USA', bio: 'Fulltec line · Nutrition, plant health and application technology 🌱\nUrbandale, Iowa · (515) 252-7777\nspraytecusa.com', seguidores: 0, seguindo: 318, publicacoes: 412 }, seguidores: seguidores(4310, 2.9), posts: posts('ig', 2100),
+    stories: [['Harvest', 7], ['Early order', 1], ['Field day', 3], ['Tractus', 6]].map(([nome, n], i) => ({ id: 'st-ex' + i, nome, ts: addDias(hoje, 0) + 'T1' + i + ':00:00Z', img: imgs[n - 1], alcance: 380 + i * 57, views: 520 + i * 61 })) };
   ig.perfil.seguidores = ig.seguidores.at(-1).v;
-  const fb = { perfil: { nome: 'Spraytec', seguidores: 0 }, seguidores: seguidores(12050, 1.6), posts: posts('fb', 1600) };
+  const fb = { perfil: { nome: 'Spraytec', bio: 'Spraytec Fertilizers · Fulltec line. Urbandale, Iowa.', seguidores: 0, capa: imgs[0] }, seguidores: seguidores(12050, 1.6), posts: posts('fb', 1600) };
   fb.perfil.seguidores = fb.seguidores.at(-1).v;
   // Site (GA4) e Search Console.
   const ga4 = { dias: [], canais: [], paginas: [], eventos: [] };

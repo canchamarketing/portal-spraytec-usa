@@ -14,7 +14,8 @@ const FONTES = [
   { k: 'gads', nome: 'Google Ads', como: 'google', conectar: '/api/gads/conectar', estado: () => S.gads },
   { k: 'ga4', nome: 'Google Analytics 4', como: 'google', conectar: '/api/ga4/conectar', estado: () => S.ga4 },
   { k: 'gsc', nome: 'Google Search Console', como: 'futuro' },
-  { k: 'drive', nome: 'Google Drive', como: 'google', conectar: '/api/drive/conectar', estado: () => S.drive },
+  // Drive desligado por enquanto (decisão do Diogo, 12/11): sem botão de conectar.
+  { k: 'drive', nome: 'Google Drive', como: 'futuro' },
   { k: 'brevo', nome: 'Brevo', como: 'futuro' },
   { k: 'traducao', como: 'futuro' },
 ];
@@ -26,8 +27,7 @@ export function render() {
   const linha = (f) => {
     const st = M.fontes[f.k], g = f.estado?.();
     let situ, cls;
-    if (f.k === 'drive') { situ = g?.conectado ? t('int.st.conectado') : g?.configurado ? t('int.st.falta_conectar') : t('int.st.falta_chave'); cls = g?.conectado ? 'ok' : 'pendente'; }
-    else if (st?.real) {
+    if (st?.real) {
       const velho = st.ultimoOk && Date.now() - Date.parse(st.ultimoOk) > DIA;
       situ = velho ? t('int.st.parado', { quando: dataHora(st.ultimoOk) }) : t('int.st.ok', { quando: dataHora(st.ultimoOk) }); cls = velho ? 'ruim' : 'ok';
     } else if (st?.erro) { situ = t('int.st.erro'); cls = 'ruim'; }

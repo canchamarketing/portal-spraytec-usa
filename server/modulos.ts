@@ -11,7 +11,7 @@
 import { ErroAcao, isoValida, linkUrl, novoId, texto, umDe, type Papel } from './dominio.ts';
 import { hist, pessoasDe, trecho, mencoes, lista, PRODUTOS, nomeRotacao, type Ctx, type Aviso, type Resultado } from './util.ts';
 
-type Def = { papeis: Papel[]; fn: (c: Ctx) => Resultado };
+type Def = { papeis: Papel[]; fn: (c: Ctx) => Resultado; semAuditoria?: boolean };
 const C: Papel[] = ['cancha'];
 const A: Papel[] = ['aprovador'];
 const CA: Papel[] = ['cancha', 'aprovador'];
@@ -58,6 +58,11 @@ export const CAMPOS: Record<string, Campo[]> = {
 export const COLECOES_APROVACAO = Object.keys(CAMPOS);
 // Prefixo usado nos links e nos comentários (ex.: "e:<id>" é um e-mail).
 export const PREFIXO: Record<string, string> = { rotacoes: 'r', anuncios: 'a', feedbacks: 'f', planos: 'p', roteiros: 'v', emails: 'e', paginas: 'l', pedidos: 'd' };
+// Canais de conversa: quem participa de cada um (o leitor da Spraytec lê, mas não escreve).
+export const CANAIS_CONVERSA: Record<string, { escreve: string[]; le: string[] }> = {
+  spraytec: { escreve: ['cancha', 'aprovador'], le: ['cancha', 'aprovador', 'leitor'] },
+  produtora: { escreve: ['cancha', 'produtora'], le: ['cancha', 'produtora'] },
+};
 const COLECAO_DO_PREFIXO = Object.fromEntries(Object.entries(PREFIXO).map(([k, v]) => [v, k]));
 // Depois de aprovado, o item ainda pode mudar (volta para rascunho) até estas etapas:
 const TRAVADO: Record<string, string[]> = { planos: [], roteiros: ['producao', 'corte', 'ajuste_corte', 'entregue'], emails: ['enviado'], paginas: ['publicado'] };
@@ -483,6 +488,48 @@ export const ACOES_MODULOS: Record<string, Def> = {
       if (!g) throw new ErroAcao('erro.nao_encontrado');
       c.e.geo = c.e.geo.filter((x) => x.id !== g.id);
       return { resumo: `Parou de acompanhar a pergunta "${g.pergunta}"` };
+    },
+  },
+
+  // ===== conversas (chat por tema, como no Portal Brasil) =====
+  'conversa-criar': {
+    papeis: ['cancha', 'aprovador', 'produtora'],
+    fn: (c) => {
+      const canal = c.u.papel === 'produtora' ? 'produtora' : c.u.papel === 'aprovador' ? 'spraytec' : umDe(c.d.canal, Object.keys(CANAIS_CONVERSA), 'campo.canal');
+      const tema = texto(c.d.tema, 'campo.tema', 120);
+      const x: any = { id: novoId('t-'), canal, tema, criadaPor: c.u.nome, em: c.agora, msgs: [], lidoAte: { [c.u.id]: 0 }, hist: [] };
+      if (c.d.ref) { const { col, x: alvo } = alvoDoRef(c, String(c.d.ref)); if (podeVer(c.u, col, alvo)) x.ref = String(c.d.ref); }
+      c.e.conversas.push(x);
+      return { resumo: `Abriu a conversa "${tema}"`, criado: x.id };
+    },
+  },
+  'conversa-enviar': {
+    papeis: ['cancha', 'aprovador', 'produtora'],
+    fn: (c) => {
+      const x = c.e.conversas.find((y: any) => y.id === c.d.id);
+      if (!x || !CANAIS_CONVERSA[x.canal].escreve.includes(c.u.papel)) throw new ErroAcao('erro.nao_encontrado');
+      const t = texto(c.d.texto, 'campo.mensagem', 4000);
+      const m = { id: novoId('m-'), por: c.u.nome, porId: c.u.id, papel: c.u.papel, em: c.agora, texto: t, idioma: c.u.idioma };
+      x.msgs.push(m);
+      x.lidoAte = { ...(x.lidoAte || {}), [c.u.id]: x.msgs.length };
+      // Avisos por e-mail: quem foi mencionado com @ e, na primeira mensagem do tema, o outro lado da conversa.
+      const lado = CANAIS_CONVERSA[x.canal].escreve.filter((p) => p !== c.u.papel);
+      const para = mencoes(c.pessoas, c.u.id, t, CANAIS_CONVERSA[x.canal].le);
+      if (x.msgs.length === 1) for (const id of pessoasDe(c, lado)) if (!para.includes(id)) para.push(id);
+      const avisos: Aviso[] = para.length ? [{ para, assunto: ['aviso.conversa.assunto', { quem: c.u.nome, tema: x.tema }],
+        paragrafos: [['aviso.citacao', { texto: trecho(t) }]], abrir: 't:' + x.id }] : [];
+      return { resumo: `Mandou mensagem em "${x.tema}"`, avisos };
+    },
+  },
+  // Marca como lida (não entra no registro de atividades).
+  'conversa-lida': {
+    papeis: ['cancha', 'aprovador', 'leitor', 'produtora'],
+    semAuditoria: true,
+    fn: (c) => {
+      const x = c.e.conversas.find((y: any) => y.id === c.d.id);
+      if (!x || !CANAIS_CONVERSA[x.canal].le.includes(c.u.papel)) throw new ErroAcao('erro.nao_encontrado');
+      x.lidoAte = { ...(x.lidoAte || {}), [c.u.id]: x.msgs.length };
+      return { resumo: 'Leu a conversa' };
     },
   },
 };

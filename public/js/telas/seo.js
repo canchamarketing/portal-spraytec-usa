@@ -4,13 +4,13 @@ import { t, mesCurto, num } from '../i18n.js';
 import { esc, eyebrow, janela, confirmar, exemplo } from '../ui.js';
 import { S, acao, souCancha, desenhar } from '../app.js';
 import { nomeProduto } from './comum.js';
-import { trafego } from './trafego.js';
+import { buscas } from './trafego.js';
 import { metricas, metricasProntas } from '../metricas.js';
 
 const FERRAMENTAS = ['chatgpt', 'gemini', 'google_ia', 'perplexity'];
 const RES = ['sim', 'citada', 'nao'];
 const SIMBOLO = { sim: '✓', citada: '~', nao: '✗' };
-let aba = 'site';
+let aba = 'site'; // site = buscas no Google (Search Console)
 const mesMais = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const nomeM = (ym) => `${mesCurto(+ym.slice(0, 4), +ym.slice(5, 7))} ${ym.slice(2, 4)}`;
 
@@ -24,7 +24,7 @@ export function render() {
   return `<div class="pagina">
     <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.seo'))}</span></h1><p class="explica">${esc(t('seo.explica'))}</p></div></header>
     ${abas}${aba !== 'site' && temEx ? `<p class="aviso-exemplo">${exemplo()} ${esc(t('seo.exemplo'))}</p>` : ''}
-    ${aba === 'site' ? (M ? trafego(M) : `<p class="carregando">${esc(t('geral.carregando'))}</p>`) : aba === 'seo' ? palavras(meses) : geo(mesMais(atual, -1))}</div>`;
+    ${aba === 'site' ? (M ? buscas(M) : `<p class="carregando">${esc(t('geral.carregando'))}</p>`) : aba === 'seo' ? palavras(meses) : geo(mesMais(atual, -1))}</div>`;
 }
 
 function palavras(meses) {

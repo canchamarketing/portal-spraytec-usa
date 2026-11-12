@@ -116,6 +116,29 @@ export function modulosExemplo(e: Estado, ancora: string, anuncios: any[]) {
       prazo: '', status: 'feito', feitoEm: d(-6), ...RENATO, em: ts(d(-14)), idioma: 'en-US', comentarios: [], hist: [H('hist.pedido_criado', RENATO, ts(d(-14))), H('hist.pedido_status', CANCHA, ts(d(-6)), { status: 'pedido.st.feito' })] },
   );
 
+  // ---------- conversas (chat por tema) ----------
+  const M = (q: any, dia: string, h: number, texto: string, idioma: string, tr?: string) => ({ id: 'm-' + Math.random().toString(36).slice(2, 8), por: q.por, porId: q.porId, papel: q.papel, em: ts(dia, h), texto, idioma,
+    ...(tr ? { traducoes: { [idioma === 'en-US' ? 'pt-BR' : 'en-US']: tr } } : {}) });
+  e.conversas.push(
+    { id: 't-demo1', canal: 'spraytec', tema: 'Early order 2027 campaign', criadaPor: RENATO.por, em: ts(d(-3), 14), ref: 'p:p-' + prox, hist: [],
+      msgs: [
+        M(RENATO, d(-3), 14, 'Our early-order price list for seed treatment will be ready next week. Can the ads start right after?', 'en-US', 'A tabela de preços de compra antecipada do tratamento de sementes fica pronta semana que vem. Os anúncios podem começar logo depois?'),
+        M(CANCHA, d(-3), 16, 'Sim! Já deixamos o anúncio pronto como rascunho. Assim que a tabela chegar, mandamos para você aprovar.', 'pt-BR', 'Yes! We already have the ad ready as a draft. As soon as the price list arrives, we will send it for your approval.'),
+        M(RENATO, d(-1), 15, 'Great. Please also prepare an email for our customer list, same offer.', 'en-US', 'Ótimo. Preparem também um e-mail para a nossa lista de clientes, com a mesma oferta.'),
+        M(CANCHA, d(-1), 17, 'Feito: o e-mail "Year-end prepay offer" já está em E-mails esperando sua aprovação.', 'pt-BR', 'Done: the "Year-end prepay offer" email is in Emails waiting for your approval.'),
+      ], lidoAte: { 'u-cancha': 4, 'u-renato': 3 } },
+    { id: 't-demo2', canal: 'spraytec', tema: 'Iowa Ag Expo booth', criadaPor: CANCHA.por, em: ts(d(-6), 13), hist: [],
+      msgs: [
+        M(CANCHA, d(-6), 13, 'Renato, vocês já confirmaram o estande na Iowa Ag Expo (2 a 4 de fevereiro)? Se sim, planejamos convites por e-mail e anúncios na região de Des Moines.', 'pt-BR', 'Renato, have you confirmed the booth at Iowa Ag Expo (Feb 2–4)? If so, we will plan email invites and ads around Des Moines.'),
+        M(RENATO, d(-5), 10, 'Confirmed, booth 1417. Let us start the invites in January.', 'en-US', 'Confirmado, estande 1417. Vamos começar os convites em janeiro.'),
+      ], lidoAte: { 'u-cancha': 2, 'u-renato': 2 } },
+    { id: 't-demo3', canal: 'produtora', tema: 'Nodofix testimonial shoot', criadaPor: CANCHA.por, em: ts(d(-5), 12), ref: 'v:v-demo2', hist: [],
+      msgs: [
+        M(CANCHA, d(-5), 12, 'Hi! The Nodofix script is approved. The grower is available on Thursday morning. Can you make it?', 'en-US'),
+        M(PROD, d(-4), 9, 'Yes, Thursday 8am works. We will bring the drone too.', 'en-US', 'Sim, quinta às 8h dá certo. Vamos levar o drone também.'),
+      ], lidoAte: { 'u-cancha': 1, 'u-produtora': 2 } },
+  );
+
   // ---------- SEO: palavras e posições (3 meses) ----------
   const m = (n: number) => mesDe(ancora, n);
   const pal = (id: string, termo: string, produtos: string[], pos: (number | null)[], cli: number[]) => ({ id, termo, produtos, nota: '',

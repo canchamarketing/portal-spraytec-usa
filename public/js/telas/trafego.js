@@ -10,7 +10,8 @@ import { filtroPeriodo, variacao, origemFonte } from './painel.js';
 const CANAL = { 'Organic Search': 'organico', 'Paid Search': 'busca_paga', 'Paid Social': 'social_pago', 'Organic Social': 'social', Direct: 'direto', Email: 'email', Referral: 'referencia', Display: 'display', 'Cross-network': 'pmax', Unassigned: 'outro' };
 const nomeCanal = (c) => (CANAL[c] ? t('ga.canal.' + CANAL[c]) : c);
 
-export function trafego(M) {
+// Aba "Site" da Performance (GA4).
+export function site(M) {
   const G = M.ga4, P = periodo(S.filtro.preset), A = anterior(P);
   const dentro = (p) => (x) => x.d >= p.de && x.d <= p.ate;
   const soma = (L, k) => L.reduce((a, x) => a + (x[k] || 0), 0);
@@ -26,10 +27,7 @@ export function trafego(M) {
   const canais = agrupa(G.canais, 'canal', 'sessoes').map((x) => ({ ...x, nome: nomeCanal(x.nome) })).slice(0, 7);
   const contCanal = agrupa(G.canais, 'canal', 'eventosChave').map((x) => ({ ...x, nome: nomeCanal(x.nome) })).filter((x) => x.v > 0).slice(0, 7);
   const paginas = agrupa(G.paginas, 'pagina', 'visualizacoes').slice(0, 8);
-  // Search Console (exemplo por enquanto).
-  const Q = M.gsc, gd = Q.dias.filter(dentro(P)), gdb = Q.dias.filter(dentro(A));
-  const cli = soma(gd, 'cliques'), cliB = soma(gdb, 'cliques'), imp = soma(gd, 'impressoes'), impB = soma(gdb, 'impressoes');
-  return `<div class="filtros-linha">${filtroPeriodo()}<span class="sep-v"></span><div class="fontes">${origemFonte(M, 'ga4', 'Google Analytics')}${origemFonte(M, 'gsc', 'Search Console')}</div></div>
+  return `<div class="filtros-linha"><div class="fontes">${origemFonte(M, 'ga4', 'Google Analytics')}</div></div>
     <div class="kpis kpis-5">${kpi('sessoes', ses, sesB, num, s('sessoes'))}${kpi('usuarios', usu, usuB, num, s('usuarios'))}${kpi('contatos', cont, contB, num, s('eventosChave'))}
       ${kpi('conversao', conv, convB, pct)}${kpi('engajamento', eng, engB, pct)}</div>
     <section class="bloco"><h2>${esc(t('ga.g_sessoes'))}</h2>${linhas({ series: [{ nome: t('ga.sessoes'), cor: COR.um, pontos: s('sessoes') }], fmt: (v) => num(v), titulo: t('ga.g_sessoes') })}</section>
@@ -37,7 +35,18 @@ export function trafego(M) {
       <section class="bloco"><h2>${esc(t('ga.de_onde'))} ${ajuda('ga.de_onde.ajuda')}</h2>${ranking(canais, num)}
         ${contCanal.length ? `<h3>${esc(t('ga.contatos_canal'))}</h3>${ranking(contCanal, num, '#1baf7a')}` : ''}</section>
       <section class="bloco"><h2>${esc(t('ga.paginas'))}</h2>${ranking(paginas, num)}</section>
-    </div>
+    </div>`;
+}
+
+// Buscas no Google (Search Console, exemplo por enquanto): aba da tela de SEO e GEO.
+export function buscas(M) {
+  const P = periodo(S.filtro.preset), A = anterior(P);
+  const dentro = (p) => (x) => x.d >= p.de && x.d <= p.ate;
+  const soma = (L, k) => L.reduce((a, x) => a + (x[k] || 0), 0);
+  const kpi = (k, v, vb, fmt) => `<div class="kpi kpi-g"><span class="l">${esc(t('ga.' + k))} ${ajuda('ga.' + k + '.ajuda')}</span><span class="v">${esc(fmt(v))}</span>${variacao(v, vb)}</div>`;
+  const Q = M.gsc, gd = Q.dias.filter(dentro(P)), gdb = Q.dias.filter(dentro(A));
+  const cli = soma(gd, 'cliques'), cliB = soma(gdb, 'cliques'), imp = soma(gd, 'impressoes'), impB = soma(gdb, 'impressoes');
+  return `<div class="filtros-linha">${filtroPeriodo()}<span class="sep-v"></span><div class="fontes">${origemFonte(M, 'gsc', 'Search Console')}</div></div>
     <section class="bloco"><h2>${esc(t('gsc.titulo'))} ${ajuda('gsc.ajuda')}</h2>
       <div class="kpis kpis-4">${kpi('cliques_google', cli, cliB, num)}${kpi('impressoes_google', imp, impB, num)}
         ${kpi('ctr_google', imp ? cli / imp : null, impB ? cliB / impB : null, pct)}

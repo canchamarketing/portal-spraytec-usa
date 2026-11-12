@@ -10,9 +10,8 @@ import { filtroPeriodo, variacao, origemFonte } from './painel.js';
 let canal = 'tudo';
 const CANAIS = ['tudo', 'meta', 'google'];
 
-export function render() {
-  const M = metricasProntas();
-  if (!M) { metricas().then(desenhar); return `<div class="pagina"><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.resultados'))}</span></h1><p class="carregando">${esc(t('geral.carregando'))}</p></div>`; }
+// Aba "Mídia paga" da Performance.
+export function midia(M) {
   const P = periodo(S.filtro.preset), A = anterior(P);
   const doCanal = (x) => canal === 'tudo' || x.canal === canal;
   const D = M.midia.dias;
@@ -44,10 +43,7 @@ export function render() {
     <div class="parte"><span style="width:${agora.investido && canal === 'tudo' ? (x.investido / somar(filtrar(D, P)).investido) * 100 : 0}%;background:${COR[x.c]}"></span></div>
     <small>${esc(t('res.parte_verba', { p: pct(somar(filtrar(D, P)).investido ? x.investido / somar(filtrar(D, P)).investido : null) }))}</small></div>`).join('')}</div>`;
 
-  return `<div class="pagina painel">
-    <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.resultados'))}</span></h1><p class="explica">${esc(t('res.explica'))}</p></div>
-      <div class="fontes">${origemFonte(M, 'ads', 'Meta Ads')}${origemFonte(M, 'gads', 'Google Ads')}</div></header>
-    <div class="filtros-linha">${filtroPeriodo()}<span class="sep-v"></span>${CANAIS.map((c) => `<button type="button" class="chip ${canal === c ? 'ativo' : ''}" data-act="canal" data-c="${c}">${c === 'tudo' ? esc(t('res.todos_canais')) : esc(t('canal.' + c))}</button>`).join('')}</div>
+  return `<div class="filtros-linha"><div class="fontes">${origemFonte(M, 'ads', 'Meta Ads')}${origemFonte(M, 'gads', 'Google Ads')}</div><span class="sep-v"></span>${CANAIS.map((c) => `<button type="button" class="chip ${canal === c ? 'ativo' : ''}" data-act="canal" data-c="${c}">${c === 'tudo' ? esc(t('res.todos_canais')) : esc(t('canal.' + c))}</button>`).join('')}</div>
     ${resumo(agora, antes, porCanal)}
     ${kpis}
     ${ritmo(M)}
@@ -58,7 +54,7 @@ export function render() {
     ${canal === 'tudo' ? `<section class="bloco"><h2>${esc(t('res.divisao'))}</h2>${divisao}</section>` : ''}
     ${campanhas(M, P, A, doCanal)}
     ${anuncios(M, P, doCanal)}
-  </div>`;
+  `;
 }
 
 // Resumo em palavras simples (gerado a partir dos números, sem IA).
@@ -133,8 +129,4 @@ function anuncios(M, P, doCanal) {
       <p class="dica">${esc(t('res.cansando_dica'))} <a href="#/rotacoes">${esc(t('nav.rotacoes'))}</a></p>` : `<p class="tudo-certo">✓ ${esc(t('res.nenhum_cansando'))}</p>`}</section></div>`;
 }
 
-export const cliques = {
-  canal: (el) => { canal = el.dataset.c; desenhar(); },
-  periodo: (el) => { S.filtro.preset = el.dataset.p; desenhar(); },
-};
-export { dataHora };
+export const cliquesMidia = { canal: (el) => { canal = el.dataset.c; desenhar(); } };
