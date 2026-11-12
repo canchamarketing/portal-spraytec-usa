@@ -5,13 +5,18 @@ import type { Consulta } from './db.ts';
 // rotacoes: ciclos de anúncios (normalmente 15 dias)
 // anuncios: cada anúncio de uma rotação (o que continua da rotação anterior vira uma cópia ligada à original)
 // eventos:  calendário do ano safra (fases da lavoura, feiras, produtos em foco, campanhas, recessos)
-export const LISTAS = ['rotacoes', 'anuncios', 'eventos'] as const;
+// feedbacks: opiniões da Spraytec (ou da Cancha) sobre anúncios, campanhas e contatos
+// observacoes / planos: o que anotar para o mês seguinte e o plano aprovado que sai disso
+// roteiros: roteiros de vídeo (aprovação do texto, produtora, vídeo final)
+// emails / paginas: e-mails do Brevo e landing pages, com aprovação e checklist
+// pedidos: pedidos de ajuste no site · palavras: SEO (posição no Google) · geo: presença nas respostas de IA
+export const LISTAS = ['rotacoes', 'anuncios', 'eventos', 'feedbacks', 'observacoes', 'planos', 'roteiros', 'emails', 'paginas', 'pedidos', 'palavras', 'geo'] as const;
 export const CONFIGS = [] as const;
 
-export type Estado = { rotacoes: any[]; anuncios: any[]; eventos: any[] };
+export type Estado = Record<(typeof LISTAS)[number], any[]>;
 
 export function estadoVazio(): Estado {
-  return { rotacoes: [], anuncios: [], eventos: [] };
+  return Object.fromEntries(LISTAS.map((l) => [l, []])) as unknown as Estado;
 }
 
 export async function carregar(q: Consulta): Promise<Estado> {

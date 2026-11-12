@@ -1,5 +1,9 @@
 // Peças de tela usadas em vários lugares.
-import { t, traduzido, dataHora } from './i18n.js';
+import { t, traduzido, dataHora, diaSemana, diaMes } from './i18n.js';
+import { S } from './app.js';
+
+// Linha pequena acima do título, como no portal do Brasil: SPRAYTEC USA · QUA, 11/11
+export const eyebrow = () => esc(`Spraytec USA · ${S.hoje ? diaSemana(S.hoje).replace('.', '') + ', ' + diaMes(S.hoje) : ''}`);
 
 export const $ = (s, el = document) => el.querySelector(s);
 export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -31,12 +35,12 @@ export function conteudo(item, campo) {
 }
 
 // Janela por cima da tela (formulários). Devolve o elemento; fecha com Esc, no X ou clicando fora.
-export function janela(titulo, corpo, { larga = false } = {}) {
+export function janela(titulo, corpo, { larga = false, sobre = '' } = {}) {
   fecharJanela();
   const el = document.createElement('div');
   el.className = 'janela-fundo';
   el.innerHTML = `<div class="janela${larga ? ' larga' : ''}" role="dialog" aria-modal="true" aria-labelledby="janela-titulo">
-    <header><h2 id="janela-titulo">${esc(titulo)}</h2><button type="button" class="x" data-fechar aria-label="${esc(t('geral.fechar'))}">×</button></header>
+    <header><div>${sobre ? `<p class="eyebrow">${esc(sobre)}</p>` : ''}<h2 id="janela-titulo">${esc(titulo)}</h2></div><button type="button" class="x" data-fechar>${esc(t('geral.fechar'))}</button></header>
     <div class="janela-corpo">${corpo}</div></div>`;
   el.addEventListener('click', (ev) => { if (ev.target === el || ev.target.closest('[data-fechar]')) fecharJanela(); });
   document.body.appendChild(el);

@@ -3,6 +3,7 @@
 // As imagens são anúncios reais da Spraytec USA feitos pela Cancha (public/dados/exemplo).
 import { addBiz, addDays, type Papel } from './dominio.ts';
 import { estadoVazio, type Estado } from './estado.ts';
+import { modulosExemplo } from './seed-modulos.ts';
 
 export const USUARIOS_DEMO: { id: string; nome: string; papel: Papel; idioma: string; ordem: number }[] = [
   { id: 'u-cancha', nome: 'Cancha (demo)', papel: 'cancha', idioma: 'pt-BR', ordem: 1 },
@@ -163,6 +164,7 @@ export function dadosDemo(ancora: string): Estado {
   for (const a of e.anuncios) delete a._rot;
   for (const r of e.rotacoes) delete r.criada;
   e.eventos = eventosExemplo(ancora);
+  modulosExemplo(e, ancora, e.anuncios);
   return e;
 }
 

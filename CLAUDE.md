@@ -70,10 +70,12 @@ O servidor foi mantido (login, convites, auditoria, banco, Drive, integrações)
 5. **Antes do primeiro convite:** backup fora da Hostinger com restauração testada, monitor externo,
    publicação em `/opt/spraytecusa`.
 
-**Situação em 11/11/2026:** etapa 1 pronta e testada localmente (não publicada, nada commitado ainda).
-Pendências conhecidas da etapa 1: rotas de conectar integrações (`/api/*/conectar`) ainda com mensagens
-só em português (só a Cancha usa); `public/privacidade.html` ainda é a do Brasil (reescrever antes de
-conectar Google/Meta); datas dentro dos e-mails de aviso saem em AAAA-MM-DD.
+**Situação em 12/11/2026:** etapas 1, 2 e 3 prontas, testadas e publicadas em modo demonstração. Visual
+igual ao do Portal Brasil (pedido do Diogo). Falta a etapa 4 (integrações e tradução automática; "Resultados
+da mídia" ainda é "em breve") e a 5 (backup, monitor, e-mail, fim do modo demonstração).
+Pendências conhecidas: rotas de conectar integrações (`/api/*/conectar`) ainda com mensagens só em português
+(só a Cancha usa); `public/privacidade.html` ainda é a do Brasil (reescrever antes de conectar Google/Meta);
+datas dentro dos e-mails de aviso saem em AAAA-MM-DD.
 - **Sede e fuso:** Urbandale, Iowa → fuso **America/Chicago** (Central, com horário de verão).
   O servidor está em UTC: prazos, lembretes e "hoje" seguem o fuso da Spraytec USA.
 - **Site:** https://spraytecusa.com (WordPress). Produtos, programas e textos estão no site e na

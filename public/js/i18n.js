@@ -33,6 +33,8 @@ export function t(chave, params) {
     return /^[a-z_]+\.[\w.]+$/.test(x) && dic[x] != null ? dic[x] : x;
   });
 }
+// A chave existe? (para textos opcionais, sem aviso de tradução faltando)
+export const tem = (chave) => dic[chave] != null;
 // Plural simples: chave.um / chave.varios
 export const tn = (chave, n, params = {}) => t(chave + (n === 1 ? '.um' : '.varios'), { n: num(n), ...params });
 
@@ -42,6 +44,8 @@ const dt = (iso) => new Date(iso + 'T12:00:00Z');
 export const data = (iso) => (iso ? new Intl.DateTimeFormat(lang, { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(dt(iso)) : '—');
 // Nov 18 / 18 de nov.
 export const dataCurta = (iso) => (iso ? new Intl.DateTimeFormat(lang, { timeZone: 'UTC', day: 'numeric', month: 'short' }).format(dt(iso)) : '—');
+// 11/18 (en-US) ou 18/11 (pt-BR)
+export const diaMes = (iso) => (iso ? new Intl.DateTimeFormat(lang, { timeZone: 'UTC', day: '2-digit', month: '2-digit' }).format(dt(iso)) : '—');
 export const diaSemana = (iso) => new Intl.DateTimeFormat(lang, { timeZone: 'UTC', weekday: 'short' }).format(dt(iso));
 export const mesAno = (y, m) => new Intl.DateTimeFormat(lang, { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(Date.UTC(y, m - 1, 15)));
 export const mesCurto = (y, m) => new Intl.DateTimeFormat(lang, { timeZone: 'UTC', month: 'short' }).format(new Date(Date.UTC(y, m - 1, 15)));

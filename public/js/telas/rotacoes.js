@@ -1,6 +1,6 @@
 // Rotação de anúncios: lista das rotações e a tela de cada uma (continuam, saem, entram).
 import { t, tn, data } from '../i18n.js';
-import { esc, janela, confirmar, comentarios, historico, conteudo, exemplo, ajuda, toast } from '../ui.js';
+import { esc, janela, confirmar, comentarios, historico, conteudo, exemplo, ajuda, toast, eyebrow } from '../ui.js';
 import { S, acao, ir, souCancha, souAprovador } from '../app.js';
 import {
   rotacao, anunciosDe, nomeRotacao, rotacoesOrdenadas, cartaoAnuncio, passos, statusRotacao, motivoSaida, SEMAFOROS, BOLA, semaforo,
@@ -27,7 +27,7 @@ function lista() {
       <span class="miudo">${esc(tn('rot.n_anuncios', L.length))}${pend ? ' · ' + esc(tn('rot.n_esperando', pend)) : ''}</span></a>`;
   };
   return `<div class="pagina">
-    <header class="cab"><div><h1>${esc(t('nav.rotacoes'))}</h1><p class="explica">${esc(t('rot.explica'))}</p></div>
+    <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.rotacoes'))}</span></h1><p class="explica">${esc(t('rot.explica'))}</p></div>
     ${souCancha() ? `<button class="btn forte" data-act="nova">${esc(t('rot.nova'))}</button>` : ''}</header>
     ${S.demo ? `<p class="aviso-exemplo">${exemplo()} ${esc(t('rot.demo_aviso'))}</p>` : ''}
     <section><h2>${esc(t('rot.atuais'))}</h2>${ativas.length ? `<div class="grade-rot">${ativas.map(cartao).join('')}</div>` : `<p class="vazio">${esc(t('rot.nenhuma'))}</p>`}</section>
@@ -71,7 +71,7 @@ function tela(id) {
 
   return `<div class="pagina">
     <nav class="trilha"><a href="#/rotacoes">← ${esc(t('nav.rotacoes'))}</a></nav>
-    <header class="cab"><div><h1>${esc(t('rot.titulo', { periodo: nomeRotacao(r) }))} ${statusRotacao(r)}</h1>
+    <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('rot.titulo', { periodo: nomeRotacao(r) }))}</span> ${statusRotacao(r)}</h1>
       <p class="explica">${esc(t('rot.explica_curta'))}</p></div></header>
     ${passos(r)}
     <div class="frase-etapa" role="status">${esc(frase)}</div>

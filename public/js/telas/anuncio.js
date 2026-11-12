@@ -1,6 +1,6 @@
 // Um anúncio: prévia, explicação em palavras simples, aprovação, números, comentários e histórico.
 import { t, data, dataHora, moeda, num, pct, idioma } from '../i18n.js';
-import { esc, texto, janela, confirmar, comentarios, historico, conteudo, ajuda, selo, toast } from '../ui.js';
+import { esc, texto, janela, confirmar, comentarios, historico, conteudo, ajuda, selo, toast, eyebrow } from '../ui.js';
 import { api } from '../api.js';
 import { S, acao, ir, souCancha, souAprovador, recarregar, desenhar } from '../app.js';
 import {
@@ -18,7 +18,7 @@ export function render([id]) {
   if (!a.locais?.includes(localPrevia)) localPrevia = a.locais?.[0] || (a.canal === 'google' ? 'pesquisa' : 'feed');
   return `<div class="pagina">
     <nav class="trilha"><a href="#/rotacao/${esc(r.id)}">← ${esc(t('rot.titulo', { periodo: nomeRotacao(r) }))}</a></nav>
-    <header class="cab"><div><h1>${esc(a.titulo)}</h1>
+    <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(a.titulo)}</span></h1>
       <p class="linha-st">${statusAnuncio(a)} ${a.versao > 1 ? `<small>${esc(t('anuncio.versao', { n: a.versao }))}</small>` : ''} ${semaforo(a)}
       ${a.origem === 'continua' ? `<span class="chip">${esc(t('anuncio.continua_de'))}</span>` : ''}</p></div></header>
     ${caixaAprovacao(a, r)}

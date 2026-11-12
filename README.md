@@ -9,6 +9,9 @@ Portal de marketing da Spraytec USA, feito pela Cancha. Contexto, decisões e or
 - `server/visao.ts`: o que cada papel recebe (a Spraytec não recebe rascunhos nem comentários internos;
   a produtora não recebe rotações, números nem calendário).
 - `server/dominio.ts`: papéis, fuso de Iowa (America/Chicago) e feriados dos EUA.
+- `server/modulos.ts`: feedbacks, observações e plano do mês, roteiros (com a produtora), e-mails, landing
+  pages, pedidos do site, SEO e GEO. Plano, roteiro, e-mail e landing page usam o mesmo fluxo de aprovação.
+- Visual: o mesmo do Portal Spraytec Brasil (cores, menu, títulos, gaveta à direita), em `public/app.css`.
 - `public/js/`: a tela, em módulos JavaScript sem etapa de build. Uma tela por arquivo em `public/js/telas/`.
 - `public/i18n/pt-BR.json` e `en-US.json`: **todos** os textos (tela, e-mails e mensagens de erro do
   servidor). Nenhum texto fica fixo no código. Cada pessoa escolhe o idioma em "Minha conta".
@@ -26,6 +29,7 @@ Com `DEMO_CODIGO` no `.env.dev`, a tela de entrada mostra as pessoas de demonstr
 ## Testes
 ```bash
 node testes/rotacao.ts        # regras da rotação, papéis, feriados dos EUA, dados de exemplo
+node testes/modulos.ts        # feedbacks, plano do mês, roteiros/produtora, e-mails, site, SEO e GEO
 node testes/traducoes.mjs     # toda chave usada existe nos dois idiomas
 node testes/drive-simulado.ts # Google Drive (e os simulados de GA4, Google Ads, Meta, YouTube)
 npm run checar                # tipos do servidor

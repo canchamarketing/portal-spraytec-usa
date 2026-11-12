@@ -1,6 +1,6 @@
 // Ano safra e eventos: linha do tempo com as fases da lavoura, feiras, produtos em foco e campanhas.
 import { t, periodo, mesCurto, mesAno, data } from '../i18n.js';
-import { esc, janela, confirmar, conteudo, exemplo, texto } from '../ui.js';
+import { esc, janela, confirmar, conteudo, exemplo, texto, eyebrow } from '../ui.js';
 import { S, acao, souCancha } from '../app.js';
 import { nomeProduto } from './comum.js';
 
@@ -46,7 +46,7 @@ export function render() {
     ${e.exemplo ? `<span class="selo exemplo">${esc(t('exemplo.selo'))}</span>` : ''}</li>`).join('')}</ul>`).join('');
 
   return `<div class="pagina">
-    <header class="cab"><div><h1>${esc(t('nav.safra'))}</h1><p class="explica">${esc(t('safra.explica'))}</p></div>
+    <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.safra'))}</span></h1><p class="explica">${esc(t('safra.explica'))}</p></div>
     ${souCancha() ? `<button class="btn forte" data-act="novo">${esc(t('safra.novo'))}</button>` : ''}</header>
     ${temExemplo ? `<p class="aviso-exemplo">${exemplo(t('safra.exemplo_dica'))} ${esc(t('safra.exemplo_aviso'))}</p>` : ''}
     <section class="bloco linha-tempo" aria-label="${esc(t('safra.linha'))}">

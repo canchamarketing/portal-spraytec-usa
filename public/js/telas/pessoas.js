@@ -1,6 +1,6 @@
 // Pessoas que entram no portal (só a Cancha gerencia): cadastro, papel, idioma e convite.
 import { t, dataHora } from '../i18n.js';
-import { esc, janela, toast } from '../ui.js';
+import { esc, janela, toast, eyebrow } from '../ui.js';
 import { api } from '../api.js';
 import { desenhar } from '../app.js';
 
@@ -14,14 +14,14 @@ async function carregar() {
 }
 
 export function render() {
-  if (!dados) { carregar(); return `<div class="pagina"><h1>${esc(t('nav.pessoas'))}</h1><p class="muted">${esc(t('geral.carregando'))}</p></div>`; }
+  if (!dados) { carregar(); return `<div class="pagina"><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.pessoas'))}</span></h1><p class="muted">${esc(t('geral.carregando'))}</p></div>`; }
   const linha = (p) => `<tr class="${p.ativo ? '' : 'inativo'}"><td><b>${esc(p.nome)}</b><br><small>${esc(p.email || '')}</small></td>
     <td>${esc(t('papel.' + p.papel))}</td><td>${p.idioma === 'pt-BR' ? 'Português' : 'English'}</td>
     <td>${!p.ativo ? esc(t('pessoas.inativo')) : p.tem_senha ? esc(t('pessoas.ativo_desde', { quando: dataHora(p.visto_em) })) : p.convite_enviado_em ? esc(t('pessoas.convidado', { quando: dataHora(p.convite_enviado_em) })) : esc(t('pessoas.sem_convite'))}</td>
     <td class="acoes-linha"><button class="link" data-act="editar" data-id="${esc(p.id)}">${esc(t('geral.editar'))}</button>
     ${p.ativo ? `<button class="link" data-act="convite" data-id="${esc(p.id)}">${esc(p.tem_senha ? t('pessoas.link_senha') : t('pessoas.convidar'))}</button>` : ''}</td></tr>`;
   return `<div class="pagina">
-    <header class="cab"><div><h1>${esc(t('nav.pessoas'))}</h1><p class="explica">${esc(t('pessoas.explica'))}</p></div>
+    <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.pessoas'))}</span></h1><p class="explica">${esc(t('pessoas.explica'))}</p></div>
     <button class="btn forte" data-act="nova">${esc(t('pessoas.nova'))}</button></header>
     ${!dados.email ? `<p class="aviso">${esc(t('pessoas.sem_email'))}</p>` : ''}
     <div class="tabela-rolar"><table class="tabela"><thead><tr><th>${esc(t('campo.nome'))}</th><th>${esc(t('campo.papel'))}</th><th>${esc(t('campo.idioma'))}</th><th>${esc(t('pessoas.situacao'))}</th><th></th></tr></thead>

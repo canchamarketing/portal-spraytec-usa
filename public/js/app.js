@@ -12,31 +12,51 @@ import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
 import * as conta from './telas/conta.js';
 import * as embreve from './telas/embreve.js';
+import * as feedbacks from './telas/feedbacks.js';
+import * as planejamento from './telas/planejamento.js';
+import * as roteiros from './telas/roteiros.js';
+import * as emails from './telas/emails.js';
+import * as site from './telas/site.js';
+import * as seo from './telas/seo.js';
+import { telaDe } from './telas/item.js';
 
 // Estado que veio do servidor (já filtrado pelo papel de quem está logado).
-export const S = { eu: null, hoje: '', dados: { rotacoes: [], anuncios: [], eventos: [] }, demo: false, mencionaveis: [], drive: {}, catalogo: null, versao: 0 };
+export const S = { eu: null, hoje: '', dados: {}, demo: false, mencionaveis: [], drive: {}, catalogo: null, versao: 0 };
 export const souCancha = () => S.eu?.papel === 'cancha';
 export const souAprovador = () => S.eu?.papel === 'aprovador';
 
 // ---------- telas ----------
-// Seções do menu. "papeis" diz quem vê. As que ainda não existem aparecem como "em breve" (só para a Cancha).
+// Seções do menu, na ordem do dia a dia. "papeis" diz quem vê. "breve" = ainda vai ser construída (só a Cancha vê).
+const TODOS = ['cancha', 'aprovador', 'leitor', 'produtora'], SPRAYTEC = ['cancha', 'aprovador', 'leitor'];
 const SECOES = [
-  { id: 'inicio', icone: '⌂', tela: inicio, papeis: ['cancha', 'aprovador', 'leitor', 'produtora'] },
-  { id: 'rotacoes', icone: '↻', tela: rotacoes, papeis: ['cancha', 'aprovador', 'leitor'] },
-  { id: 'safra', icone: '◷', tela: safra, papeis: ['cancha', 'aprovador', 'leitor'] },
-  { id: 'produtos', icone: '▦', tela: produtos, papeis: ['cancha', 'aprovador', 'leitor', 'produtora'] },
-  { id: 'resultados', icone: '▲', tela: embreve, papeis: ['cancha'], breve: 4 },
-  { id: 'feedbacks', icone: '✎', tela: embreve, papeis: ['cancha'], breve: 2 },
-  { id: 'planejamento', icone: '☰', tela: embreve, papeis: ['cancha'], breve: 2 },
-  { id: 'roteiros', icone: '▶', tela: embreve, papeis: ['cancha'], breve: 2 },
-  { id: 'emails', icone: '✉', tela: embreve, papeis: ['cancha'], breve: 3 },
-  { id: 'site', icone: '◰', tela: embreve, papeis: ['cancha'], breve: 3 },
-  { id: 'seo', icone: '⌕', tela: embreve, papeis: ['cancha'], breve: 3 },
-  { id: 'pessoas', icone: '☺', tela: pessoas, papeis: ['cancha'], grupo: 'adm' },
-  { id: 'historico', icone: '⟲', tela: historico, papeis: ['cancha'], grupo: 'adm' },
+  { id: 'inicio', tela: inicio, papeis: TODOS },
+  { id: 'rotacoes', tela: rotacoes, papeis: SPRAYTEC, pend: () => pendentesAnuncios() },
+  { id: 'feedbacks', tela: feedbacks, papeis: SPRAYTEC, pend: () => S.dados.feedbacks.filter((f) => (souCancha() && f.status === 'aberto') || (souAprovador() && f.status === 'respondido')).length },
+  { id: 'planejamento', tela: planejamento, papeis: SPRAYTEC, pend: () => pendentesItens('planos') },
+  { id: 'roteiros', tela: roteiros, papeis: TODOS, pend: () => pendentesItens('roteiros') },
+  { id: 'emails', tela: emails, papeis: SPRAYTEC, pend: () => pendentesItens('emails') },
+  { id: 'site', tela: site, papeis: SPRAYTEC, pend: () => pendentesItens('paginas') + (souCancha() ? S.dados.pedidos.filter((p) => p.status === 'aberto').length : 0) },
+  { id: 'seo', tela: seo, papeis: SPRAYTEC },
+  { id: 'safra', tela: safra, papeis: SPRAYTEC, sep: true },
+  { id: 'produtos', tela: produtos, papeis: TODOS },
+  { id: 'resultados', tela: embreve, papeis: ['cancha'], breve: 4 },
+  { id: 'pessoas', tela: pessoas, papeis: ['cancha'], grupo: 'adm' },
+  { id: 'historico', tela: historico, papeis: ['cancha'], grupo: 'adm' },
 ];
-// Telas que não estão no menu (abertas por link).
-const OUTRAS = { rotacao: rotacoes, anuncio, conta };
+// Telas que não estão no menu (abertas por link) e a seção do menu que fica marcada.
+const OUTRAS = { rotacao: [rotacoes, 'rotacoes'], anuncio: [anuncio, 'rotacoes'], conta: [conta, ''], roteiro: [telaDe('roteiros'), 'roteiros'], email: [telaDe('emails'), 'emails'], lp: [telaDe('paginas'), 'site'] };
+// O que espera por quem está olhando (o número ao lado do item do menu).
+function pendentesAnuncios() {
+  const A = S.dados.anuncios;
+  return souAprovador() ? A.filter((a) => a.status === 'aprovacao').length : souCancha() ? A.filter((a) => a.status === 'ajuste').length : 0;
+}
+function pendentesItens(col) {
+  const L = S.dados[col] || [];
+  if (souAprovador()) return L.filter((x) => x.status === 'aprovacao' || x.status === 'corte').length;
+  if (souCancha()) return L.filter((x) => x.status === 'ajuste' || (col === 'roteiros' && x.status === 'aprovado')).length;
+  if (S.eu.papel === 'produtora') return L.filter((x) => ['producao', 'ajuste_corte'].includes(x.status)).length;
+  return 0;
+}
 
 let telaAtual = null;
 function rota() {
@@ -49,7 +69,7 @@ export function desenhar() {
   if (!S.eu) return;
   const { nome, params } = rota();
   const sec = SECOES.find((s) => s.id === nome && s.papeis.includes(S.eu.papel));
-  const tela = sec?.tela || OUTRAS[nome] || inicio;
+  const tela = sec?.tela || OUTRAS[nome]?.[0] || inicio;
   telaAtual = tela;
   const main = $('#main');
   try {
@@ -59,26 +79,26 @@ export function desenhar() {
     main.innerHTML = `<div class="pagina"><p class="erro-tela">${esc(t('erro.tela'))}</p></div>`;
   }
   tela.depois?.(main, params);
-  desenharMenu(sec?.id || (nome === 'rotacao' || nome === 'anuncio' ? 'rotacoes' : nome));
+  desenharMenu(sec?.id ?? OUTRAS[nome]?.[1] ?? nome);
 }
 
 function desenharMenu(ativo) {
   const L = SECOES.filter((s) => s.papeis.includes(S.eu.papel));
-  const item = (s) => `<a href="#/${s.id}" class="${s.id === ativo ? 'ativo' : ''}${s.breve ? ' breve' : ''}" ${s.id === ativo ? 'aria-current="page"' : ''}>
-    <span class="ic" aria-hidden="true">${s.icone}</span><span>${esc(t('nav.' + s.id))}</span>${s.breve ? `<small>${esc(t('nav.em_breve'))}</small>` : ''}${s.id === 'rotacoes' ? contador() : ''}</a>`;
+  const item = (s) => {
+    const n = s.pend ? s.pend() : 0;
+    return `<a href="#/${s.id}" class="${s.id === ativo ? 'ativo' : ''}${s.breve ? ' breve' : ''}" ${s.id === ativo ? 'aria-current="page"' : ''}>
+    <span>${esc(t('nav.' + s.id))}</span>${n ? `<span class="conta" aria-label="${esc(t('nav.pendentes', { n }))}">${n}</span>` : ''}</a>`;
+  };
   const prontas = L.filter((s) => !s.breve && !s.grupo), breves = L.filter((s) => s.breve), adm = L.filter((s) => s.grupo === 'adm');
-  $('#nav').innerHTML = prontas.map(item).join('')
+  $('#nav').innerHTML = prontas.map((s) => (s.sep ? '<span class="nav-sep"></span>' : '') + item(s)).join('')
     + (breves.length ? `<p class="nav-grupo">${esc(t('nav.proximas'))}</p>${breves.map(item).join('')}` : '')
     + (adm.length ? `<p class="nav-grupo">${esc(t('nav.administracao'))}</p>${adm.map(item).join('')}` : '');
-  $('#quem').innerHTML = `<a href="#/conta" class="eu" title="${esc(t('nav.conta'))}"><b>${esc(S.eu.nome)}</b><small>${esc(t('papel.' + S.eu.papel))} · ${esc(S.eu.idioma === 'pt-BR' ? 'PT' : 'EN')}</small></a>`;
+  // Cabeçalho como no Brasil: nome e papel, "Trocar pessoa" (demonstração) e "Sair".
+  $('#quem').innerHTML = `<a href="#/conta" class="eu" title="${esc(t('nav.conta'))}"><b>${esc(S.eu.nome)}</b><small>${esc(t('papel.' + S.eu.papel))} · ${esc(S.eu.idioma === 'pt-BR' ? 'PT' : 'EN')}</small></a>
+    ${S.demo ? `<button type="button" class="btn" data-acao-global="trocar-pessoa">${esc(t('demo.trocar_curto'))}</button>` : ''}
+    <button type="button" class="btn" data-acao-global="sair">${esc(t('conta.sair'))}</button>`;
   $('#demo').hidden = !S.demo;
-  if (S.demo) $('#demo').innerHTML = `${esc(t('demo.faixa'))} <button type="button" class="link" data-acao-global="trocar-pessoa">${esc(t('demo.trocar'))}</button>`;
-}
-// Quantos anúncios esperam quem está olhando.
-function contador() {
-  const A = S.dados.anuncios;
-  const n = souAprovador() ? A.filter((a) => a.status === 'aprovacao').length : souCancha() ? A.filter((a) => a.status === 'ajuste').length : 0;
-  return n ? `<span class="conta" aria-label="${esc(t('nav.pendentes', { n }))}">${n}</span>` : '';
+  if (S.demo) $('#demo').innerHTML = esc(t('demo.faixa'));
 }
 
 // ---------- dados ----------
@@ -151,6 +171,7 @@ document.addEventListener('change', (ev) => {
 async function global(nome) {
   if (nome === 'trocar-pessoa') { await api('/api/sair', {}); location.href = '/'; }
   if (nome === 'recarregar') location.reload();
+  if (nome === 'sair') { await api('/api/sair', {}); location.href = '/'; }
 }
 
 // ---------- início ----------
@@ -171,12 +192,14 @@ async function iniciar() {
   document.title = t('app.titulo');
   document.body.classList.add('logado');
   $('#marca-sub').textContent = t('app.subtitulo');
+  $('#por-txt').textContent = t('app.por');
   // Link de aviso por e-mail: ?abrir=r:<id> ou a:<id>
   const abrir = new URLSearchParams(location.search).get('abrir');
   if (abrir) {
     history.replaceState(null, '', '/');
     const [k, id] = [abrir.slice(0, 1), abrir.slice(2)];
-    location.hash = k === 'r' ? '#/rotacao/' + id : k === 'a' ? '#/anuncio/' + id : '#/inicio';
+    const destino = { r: 'rotacao', a: 'anuncio', f: 'feedbacks', p: 'planejamento', v: 'roteiro', e: 'email', l: 'lp', d: 'site' }[k];
+    location.hash = destino ? `#/${destino}/${id}` : '#/inicio';
   }
   await catalogo();
   window.addEventListener('hashchange', () => { fecharJanela(); desenhar(); window.scrollTo(0, 0); });

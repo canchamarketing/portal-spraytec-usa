@@ -1,24 +1,18 @@
 // Todas as alterações do portal passam por aqui. Cada ação diz quem pode pedi-la (papéis) e o que muda.
 // O servidor (main.ts) confere o papel, aplica a ação numa transação, grava só o que mudou e registra
 // na auditoria. Textos que aparecem na tela são chaves de tradução (o histórico de cada item também).
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Estado } from './estado.ts';
 import {
   ErroAcao, addBiz, isoValida, linkUrl, novoId, texto, umDe, type Papel, type Usuario,
 } from './dominio.ts';
 import { envioDe } from './integracoes/drive.ts';
+import { ACOES_MODULOS } from './modulos.ts';
+import { hist, pessoasDe, trecho, lista, nomeRotacao, PRODUTOS, type Ctx, type Aviso, type Resultado } from './util.ts';
+export { PRODUTOS, mencoes, type Ctx, type Aviso, type Resultado, type Pessoa } from './util.ts';
 
-export type Pessoa = { id: string; nome: string; papel: string };
-export type Ctx = { e: Estado; u: Usuario; d: any; hoje: string; agora: string; pessoas: Pessoa[] };
-// Aviso por e-mail. Assunto e parágrafos são chaves de tradução: cada pessoa recebe no próprio idioma.
-export type Aviso = { para: string[]; assunto: [string, Record<string, unknown>?]; paragrafos: [string, Record<string, unknown>?][]; abrir: string };
-export type Resultado = { resumo: string; criado?: string; avisos?: Aviso[] };
 type Def = { papeis: Papel[]; fn: (c: Ctx) => Resultado; semAuditoria?: boolean };
 
 // ---------- catálogos fixos ----------
-const CATALOGO = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'public', 'dados', 'produtos.json'), 'utf8'));
-export const PRODUTOS: string[] = CATALOGO.produtos.map((p: any) => p.id);
 export const CANAIS = ['meta', 'google'] as const;
 export const FORMATOS = ['imagem', 'video', 'carrossel', 'texto'] as const;
 export const LOCAIS = ['feed', 'stories', 'reels', 'pesquisa', 'youtube', 'display', 'pmax'] as const;
@@ -36,10 +30,6 @@ const A: Papel[] = ['aprovador'];
 const LEITURA: Papel[] = ['cancha', 'aprovador'];
 
 // ---------- utilidades ----------
-function hist(c: Ctx, alvo: any, k: string, p?: Record<string, unknown>) {
-  alvo.hist = alvo.hist || [];
-  alvo.hist.push({ k, p: p || {}, por: c.u.nome, papel: c.u.papel, em: c.agora });
-}
 function rotacao(c: Ctx, id: unknown) {
   const r = c.e.rotacoes.find((x) => x.id === id);
   if (!r) throw new ErroAcao('erro.nao_encontrado');
@@ -52,25 +42,12 @@ function anuncio(c: Ctx, id: unknown) {
 }
 const doCiclo = (e: Estado, rid: string) => e.anuncios.filter((a) => a.rotacaoId === rid);
 const novos = (e: Estado, rid: string) => doCiclo(e, rid).filter((a) => a.origem === 'novo');
-const pessoasDe = (c: Ctx, papeis: string[]) => c.pessoas.filter((p) => papeis.includes(p.papel) && p.id !== c.u.id).map((p) => p.id);
-const trecho = (s: string) => (s.length > 300 ? s.slice(0, 297) + '...' : s);
-function lista<T extends string>(v: unknown, opcoes: readonly T[], campo: string, max = 20): T[] {
-  const l = Array.isArray(v) ? v : [];
-  const r = [...new Set(l.map(String))].slice(0, max);
-  for (const x of r) if (!(opcoes as readonly string[]).includes(x)) throw new ErroAcao('erro.escolha', { campo });
-  return r as T[];
-}
 function periodo(d: any) {
   if (!isoValida(d.ini) || !isoValida(d.fim)) throw new ErroAcao('erro.datas');
   if (d.fim < d.ini) throw new ErroAcao('erro.datas_ordem');
   const prazo = d.prazo ? d.prazo : addBiz(d.ini, -3);
   if (!isoValida(prazo)) throw new ErroAcao('erro.datas');
   return { ini: d.ini as string, fim: d.fim as string, prazo };
-}
-// Menções com @: quem é citado recebe aviso por e-mail.
-const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-export function mencoes(pessoas: Pessoa[], eu: string, txt: string, papeis: string[]): string[] {
-  return pessoas.filter((p) => p.id !== eu && papeis.includes(p.papel) && new RegExp('@' + escRe(p.nome) + '(?![\\p{L}\\d])', 'iu').test(txt)).map((p) => p.id);
 }
 // O que vai para aprovação fica guardado como foi enviado: a aprovação vale para esta versão.
 function fotografia(a: any) {
@@ -89,7 +66,6 @@ function conferirRotacaoAprovada(c: Ctx, r: any, avisos: Aviso[]) {
       paragrafos: [['aviso.rotacao_aprovada.texto', { quem: c.u.nome }]], abrir: 'r:' + r.id });
   }
 }
-const nomeRotacao = (r: any) => `${r.ini} → ${r.fim}`;
 
 // ---------- arquivos (Google Drive) ----------
 // Onde cada arquivo fica no Drive e quem pode anexar. É conferido antes de o envio começar e de novo ao registrar.
@@ -334,27 +310,6 @@ export const ACOES: Record<string, Def> = {
     },
   },
 
-  // ===== comentários (rotação ou anúncio) =====
-  comentar: {
-    papeis: LEITURA,
-    fn: (c) => {
-      const ref = String(c.d.ref || ''), [k, id] = [ref.slice(0, 1), ref.slice(2)];
-      const alvo = k === 'r' ? rotacao(c, id) : k === 'a' ? anuncio(c, id) : null;
-      if (!alvo) throw new ErroAcao('erro.nao_encontrado');
-      if (k === 'a' && !alvo.enviado && alvo.origem !== 'continua' && c.u.papel !== 'cancha') throw new ErroAcao('erro.nao_encontrado');
-      const t = texto(c.d.texto, 'campo.comentario', 3000);
-      const interno = c.u.papel === 'cancha' && !!c.d.interno;
-      alvo.comentarios = alvo.comentarios || [];
-      alvo.comentarios.push({ id: novoId('c-'), por: c.u.nome, porId: c.u.id, papel: c.u.papel, em: c.agora, texto: t, idioma: c.u.idioma, interno });
-      const papeis = interno ? ['cancha'] : ['cancha', 'aprovador', 'leitor'];
-      const para = mencoes(c.pessoas, c.u.id, t, papeis);
-      const nome = k === 'r' ? nomeRotacao(alvo) : alvo.titulo;
-      const avisos: Aviso[] = para.length ? [{ para, assunto: ['aviso.mencao.assunto', { quem: c.u.nome }],
-        paragrafos: [['aviso.mencao.texto', { quem: c.u.nome, onde: nome }], ['aviso.citacao', { texto: trecho(t) }]], abrir: ref }] : [];
-      return { resumo: `Comentou${interno ? ' (interno)' : ''} em ${k === 'r' ? 'rotação' : 'anúncio'} "${nome}"`, avisos };
-    },
-  },
-
   // ===== calendário do ano safra =====
   'evento-salvar': {
     papeis: C,
@@ -420,3 +375,6 @@ export const ACOES: Record<string, Def> = {
     },
   },
 };
+
+// Feedbacks, planejamento, roteiros, e-mails, site e SEO/GEO (etapas 2 e 3) e os comentários de tudo.
+Object.assign(ACOES, ACOES_MODULOS);

@@ -29,11 +29,37 @@ const fam = {
   evento: ['fase', 'feira', 'foco', 'campanha', 'recesso'].flatMap((e) => [e, e + '.plural']),
   cat: ['adjuvante', 'semente', 'fitoestimulante', 'forrageira', 'solo'],
   janela: ['all', 'aerial', 'plantio', 'veg', 'rep', 'preplant'],
-  res: ['investimento', 'impressoes', 'cliques', 'ctr', 'contatos', 'cpl'].flatMap((k) => [k, k + '.ajuda']),
-  embreve: ['resultados', 'feedbacks', 'planejamento', 'roteiros', 'emails', 'site', 'seo'],
+  embreve: ['resultados'],
+  st_item: ['rascunho', 'aprovacao', 'ajuste', 'ajustando', 'aprovado', 'producao', 'corte', 'ajuste_corte', 'entregue', 'enviado', 'publicado'],
+  tipo: ['planos', 'roteiros', 'emails', 'paginas'],
+  'item.novo': ['planos', 'roteiros', 'emails', 'paginas'],
+  'item.ap_explica': ['planos', 'roteiros', 'emails', 'paginas'],
+  'item.concluir': ['emails', 'paginas'], 'item.concluir_explica': ['emails', 'paginas'],
+  'item.formato': ['vertical', 'horizontal', 'quadrado'],
+  campo: ['foco', 'verbaMeta', 'verbaGoogle', 'produtos', 'eventos', 'notas', 'titulo', 'objetivo', 'duracao', 'formato', 'roteiro', 'referencias', 'prazo',
+    'assunto', 'preheader', 'lista', 'envio', 'linkPrevia', 'url', 'publicacao', 'descricao', 'pagina', 'titulo_pedido', 'periodo', 'termo', 'pergunta', 'link_video'],
+  'check.emails': ['lista', 'assunto', 'links', 'utm', 'teste', 'descadastro', 'celular'].flatMap((k) => [k, k + '.dica']),
+  'check.paginas': ['pixel_meta', 'tag_google', 'conversao', 'formulario', 'salesforce', 'celular', 'velocidade'].flatMap((k) => [k, k + '.dica']),
+  'check.titulo': ['emails', 'paginas'], 'check.explica': ['emails', 'paginas'],
+  'video.frase.producao': ['produtora', 'aprovador', 'cancha'], 'video.frase.corte': ['produtora', 'aprovador', 'cancha'],
+  'video.frase.ajuste_corte': ['produtora', 'aprovador', 'cancha'], 'video.frase.entregue': ['produtora', 'aprovador', 'cancha'],
+  'rv.col': ['rascunho', 'aprovacao', 'aprovado', 'producao', 'corte', 'entregue'].flatMap((k) => [k, k + '.dica']),
+  'em.filtro': ['todos', 'aprovar', 'prontos', 'enviados'],
+  'fb.tipo': ['elogio', 'problema', 'ideia', 'leads'].flatMap((k) => [k, k + '.explica']),
+  'fb.st': ['aberto', 'respondido', 'resolvido'],
+  'fb.qualidade': ['bons', 'mistos', 'ruins', 'nao_agricultor', 'ja_cliente', 'virou_venda'],
+  'obs.assunto': ['verba', 'produto', 'evento', 'publico', 'criativo', 'outro'],
+  'obs.destino': ['atendida', 'adiada', 'nao_aplica', 'nenhum'],
+  'pedido.st': ['aberto', 'fazendo', 'feito'],
+  'seo.aba': ['seo', 'geo'], 'geo.ia': ['chatgpt', 'gemini', 'google_ia', 'perplexity'],
+  'geo.res': ['sim', 'citada', 'nao'].flatMap((k) => [k, k + '.explica']),
+  res: ['investimento', 'impressoes', 'cliques', 'ctr', 'contatos', 'cpl', 'enviados', 'abertura', 'taxa_clique', 'descadastros', 'visitas', 'conversoes', 'taxa_conversao'].flatMap((k) => [k, k + '.ajuda']).concat(['aberturas']),
 };
 for (const [p, L] of Object.entries(fam)) for (const k of L) usadas.add(p + '.' + k);
-for (const k of ['rot.prazo.ajuda', 'anuncio.publico.ajuda', 'anuncio.link.ajuda']) usadas.add(k);
+for (const k of ['rot.prazo.ajuda', 'anuncio.publico.ajuda', 'anuncio.link.ajuda', 'rv.explica', 'rv.explica_produtora', 'plano.vazio_cancha', 'plano.vazio_cliente',
+  'res.brevo_dica', 'res.ga4_dica', 'res.digitar_brevo', 'res.digitar_ga4', 'inicio.kpi_em_andamento', 'inicio.kpi_tarefas', 'inicio.nada_produtora', 'app.por']) usadas.add(k);
+// Chaves montadas com prefixo + variável terminam em ponto no código: não são chaves de verdade.
+for (const k of [...usadas]) if (k.endsWith('.')) usadas.delete(k);
 let falhas = 0;
 for (const k of usadas) for (const [nome, d] of [['pt-BR', pt], ['en-US', en]]) if (d[k] == null) { falhas++; console.log(`FALTA em ${nome}: ${k}`); }
 for (const k of Object.keys(pt)) if (en[k] == null) { falhas++; console.log('só em pt-BR:', k); }
