@@ -70,12 +70,15 @@ O servidor foi mantido (login, convites, auditoria, banco, Drive, integrações)
 5. **Antes do primeiro convite:** backup fora da Hostinger com restauração testada, monitor externo,
    publicação em `/opt/spraytecusa`.
 
-**Situação em 12/11/2026:** etapas 1, 2 e 3 prontas, testadas e publicadas em modo demonstração. Visual
-igual ao do Portal Brasil (pedido do Diogo). Falta a etapa 4 (integrações e tradução automática; "Resultados
-da mídia" ainda é "em breve") e a 5 (backup, monitor, e-mail, fim do modo demonstração).
-Pendências conhecidas: rotas de conectar integrações (`/api/*/conectar`) ainda com mensagens só em português
-(só a Cancha usa); `public/privacidade.html` ainda é a do Brasil (reescrever antes de conectar Google/Meta);
-datas dentro dos e-mails de aviso saem em AAAA-MM-DD.
+**Situação em 12/11/2026:** etapas 1 a 3 prontas e publicadas em modo demonstração, com o visual do Portal Brasil.
+Etapa 4 em andamento: telas de Resultados da mídia (Meta Ads + Google Ads, ritmo da verba, anúncios cansando),
+Redes sociais (Instagram + Facebook, só acompanhamento), Tráfego do site (GA4 + Search Console de exemplo) e
+painel de Integrações prontos. Cada fonte mostra dados reais quando conectada e EXEMPLO enquanto não está
+(`public/js/metricas.js`). Meta, Google Ads e GA4 nunca escolhem sozinhos a conta da Spraytec Brasil.
+Falta para ligar de verdade: chaves e acessos (lista no painel Integrações e em "O que precisa" de cada uma);
+Search Console, Brevo e tradução automática ainda não têm coletor. Etapa 5 (backup etc.) fica para depois.
+Pendências: `public/privacidade.html` ainda é a do Brasil (reescrever antes de conectar Google/Meta);
+rotas `/api/*/conectar` com mensagens só em português; datas dos e-mails de aviso em AAAA-MM-DD.
 - **Sede e fuso:** Urbandale, Iowa → fuso **America/Chicago** (Central, com horário de verão).
   O servidor está em UTC: prazos, lembretes e "hoje" seguem o fuso da Spraytec USA.
 - **Site:** https://spraytecusa.com (WordPress). Produtos, programas e textos estão no site e na

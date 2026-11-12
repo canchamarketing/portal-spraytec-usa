@@ -50,7 +50,8 @@ export async function concluirGA4(q: Consulta, codigo: string, retorno: string) 
   const opcoes = await propriedades(t.access_token);
   if (!opcoes.length) throw new ErroGA4(`A conta ${conta || 'escolhida'} não tem acesso a nenhuma propriedade do Google Analytics.`);
   const fixa = process.env.GA4_PROPRIEDADE;
-  const sp = opcoes.filter((p) => /spraytec/i.test(p.nome + ' ' + p.conta));
+  // Portal dos EUA: a propriedade da Spraytec Brasil nunca é escolhida sozinha.
+  const sp = opcoes.filter((p) => /spraytec/i.test(p.nome + ' ' + p.conta) && !/brasil|brazil|.com.br/i.test(p.nome + ' ' + p.conta));
   const escolhida = fixa ? opcoes.find((p) => p.id === fixa) || null : opcoes.length === 1 ? opcoes[0] : sp.length === 1 ? sp[0] : null;
   // Outra propriedade: os números guardados eram de outro site.
   if (conexao?.propriedade?.id !== escolhida?.id) await q.query(`delete from metricas where fonte='ga4'`);

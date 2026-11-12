@@ -14,7 +14,7 @@ const ESC = 'openid https://www.googleapis.com/auth/userinfo.email https://www.g
 const idToken = (email: string) => 'x.' + Buffer.from(JSON.stringify({ email })).toString('base64url') + '.y';
 let propriedades = [
   { account: 'accounts/1', displayName: 'Cancha Marketing', propertySummaries: [{ property: 'properties/111', displayName: 'Site da Cancha' }] },
-  { account: 'accounts/2', displayName: 'Spraytec Brasil', propertySummaries: [{ property: 'properties/222', displayName: 'spraytec.com.br - GA4' }] },
+  { account: 'accounts/2', displayName: 'Spraytec USA', propertySummaries: [{ property: 'properties/222', displayName: 'spraytecusa.com - GA4' }, { property: 'properties/333', displayName: 'spraytec.com.br - GA4 (Spraytec Brasil)' }] },
 ];
 const pedidos: any[] = [];
 const servidor = createServer(async (req, res) => {
@@ -69,11 +69,11 @@ checa(G.ga4Configurado() && !G.ga4Conectado(), 'configurado e ainda sem conexão
 await espera(() => G.concluirGA4(b, 'sem-escopo', 'http://x/retorno'), 'sem a permissão do Analytics, a conexão é recusada');
 const c = await G.concluirGA4(b, 'codigo-bom', 'http://x/retorno');
 checa(c.conta === 'analytics@canchamarketing.com.br', 'identifica a conta que conectou');
-checa(c.propriedade?.id === '222' && c.opcoes.length === 2, 'entre duas propriedades, escolhe sozinho a da Spraytec');
+checa(c.propriedade?.id === '222' && c.opcoes.length === 3, 'entre várias propriedades, escolhe sozinho a da Spraytec USA (nunca a do Brasil)');
 const seg = (await b.query(`select valor from segredos where nome='ga4'`)).rows[0].valor;
 checa(!seg.includes('renovar-ga') && !seg.includes('canchamarketing'), 'autorização guardada cifrada no banco');
 await G.carregarGA4(b);
-checa(G.ga4Conectado()?.propriedade?.nome === 'spraytec.com.br - GA4', 'conexão volta depois de reiniciar o servidor');
+checa(G.ga4Conectado()?.propriedade?.nome === 'spraytecusa.com - GA4', 'conexão volta depois de reiniciar o servidor');
 
 console.log('Coleta');
 await G.coletarGA4(b, log, true);

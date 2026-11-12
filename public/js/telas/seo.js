@@ -4,11 +4,13 @@ import { t, mesCurto, num } from '../i18n.js';
 import { esc, eyebrow, janela, confirmar, exemplo } from '../ui.js';
 import { S, acao, souCancha, desenhar } from '../app.js';
 import { nomeProduto } from './comum.js';
+import { trafego } from './trafego.js';
+import { metricas, metricasProntas } from '../metricas.js';
 
 const FERRAMENTAS = ['chatgpt', 'gemini', 'google_ia', 'perplexity'];
 const RES = ['sim', 'citada', 'nao'];
 const SIMBOLO = { sim: '✓', citada: '~', nao: '✗' };
-let aba = 'seo';
+let aba = 'site';
 const mesMais = (ym, n) => { const d = new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7) - 1 + n, 1)); return d.toISOString().slice(0, 7); };
 const nomeM = (ym) => `${mesCurto(+ym.slice(0, 4), +ym.slice(5, 7))} ${ym.slice(2, 4)}`;
 
@@ -16,11 +18,13 @@ export function render() {
   const atual = S.hoje.slice(0, 7);
   const meses = [-3, -2, -1].map((n) => mesMais(atual, n));
   const temEx = S.dados.palavras.some((p) => p.meses.some((m) => m.origem === 'exemplo')) || S.dados.geo.some((g) => g.verificacoes.some((v) => v.origem === 'exemplo'));
-  const abas = `<div class="filtros-linha">${['seo', 'geo'].map((a) => `<button class="chip ${aba === a ? 'ativo' : ''}" data-act="aba" data-a="${a}">${esc(t('seo.aba.' + a))}</button>`).join('')}</div>`;
+  const M = metricasProntas();
+  if (aba === 'site' && !M) metricas().then(desenhar);
+  const abas = `<div class="filtros-linha"><div class="seg">${['site', 'seo', 'geo'].map((a) => `<button type="button" class="${aba === a ? 'ativo' : ''}" data-act="aba" data-a="${a}">${esc(t('seo.aba.' + a))}</button>`).join('')}</div></div>`;
   return `<div class="pagina">
     <header class="cab"><div><p class="eyebrow">${eyebrow()}</p><h1><span class="marca-texto">${esc(t('nav.seo'))}</span></h1><p class="explica">${esc(t('seo.explica'))}</p></div></header>
-    ${abas}${temEx ? `<p class="aviso-exemplo">${exemplo()} ${esc(t('seo.exemplo'))}</p>` : ''}
-    ${aba === 'seo' ? palavras(meses) : geo(mesMais(atual, -1))}</div>`;
+    ${abas}${aba !== 'site' && temEx ? `<p class="aviso-exemplo">${exemplo()} ${esc(t('seo.exemplo'))}</p>` : ''}
+    ${aba === 'site' ? (M ? trafego(M) : `<p class="carregando">${esc(t('geral.carregando'))}</p>`) : aba === 'seo' ? palavras(meses) : geo(mesMais(atual, -1))}</div>`;
 }
 
 function palavras(meses) {
@@ -64,11 +68,11 @@ function geo(mes) {
 
 const prods = (sel = []) => `<details class="caixa-prod"><summary class="rotulo">${esc(t('campo.produtos'))}</summary><div class="opcoes-linha">${S.catalogo.produtos.map((p) =>
   `<label class="check"><input type="checkbox" name="produtos" value="${p.id}" ${sel.includes(p.id) ? 'checked' : ''}> ${esc(p.nome)}</label>`).join('')}</div></details>`;
-const botoes = `<div class="acoes"><button type="button" class="btn" data-fechar>${esc('×')}</button><button class="btn forte" type="submit">OK</button></div>`;
 const rodape = () => `<div class="acoes"><button type="button" class="btn" data-fechar>${esc(t('geral.cancelar'))}</button><button class="btn forte" type="submit">${esc(t('geral.salvar'))}</button></div>`;
 
 export const cliques = {
   aba: (el) => { aba = el.dataset.a; desenhar(); },
+  periodo: (el) => { S.filtro.preset = el.dataset.p; desenhar(); },
   'nova-palavra': () => janela(t('seo.nova_palavra'), `<form class="form" data-form="palavra"><label class="rotulo" for="kw">${esc(t('campo.termo'))} *</label>
     <input id="kw" name="termo" maxlength="120" required placeholder="foliar fertilizer for soybeans"><p class="dica">${esc(t('seo.termo_dica'))}</p>${prods()}${rodape()}</form>`, { sobre: t('seo.aba.seo') }),
   registrar: (el) => {
@@ -100,4 +104,3 @@ export const formularios = {
   geo: (f) => { const fd = new FormData(f); acao('geo-salvar', { pergunta: fd.get('pergunta'), produtos: fd.getAll('produtos') }, { ok: t('geral.salvo') }); },
   'geo-verificar': (f) => { const fd = new FormData(f); acao('geo-verificar', { id: f.dataset.id, ...Object.fromEntries(fd.entries()) }, { ok: t('geral.salvo') }); },
 };
-export { botoes };

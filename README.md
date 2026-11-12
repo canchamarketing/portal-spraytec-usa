@@ -15,6 +15,8 @@ Portal de marketing da Spraytec USA, feito pela Cancha. Contexto, decisões e or
 - `public/js/`: a tela, em módulos JavaScript sem etapa de build. Uma tela por arquivo em `public/js/telas/`.
 - `public/i18n/pt-BR.json` e `en-US.json`: **todos** os textos (tela, e-mails e mensagens de erro do
   servidor). Nenhum texto fica fixo no código. Cada pessoa escolhe o idioma em "Minha conta".
+- `public/js/metricas.js` e `public/js/graficos.js`: números das integrações num formato só (com dados de
+  EXEMPLO enquanto a fonte não está conectada) e os gráficos em SVG (sem biblioteca).
 - `public/dados/produtos.json`: catálogo Fulltec (site + Product Guide 2025-26), nos dois idiomas.
 - `server/seed.ts`: dados de demonstração, marcados como EXEMPLO na tela.
 

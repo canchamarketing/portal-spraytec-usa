@@ -22,8 +22,8 @@ const servidor = createServer((req, res) => {
     return json(400, { error: { message: 'Invalid OAuth access token.', code: 190 } });
   if (quebrado) return json(400, { error: { message: 'Error validating access token: Session has expired', code: 190 } });
   const m = u.searchParams.get('metric') || '';
-  if (p === 'me/accounts') return json(200, { data: [{ id: 'pg9', name: 'Spraytec', followers_count: 90000, access_token: 'chave-da-pagina' }, { id: 'pg1', name: 'Spraytec Brasil', followers_count: 11, access_token: 'chave-da-pagina', instagram_business_account: { id: 'ig1', username: 'spraytec.brasil' } }] });
-  if (p === 'ig1') return json(200, { id: 'ig1', username: 'spraytec.brasil', followers_count: 18640, media_count: 413 });
+  if (p === 'me/accounts') return json(200, { data: [{ id: 'pg9', name: 'Spraytec Brasil', followers_count: 90000, access_token: 'chave-da-pagina', instagram_business_account: { id: 'ig9', username: 'spraytec.brasil' } }, { id: 'pg1', name: 'Spraytec', followers_count: 11, access_token: 'chave-da-pagina', instagram_business_account: { id: 'ig1', username: 'spraytecusa' } }] });
+  if (p === 'ig1') return json(200, { id: 'ig1', username: 'spraytecusa', followers_count: 18640, media_count: 413 });
   if (p === 'ig1/stories') return json(200, { data: [{ id: 'st1', media_type: 'IMAGE', permalink: 'https://instagram.com/stories/x/1', timestamp: iso(agora - 3600e3) }, { id: 'st2', media_type: 'IMAGE', permalink: 'https://instagram.com/stories/x/2', timestamp: iso(agora - 600e3) }] });
   if (p === 'ig1/media') {
     if (!u.searchParams.get('after')) return json(200, { data: [
@@ -39,10 +39,10 @@ const servidor = createServer((req, res) => {
     if (p.startsWith('m1') && m.split(',').includes('views')) return json(400, { error: { message: '(#100) metric views not supported', code: 100 } });
     return json(200, { data: m.split(',').map((n, i) => ({ name: n, total_value: { value: 100 * (i + 1) } })) });
   }
-  if (p === 'pg1') return json(200, { name: 'Spraytec Brasil', followers_count: 25010, fan_count: 24800 });
+  if (p === 'pg1') return json(200, { name: 'Spraytec', followers_count: 25010, fan_count: 24800 });
   if (p === 'pg1/posts') return json(200, { data: [{ id: 'fbp1', message: 'Dia de campo', created_time: iso(agora - dia), permalink_url: 'https://facebook.com/1', shares: { count: 3 }, reactions: { summary: { total_count: 41 } }, comments: { summary: { total_count: 5 } } }] });
   if (p === 'fbp1/insights') return json(200, { data: m.split(',').map((n) => ({ name: n, values: [{ value: 900 }] })) });
-  if (p === 'me/adaccounts') return json(200, { data: [{ id: 'act_1', name: 'Spraytec Brasil', currency: 'BRL' }, { id: 'act_2', name: 'Outro cliente', currency: 'BRL' }] });
+  if (p === 'me/adaccounts') return json(200, { data: [{ id: 'act_2', name: 'Spraytec Brasil', currency: 'BRL' }, { id: 'act_1', name: 'Spraytec USA', currency: 'USD' }] });
   if (p === 'act_1/ads') return json(200, { data: [{ id: 'ad1', name: 'Remarketing foliar', effective_status: 'ACTIVE', campaign: { id: 'c1', name: 'Remarketing', objective: 'OUTCOME_LEADS' }, adset: { id: 's1', name: 'Visitantes 60 dias' } }] });
   if (p === 'act_1/insights') return json(200, { data: [
     { ad_id: 'ad1', adset_id: 's1', campaign_id: 'c1', date_start: '2026-10-25', spend: '120.50', impressions: '8000', reach: '5000', inline_link_clicks: '140', actions: [{ action_type: 'lead', value: '4' }] },
@@ -75,11 +75,11 @@ checa((await linhas('ig', 'story')).length === 2, 'guarda os stories que estão 
 checa((await linhas('ig', 'perfil'))[0].dados.followers_count === 18640, 'guarda o perfil do Instagram');
 checa((await linhas('ig', 'dia')).length === 1, 'guarda os seguidores do dia');
 const fb = (await linhas('fb', 'post'))[0]?.dados;
-checa(!pedidos.some((x) => x.startsWith('pg9')), 'Página oficial é a ligada ao Instagram, não a Spraytec dos EUA com mais seguidores');
+checa(!pedidos.some((x) => x.startsWith('pg9')), 'a página da Spraytec Brasil é descartada, mesmo com mais seguidores e Instagram');
 checa(fb && fb.reacoes === 41 && fb.metricas.post_impressions_unique === 900, 'Página: reações e alcance do post (com a chave da página)');
 const ads = await linhas('ads', 'anuncio_dia');
 checa(ads.length === 2 && ads[0].dados.investido === 120.5 && ads[0].dados.acoes.lead === 4, 'anúncios: investimento e contatos por dia');
-checa(!pedidos.some((x) => x.startsWith('act_2')), 'escolhe a conta de anúncios da Spraytec entre várias');
+checa(!pedidos.some((x) => x.startsWith('act_2')), 'a conta de anúncios da Spraytec Brasil é descartada; fica a dos EUA');
 for (const f of ['ig', 'fb', 'ads']) checa((await sit(f))?.ultimo_ok && !(await sit(f)).erro, `situação de ${f}: ok`);
 
 console.log('Coleta seguinte e falhas');

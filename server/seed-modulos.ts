@@ -51,7 +51,7 @@ export function modulosExemplo(e: Estado, ancora: string, anuncios: any[]) {
   plano.traducoes = { 'pt-BR': { foco: 'Compra antecipada de fim de ano: Tractus Carbon (aplicação de outono) até meados de dezembro, depois compra antecipada de tratamento de sementes (Fulltec Plus ST + Nodofix). Tirar revendedores do público de contatos.',
     eventos: 'Convites para a Iowa Ag Expo começam em janeiro (saiu de dezembro).', notas: 'Verba de busca pela marca no Google +20% (custo por contato baixo).' } };
   const planoAtual: any = { id: 'p-' + mes, mes, versao: 1, status: 'aprovado', idioma: 'en-US', criadoEm: ts(d(-35)),
-    foco: 'Post-harvest: brand awareness and contacts for the 2027 season.', verbaMeta: 2800, verbaGoogle: 2000, produtos: ['tractus-carbon'], eventos: '', notas: '',
+    foco: 'Post-harvest: brand awareness and contacts for the 2027 season.', verbaMeta: 3000, verbaGoogle: 3600, produtos: ['tractus-carbon'], eventos: '', notas: '',
     aprovadoPor: RENATO.por, aprovadoPorId: 'u-renato', aprovadoEm: ts(d(-28), 15), aprovadoVersao: 1,
     traducoes: { 'pt-BR': { foco: 'Pós-colheita: marca conhecida e contatos para a safra 2027.' } },
     comentarios: [], hist: [H('hist.item_criado', CANCHA, ts(d(-32))), H('hist.enviado', CANCHA, ts(d(-30)), { versao: 1 }), H('hist.aprovado', RENATO, ts(d(-28), 15), { versao: 1 })] };

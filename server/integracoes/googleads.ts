@@ -118,7 +118,8 @@ export async function concluirGAds(q: Consulta, codigo: string, retorno: string)
   const opcoes = linhas.map((l) => l.customerClient).filter((c) => c && !c.manager && c.status === 'ENABLED').map((c) => ({ id: String(c.id), nome: c.descriptiveName || String(c.id) }));
   if (!opcoes.length) throw new ErroGAds('O MCC da Cancha não tem nenhuma conta de anúncios ativa vinculada. Confira se a Spraytec aceitou o vínculo.');
   const f = fixa();
-  const sp = opcoes.filter((o) => /spraytec/i.test(o.nome));
+  // Portal dos EUA: a conta da Spraytec Brasil nunca é escolhida sozinha.
+  const sp = opcoes.filter((o) => /spraytec/i.test(o.nome) && !/brasil|brazil/i.test(o.nome));
   const cliente = f ? opcoes.find((o) => o.id === f) || null : sp.length === 1 ? sp[0] : opcoes.length === 1 ? opcoes[0] : null;
   if (conexao?.cliente?.id !== cliente?.id) await q.query(`delete from metricas where fonte='gads'`);
   await guardar(q, { refresh: t.refresh_token, conta, cliente, opcoes });

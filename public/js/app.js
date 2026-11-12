@@ -11,7 +11,6 @@ import * as produtos from './telas/produtos.js';
 import * as pessoas from './telas/pessoas.js';
 import * as historico from './telas/historico.js';
 import * as conta from './telas/conta.js';
-import * as embreve from './telas/embreve.js';
 import * as feedbacks from './telas/feedbacks.js';
 import * as planejamento from './telas/planejamento.js';
 import * as roteiros from './telas/roteiros.js';
@@ -19,9 +18,12 @@ import * as emails from './telas/emails.js';
 import * as site from './telas/site.js';
 import * as seo from './telas/seo.js';
 import { telaDe } from './telas/item.js';
+import * as resultados from './telas/resultados.js';
+import * as redes from './telas/redes.js';
+import * as integracoes from './telas/integracoes.js';
 
 // Estado que veio do servidor (já filtrado pelo papel de quem está logado).
-export const S = { eu: null, hoje: '', dados: {}, demo: false, mencionaveis: [], drive: {}, catalogo: null, versao: 0 };
+export const S = { eu: null, hoje: '', dados: {}, demo: false, mencionaveis: [], drive: {}, catalogo: null, versao: 0, filtro: { preset: '30' } };
 export const souCancha = () => S.eu?.papel === 'cancha';
 export const souAprovador = () => S.eu?.papel === 'aprovador';
 
@@ -31,6 +33,8 @@ const TODOS = ['cancha', 'aprovador', 'leitor', 'produtora'], SPRAYTEC = ['canch
 const SECOES = [
   { id: 'inicio', tela: inicio, papeis: TODOS },
   { id: 'rotacoes', tela: rotacoes, papeis: SPRAYTEC, pend: () => pendentesAnuncios() },
+  { id: 'resultados', tela: resultados, papeis: SPRAYTEC },
+  { id: 'redes', tela: redes, papeis: SPRAYTEC },
   { id: 'feedbacks', tela: feedbacks, papeis: SPRAYTEC, pend: () => S.dados.feedbacks.filter((f) => (souCancha() && f.status === 'aberto') || (souAprovador() && f.status === 'respondido')).length },
   { id: 'planejamento', tela: planejamento, papeis: SPRAYTEC, pend: () => pendentesItens('planos') },
   { id: 'roteiros', tela: roteiros, papeis: TODOS, pend: () => pendentesItens('roteiros') },
@@ -39,7 +43,7 @@ const SECOES = [
   { id: 'seo', tela: seo, papeis: SPRAYTEC },
   { id: 'safra', tela: safra, papeis: SPRAYTEC, sep: true },
   { id: 'produtos', tela: produtos, papeis: TODOS },
-  { id: 'resultados', tela: embreve, papeis: ['cancha'], breve: 4 },
+  { id: 'integracoes', tela: integracoes, papeis: ['cancha'], grupo: 'adm' },
   { id: 'pessoas', tela: pessoas, papeis: ['cancha'], grupo: 'adm' },
   { id: 'historico', tela: historico, papeis: ['cancha'], grupo: 'adm' },
 ];
@@ -108,7 +112,7 @@ export async function recarregar() {
 }
 function aplicar(r) {
   S.eu = r.eu; S.hoje = r.hoje; S.dados = r.dados; S.demo = r.demo; S.versao = r.versao;
-  S.mencionaveis = r.mencionaveis || []; S.drive = r.drive || {};
+  S.mencionaveis = r.mencionaveis || []; S.drive = r.drive || {}; S.ga4 = r.ga4 || {}; S.gads = r.gads || {};
 }
 // Pede uma ação ao servidor; com sucesso, a tela é redesenhada com o estado novo.
 export async function acao(nome, dados = {}, { ok } = {}) {
@@ -210,4 +214,7 @@ export const trocarIdioma = async (l) => {
   if (S.eu) await api('/api/eu/idioma', { idioma: l });
   location.reload();
 };
+// Gráficos são desenhados na largura da tela: ao mudar a janela, redesenha (sem atrapalhar quem digita).
+let tReso;
+addEventListener('resize', () => { clearTimeout(tReso); tReso = setTimeout(() => { if (document.querySelector('#main .grafico') && !document.querySelector('.janela-fundo')) desenhar(); }, 250); });
 iniciar();

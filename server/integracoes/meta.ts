@@ -90,7 +90,10 @@ export async function situacao(q: Consulta, fonte: string, erro: string | null, 
     [fonte, erro, detalhe ? JSON.stringify(detalhe) : null]);
 }
 
-function escolher(lista: any[], id: string | undefined, nome: string, variavel: string) {
+// Portal dos EUA: página e conta de anúncios da Spraytec Brasil nunca entram, mesmo que a chave as enxergue.
+const BRASIL = /brasil|brazil|br/i;
+function escolher(lista0: any[], id: string | undefined, nome: string, variavel: string) {
+  const lista = lista0.filter((l) => !BRASIL.test(l.name || ''));
   if (id) {
     const x = lista.find((l) => l.id === id || l.id === 'act_' + id);
     if (!x) throw new ErroMeta(`A chave não enxerga a ${nome} ${id}. Confira ${variavel} e os ativos do usuário do sistema.`);
@@ -103,10 +106,10 @@ function escolher(lista: any[], id: string | undefined, nome: string, variavel: 
   throw new ErroMeta(`A chave enxerga mais de uma ${nome} (${lista.map((l) => l.name).join(', ')}). Diga qual em ${variavel}.`);
 }
 
-// Sem META_PAGINA_ID, vale a Página "Spraytec" ligada ao Instagram (a Spraytec Brasil; existe também a
-// Spraytec dos EUA, que não é nossa). Se nenhuma tiver Instagram, a com mais seguidores.
+// Sem META_PAGINA_ID, vale a Página "Spraytec" (a dos EUA) ligada ao Instagram. A "Spraytec Brasil" é de
+// outro portal e é sempre descartada. Recomendado: fixar META_PAGINA_ID e META_CONTA_ANUNCIOS no .env.
 async function descobrirPagina() {
-  const paginas = await todas('me/accounts', { fields: 'id,name,followers_count,fan_count,access_token,instagram_business_account{id,username}', limit: 100 }, 200);
+  const paginas = (await todas('me/accounts', { fields: 'id,name,followers_count,fan_count,access_token,instagram_business_account{id,username}', limit: 100 }, 200)).filter((x: any) => !BRASIL.test(x.name || ''));
   const seg = (p: any) => p.followers_count ?? p.fan_count ?? 0;
   let p: any;
   if (process.env.META_PAGINA_ID || paginas.length <= 1) p = escolher(paginas, process.env.META_PAGINA_ID, 'página do Facebook', 'META_PAGINA_ID');

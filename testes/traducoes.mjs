@@ -29,7 +29,13 @@ const fam = {
   evento: ['fase', 'feira', 'foco', 'campanha', 'recesso'].flatMap((e) => [e, e + '.plural']),
   cat: ['adjuvante', 'semente', 'fitoestimulante', 'forrageira', 'solo'],
   janela: ['all', 'aerial', 'plantio', 'veg', 'rep', 'preplant'],
-  embreve: ['resultados'],
+  'painel.p': ['7', '30', '90', 'mes', 'mes_passado'],
+  soc: ['novos', 'alcance', 'interacoes', 'engajamento'].flatMap((k) => [k, k + '.ajuda']),
+  'soc.tipo': ['imagem', 'reel', 'carrossel', 'video', 'post'], 'soc.ordem': ['recentes', 'melhores'],
+  ga: ['sessoes', 'usuarios', 'contatos', 'conversao', 'engajamento', 'cliques_google', 'impressoes_google', 'ctr_google'].flatMap((k) => [k, k + '.ajuda']).concat(['de_onde.ajuda']),
+  'ga.canal': ['organico', 'busca_paga', 'social_pago', 'social', 'direto', 'email', 'referencia', 'display', 'pmax', 'outro'],
+  'int.para': ['ads', 'ig', 'fb', 'gads', 'ga4', 'gsc', 'drive', 'brevo', 'traducao'], 'int.precisa': ['ads', 'ig', 'fb', 'gads', 'ga4', 'gsc', 'drive', 'brevo', 'traducao'],
+  ritmo: ['ok', 'acima', 'abaixo', 'ajuda'],
   st_item: ['rascunho', 'aprovacao', 'ajuste', 'ajustando', 'aprovado', 'producao', 'corte', 'ajuste_corte', 'entregue', 'enviado', 'publicado'],
   tipo: ['planos', 'roteiros', 'emails', 'paginas'],
   'item.novo': ['planos', 'roteiros', 'emails', 'paginas'],
@@ -57,7 +63,7 @@ const fam = {
 };
 for (const [p, L] of Object.entries(fam)) for (const k of L) usadas.add(p + '.' + k);
 for (const k of ['rot.prazo.ajuda', 'anuncio.publico.ajuda', 'anuncio.link.ajuda', 'rv.explica', 'rv.explica_produtora', 'plano.vazio_cancha', 'plano.vazio_cliente',
-  'res.brevo_dica', 'res.ga4_dica', 'res.digitar_brevo', 'res.digitar_ga4', 'inicio.kpi_em_andamento', 'inicio.kpi_tarefas', 'inicio.nada_produtora', 'app.por']) usadas.add(k);
+  'res.brevo_dica', 'res.ga4_dica', 'res.digitar_brevo', 'res.digitar_ga4', 'inicio.kpi_em_andamento', 'inicio.kpi_tarefas', 'inicio.nada_produtora', 'app.por', 'res.cansando.ajuda', 'gsc.ajuda', 'seo.aba.site', 'res.f_contatos_mais', 'res.f_contatos_menos', 'res.f_cpl_caiu', 'res.f_cpl_subiu']) usadas.add(k);
 // Chaves montadas com prefixo + variável terminam em ponto no código: não são chaves de verdade.
 for (const k of [...usadas]) if (k.endsWith('.')) usadas.delete(k);
 let falhas = 0;
