@@ -226,8 +226,12 @@ async function ver(Wdado) {
   const st = await api('GET', `${W}/status`);
   console.log(`\nMudanças no espaço de trabalho: ${(st.workspaceChange || []).length} · conflitos: ${(st.mergeConflict || []).length}`);
   for (const m of st.workspaceChange || []) { const x = m.tag || m.trigger || m.variable || {}; console.log(`  ${m.changeStatus}: ${x.name || '?'}`); }
-  const p = await api('POST', `${W}:quick_preview`);
-  console.log(p.compilerError ? '  ⚠ O GTM encontrou erro ao compilar: confira no Visualizar.' : '  ✓ Compila sem erro (pronto para o Visualizar).');
+  // A checagem de compilação pede a permissão de versões (que inclui publicar); de propósito não pedimos.
+  // O "Visualizar" do GTM compila o espaço de trabalho e mostra qualquer erro.
+  try {
+    const p = await api('POST', `${W}:quick_preview`);
+    console.log(p.compilerError ? '  ⚠ O GTM encontrou erro ao compilar: confira no Visualizar.' : '  ✓ Compila sem erro (pronto para o Visualizar).');
+  } catch { console.log('  (a compilação é conferida pelo Visualizar do GTM)'); }
 }
 
 const [cmd] = process.argv.slice(2);
