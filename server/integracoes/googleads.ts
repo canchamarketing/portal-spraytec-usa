@@ -160,6 +160,18 @@ async function token(): Promise<string> {
 const reais = (micros: any) => Number(micros || 0) / 1e6;
 const metr = (m: any = {}) => ({ investido: reais(m.costMicros), impressoes: Number(m.impressions || 0), cliques: Number(m.clicks || 0), conversoes: Number(m.conversions || 0) });
 const textos = (l: any[] = []) => l.map((x) => x.text).filter(Boolean);
+// "Contatos" no portal = só conversões que são lead (formulário, ligação, pedido de contato). Visitas ao site,
+// pedidos de rota, inscrições no YouTube e metas antigas também podem estar como conversão principal na conta,
+// mas não são contato de agricultor.
+export const CATEGORIAS_LEAD = ['SUBMIT_LEAD_FORM', 'PHONE_CALL_LEAD', 'CONTACT', 'REQUEST_QUOTE', 'BOOK_APPOINTMENT', 'QUALIFIED_LEAD', 'CONVERTED_LEAD', 'IMPORTED_LEAD'];
+const LEADS_GAQL = CATEGORIAS_LEAD.map((c) => `'${c}'`).join(', ');
+async function leadsPorDia(cid: string, recurso: 'campaign' | 'ad_group_ad', de: string, ate: string) {
+  const campo = recurso === 'campaign' ? 'campaign.id' : 'ad_group_ad.ad.id';
+  const L = await consulta(cid, `SELECT ${campo}, segments.date, segments.conversion_action_category, metrics.conversions FROM ${recurso} WHERE segments.date BETWEEN '${de}' AND '${ate}' AND segments.conversion_action_category IN (${LEADS_GAQL})`);
+  const m = new Map<string, number>();
+  for (const r of L) { const id = recurso === 'campaign' ? r.campaign.id : r.adGroupAd.ad.id; const k = `${id}:${r.segments.date}`; m.set(k, (m.get(k) || 0) + Number(r.metrics.conversions || 0)); }
+  return m;
+}
 
 // A cada 6 horas. As conversões chegam com atraso (atribuição); por isso os últimos 30 dias são buscados
 // de novo em toda coleta. Na primeira, 13 meses.
@@ -176,7 +188,8 @@ export async function coletarGAds(q: Consulta, log: Log, forcar = false) {
       id: String(r.campaign.id), nome: r.campaign.name, status: r.campaign.status, tipo: r.campaign.advertisingChannelType, orcamentoDia: reais(r.campaignBudget?.amountMicros),
     });
     const cdias = await consulta(cid, `SELECT campaign.id, segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${de}' AND '${ate}'`);
-    for (const r of cdias) await gravar(q, 'gads', 'campanha_dia', `${r.campaign.id}:${r.segments.date}`, { campanha: String(r.campaign.id), d: r.segments.date, ...metr(r.metrics) });
+    const lc = await leadsPorDia(cid, 'campaign', de, ate);
+    for (const r of cdias) { const k = `${r.campaign.id}:${r.segments.date}`; await gravar(q, 'gads', 'campanha_dia', k, { campanha: String(r.campaign.id), d: r.segments.date, ...metr(r.metrics), contatos: lc.get(k) || 0 }); }
     // Anúncios de pesquisa, display e vídeo (Performance Max não tem anúncio individual: entra só pela campanha).
     const ads = await consulta(cid, `SELECT ad_group_ad.ad.id, ad_group_ad.ad.name, ad_group_ad.ad.type, ad_group_ad.ad.final_urls, ad_group_ad.ad.responsive_search_ad.headlines, ad_group_ad.ad.responsive_search_ad.descriptions, ad_group_ad.status, ad_group.id, ad_group.name, campaign.id FROM ad_group_ad WHERE ad_group_ad.status != 'REMOVED'`);
     for (const r of ads) {
@@ -187,7 +200,8 @@ export async function coletarGAds(q: Consulta, log: Log, forcar = false) {
       });
     }
     const adias = await consulta(cid, `SELECT ad_group_ad.ad.id, segments.date, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM ad_group_ad WHERE segments.date BETWEEN '${de}' AND '${ate}'`);
-    for (const r of adias) await gravar(q, 'gads', 'anuncio_g_dia', `${r.adGroupAd.ad.id}:${r.segments.date}`, { ad: String(r.adGroupAd.ad.id), d: r.segments.date, ...metr(r.metrics) });
+    const la = await leadsPorDia(cid, 'ad_group_ad', de, ate);
+    for (const r of adias) { const k = `${r.adGroupAd.ad.id}:${r.segments.date}`; await gravar(q, 'gads', 'anuncio_g_dia', k, { ad: String(r.adGroupAd.ad.id), d: r.segments.date, ...metr(r.metrics), contatos: la.get(k) || 0 }); }
     const det = { conta: conexao.cliente.nome, versao, campanhas: camps.length, linhasDia: cdias.length, anuncios: ads.length };
     await situacao(q, 'gads', null, det);
     log.info({ fonte: 'gads', ...det }, 'coleta do Google Ads');

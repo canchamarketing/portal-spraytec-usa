@@ -139,7 +139,13 @@ Vitals), registro de alterações nas campanhas, relatório mensal automático n
 - **GA4 dos EUA:** propriedade 465147731 "Spraytec" (fuso Chicago, USD), código G-N7R4CX73X6, carregado
   pelo GTM-NSBLCM35 do spraytecusa.com; conversão = evento `form_submit_lp`. Existe outra propriedade
   "Spraytec.com - GA4" (390636677, fuso São Paulo, mede www.spraytec.com), aparentemente antiga.
-- **Revisar o GTM com o Diogo:** o GTM-NSBLCM35 não tem tag de conversão do Google Ads (AW-…).
+- **GTM-NSBLCM35 (diagnóstico 12/11/2026):** a conversão do Google Ads AW-454894844 "[Enviou Form LP]"
+  contava duas vezes por lead (envio do formulário + página /thank-you); uma tag do GA4 mandava o evento
+  lixo "gtm.js"; o pixel da Meta (647192584735430, fixo no WordPress) só manda PageView, nenhum Lead.
+  Correção pronta em `ferramentas/gtm-eua.mjs` (monta num espaço de trabalho separado, **nunca publica**;
+  quem publica é o Diogo pela tela do GTM, depois do Visualizar). Leads de teste: avisar o Renato antes e
+  marcar "TESTE CANCHA – ignorar". O portal conta como "contatos" do Google só conversões de categoria
+  de lead (formulário, ligação, contato, orçamento).
 - **Situação 12/11 05:05 UTC:** Meta Ads, Instagram, Google Ads (conta 3789937807) e GA4 coletando dados
   reais. Facebook: falta a permissão "Insights" da página dos EUA no usuário do sistema.
 - **Google Ads Spraytec USA:** 378-993-7807 (USD). A Cancha acessa via MCC 223-025-0690. A API do

@@ -63,9 +63,9 @@ function montar(r) {
   fonte('gads', gReal);
   if (gReal) {
     for (const c of r.gads.campanhas) M.midia.campanhas['g:' + c.id] = { canal: 'google', id: 'g:' + c.id, nome: c.nome, tipo: c.tipo, status: c.status, orcamentoDia: c.orcamentoDia };
-    for (const x of r.gads.dias) M.midia.dias.push({ d: x.d, canal: 'google', campanha: 'g:' + x.campanha, investido: x.investido, impressoes: x.impressoes, cliques: x.cliques, contatos: x.conversoes });
+    for (const x of r.gads.dias) M.midia.dias.push({ d: x.d, canal: 'google', campanha: 'g:' + x.campanha, investido: x.investido, impressoes: x.impressoes, cliques: x.cliques, contatos: x.contatos ?? x.conversoes });
     for (const a of r.gads.anuncios) M.midia.anuncios.push({ canal: 'google', id: 'g:' + a.id, nome: a.nome || a.titulos?.[0] || a.grupo, campanha: 'g:' + a.campanha, status: a.status, titulo: a.titulos?.[0] || '', texto: a.descricoes?.[0] || '' });
-    for (const x of r.gads.adDias) M.midia.adDias.push({ d: x.d, canal: 'google', ad: 'g:' + x.ad, investido: x.investido, impressoes: x.impressoes, cliques: x.cliques, contatos: x.conversoes });
+    for (const x of r.gads.adDias) M.midia.adDias.push({ d: x.d, canal: 'google', ad: 'g:' + x.ad, investido: x.investido, impressoes: x.impressoes, cliques: x.cliques, contatos: x.contatos ?? x.conversoes });
   } else { mesclarMidia(M, ex, 'google'); }
   // Instagram
   const igReal = real('ig', r?.ig?.perfil);

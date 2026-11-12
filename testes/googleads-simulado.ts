@@ -40,6 +40,11 @@ const servidor = createServer(async (req, res) => {
     if (/FROM campaign WHERE campaign.status/.test(q)) return json(200, [{ results: [
       { campaign: { id: '11', name: 'Pesquisa | Nodofix Soja', status: 'ENABLED', advertisingChannelType: 'SEARCH', startDate: '2026-09-01' }, campaignBudget: { amountMicros: '50000000' } },
       { campaign: { id: '12', name: 'PMax | Institucional', status: 'PAUSED', advertisingChannelType: 'PERFORMANCE_MAX', startDate: '2026-08-01' }, campaignBudget: { amountMicros: '30000000' } }] }]);
+    // Conversões por categoria: só as de lead entram como "contatos" (a visita ao site, não).
+    if (/conversion_action_category/.test(q) && /FROM campaign/.test(q)) return json(200, [{ results: [
+      { campaign: { id: '11' }, segments: { date: '2026-11-01', conversionActionCategory: 'SUBMIT_LEAD_FORM' }, metrics: { conversions: 2 } },
+      { campaign: { id: '11' }, segments: { date: '2026-11-01', conversionActionCategory: 'PHONE_CALL_LEAD' }, metrics: { conversions: 0.5 } }] }]);
+    if (/conversion_action_category/.test(q)) return json(200, [{ results: [{ adGroupAd: { ad: { id: '901' } }, segments: { date: '2026-11-01', conversionActionCategory: 'SUBMIT_LEAD_FORM' }, metrics: { conversions: 1 } }] }]);
     if (/FROM campaign WHERE segments.date/.test(q)) return json(200, [{ results: [
       { campaign: { id: '11' }, segments: { date: '2026-11-01' }, metrics: { costMicros: '42500000', impressions: '1200', clicks: '80', conversions: 3 } },
       { campaign: { id: '11' }, segments: { date: '2026-11-02' }, metrics: { costMicros: '38000000', impressions: '1000', clicks: '70', conversions: 2.5 } }] },
@@ -93,6 +98,8 @@ checa(camps.length === 2 && camps[0].dados.tipo === 'SEARCH' && camps[0].dados.o
 const dias = await linhas('campanha_dia');
 checa(dias.length === 3 && dias.find((r: any) => r.id === '11:2026-11-01')?.dados.investido === 42.5, 'investimento por dia em reais (micros convertidos), juntando os lotes da API');
 checa(dias.find((r: any) => r.id === '11:2026-11-02')?.dados.conversoes === 2.5, 'conversões fracionadas preservadas');
+checa(dias.find((r: any) => r.id === '11:2026-11-01')?.dados.contatos === 2.5 && dias.find((r: any) => r.id === '11:2026-11-01')?.dados.conversoes === 3, 'contatos = só conversões de lead (formulário + ligação), separados do total de conversões');
+checa(consultas.some((x) => x.q.includes("conversion_action_category IN ('SUBMIT_LEAD_FORM'")), 'a consulta de contatos filtra pelas categorias de lead');
 const ad = (await linhas('anuncio'))[0]?.dados;
 checa(ad?.titulos.join('|') === 'Nodofix Soja|Mais nódulos' && ad.campanha === '11', 'anúncio com títulos e campanha');
 checa((await linhas('anuncio_g_dia')).length === 1, 'números do anúncio por dia');
