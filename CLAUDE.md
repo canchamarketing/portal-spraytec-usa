@@ -126,6 +126,22 @@ Vitals), registro de alterações nas campanhas, relatório mensal automático n
 - `info.txt` tem credenciais em texto puro: **nunca exibir no chat**.
 
 ## Contas conhecidas
+- **Meta (12/11/2026):** o portal dos EUA reaproveita o app e o usuário do sistema do Brasil (mesmo
+  META_TOKEN). Esse usuário enxerga os dois países, então **as IDs ficam fixadas nos dois portais**:
+  EUA = página 701145173329947 ("Spraytec", IG spraytec_usa) e conta act_1155413918550172 (USD);
+  Brasil = página 1095087167028463 ("Spraytec Brasil", IG spraytecbr) e conta act_1575572892594181
+  ("Head - Spraytec", BRL). Sem a página fixada, o código escolhe a de mais seguidores (a dos EUA).
+- Chaves Google (cliente OAuth do projeto "Portal Spraytec", token de desenvolvedor do MCC) também são as
+  mesmas do Brasil, copiadas com `scripts/copiar-chaves-do-brasil.sh`. DRIVE_CHAVE é própria dos EUA.
+- **Clientes OAuth (12/11/2026):** GA4 usa o cliente do projeto nº 492401704739 (conta analytics@cancha);
+  Google Ads usa o cliente "Portal Spraytec - Google Ads" do projeto nº 152091962542 (conta do Luis).
+  Os dois têm o retorno `https://spraytecusa.canchamarketing.com.br/api/drive/retorno` (além do do Brasil).
+- **GA4 dos EUA:** propriedade 465147731 "Spraytec" (fuso Chicago, USD), código G-N7R4CX73X6, carregado
+  pelo GTM-NSBLCM35 do spraytecusa.com; conversão = evento `form_submit_lp`. Existe outra propriedade
+  "Spraytec.com - GA4" (390636677, fuso São Paulo, mede www.spraytec.com), aparentemente antiga.
+- **Revisar o GTM com o Diogo:** o GTM-NSBLCM35 não tem tag de conversão do Google Ads (AW-…).
+- **Situação 12/11 05:05 UTC:** Meta Ads, Instagram, Google Ads (conta 3789937807) e GA4 coletando dados
+  reais. Facebook: falta a permissão "Insights" da página dos EUA no usuário do sistema.
 - **Google Ads Spraytec USA:** 378-993-7807 (USD). A Cancha acessa via MCC 223-025-0690. A API do
   Google Ads usada no Brasil é pelo projeto Google Cloud do Luis (nível Explorer).
 - **Meta:** a página "Spraytec" no Facebook é a dos EUA (a do Brasil é "Spraytec Brasil").
